@@ -1,0 +1,11 @@
+{
+  "total_users": 1842,
+  "completed_users": 1196,
+  "completion_share": 0.649294,
+  "steps": [
+    { "step": 0, "user_count": 1842, "share_of_started": 1.0 },
+    { "step": 1, "user_count": 1667, "share_of_started": 0.905103 },
+    { "step": 2, "user_count": 1438, "share_of_started": 0.780673 },
+    { "step": 3, "user_count": 1211, "share_of_started": 0.657438 }
+  ]
+}

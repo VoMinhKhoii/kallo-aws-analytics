@@ -1,0 +1,89 @@
+@import "tailwindcss";
+
+:root {
+  --background: oklch(0.975 0.006 165);
+  --surface: oklch(0.995 0.004 165);
+  --surface-muted: oklch(0.955 0.008 165);
+  --ink: oklch(0.235 0.022 166);
+  --ink-muted: oklch(0.51 0.018 166);
+  --line: oklch(0.88 0.012 165);
+  --accent: oklch(0.49 0.105 160);
+  --accent-dark: oklch(0.39 0.09 160);
+  --accent-soft: oklch(0.92 0.035 160);
+  --warning: oklch(0.64 0.13 70);
+  --danger: oklch(0.57 0.16 28);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--background);
+  color: var(--ink);
+}
+
+body {
+  min-height: 100dvh;
+  margin: 0;
+  background:
+    radial-gradient(circle at 92% 0%, oklch(0.92 0.025 160 / 0.55), transparent 28rem),
+    var(--background);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-feature-settings: "tnum" 1, "ss01" 1;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 3px solid oklch(0.67 0.12 160 / 0.5);
+  outline-offset: 3px;
+}
+
+.panel {
+  border: 1px solid var(--line);
+  border-radius: 0.875rem;
+  background: var(--surface);
+  box-shadow: 0 1px 1px oklch(0.28 0.02 165 / 0.03), 0 12px 32px oklch(0.28 0.02 165 / 0.04);
+}
+
+.chart-grid line {
+  stroke: var(--line);
+}
+
+.recharts-cartesian-axis-tick-value {
+  fill: var(--ink-muted);
+  font-size: 11px;
+}
+
+.recharts-default-tooltip {
+  border-color: var(--line) !important;
+  border-radius: 10px !important;
+  background: var(--surface) !important;
+  box-shadow: 0 12px 24px oklch(0.28 0.02 165 / 0.1) !important;
+}
+
+@keyframes skeleton-pulse {
+  50% { opacity: 0.48; }
+}
+
+.skeleton {
+  animation: skeleton-pulse 1.6s ease-in-out infinite;
+  border-radius: 0.5rem;
+  background: var(--surface-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

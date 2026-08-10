@@ -1,0 +1,14 @@
+[
+  { "rank": 1, "query_text": "bún riêu cua", "count": 73 },
+  { "rank": 2, "query_text": "bánh canh cua", "count": 61 },
+  { "rank": 3, "query_text": "cơm tấm sườn bì chả", "count": 54 },
+  { "rank": 4, "query_text": "mì quảng gà", "count": 49 },
+  { "rank": 5, "query_text": "bánh xèo miền tây", "count": 43 },
+  { "rank": 6, "query_text": "hủ tiếu nam vang khô", "count": 38 },
+  { "rank": 7, "query_text": "cháo lòng", "count": 34 },
+  { "rank": 8, "query_text": "bò kho bánh mì", "count": 29 },
+  { "rank": 9, "query_text": "bún mắm", "count": 25 },
+  { "rank": 10, "query_text": "gỏi cuốn tôm thịt", "count": 22 },
+  { "rank": 11, "query_text": "cá kho tộ", "count": 19 },
+  { "rank": 12, "query_text": "chè đậu xanh", "count": 17 }
+]

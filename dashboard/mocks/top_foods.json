@@ -1,0 +1,14 @@
+[
+  { "rank": 1, "ingredient_name": "Cơm trắng", "count": 824 },
+  { "rank": 2, "ingredient_name": "Ức gà", "count": 517 },
+  { "rank": 3, "ingredient_name": "Trứng gà", "count": 486 },
+  { "rank": 4, "ingredient_name": "Phở bò", "count": 401 },
+  { "rank": 5, "ingredient_name": "Chuối", "count": 376 },
+  { "rank": 6, "ingredient_name": "Rau muống", "count": 338 },
+  { "rank": 7, "ingredient_name": "Bánh mì", "count": 311 },
+  { "rank": 8, "ingredient_name": "Sữa chua", "count": 286 },
+  { "rank": 9, "ingredient_name": "Cá hồi", "count": 241 },
+  { "rank": 10, "ingredient_name": "Khoai lang", "count": 223 },
+  { "rank": 11, "ingredient_name": "Bún thịt nướng", "count": 207 },
+  { "rank": 12, "ingredient_name": "Đậu hũ", "count": 192 }
+]
