@@ -1,0 +1,605 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Persistent data plane for the Kallo analytics university project.
+
+Parameters:
+  GlueScriptS3Uri:
+    Type: String
+    Description: S3 URI of the PySpark ETL entrypoint, for example s3://bucket/glue/etl.py.
+    AllowedPattern: '^s3://[a-z0-9][a-z0-9.-]*/.+$'
+  SupabaseUrl:
+    Type: String
+    NoEcho: true
+    Default: https://replace-me.supabase.co
+    Description: Supabase project URL stored in Secrets Manager; override this placeholder.
+  SupabaseKey:
+    Type: String
+    NoEcho: true
+    Default: replace-with-restricted-supabase-key
+    Description: Restricted analytics key stored in Secrets Manager; override this placeholder.
+  GeminiApiKey:
+    Type: String
+    NoEcho: true
+    Default: replace-with-gemini-api-key
+    Description: Gemini API key stored in Secrets Manager; override this placeholder.
+  DashboardBearerToken:
+    Type: String
+    NoEcho: true
+    MinLength: 20
+    MaxLength: 128
+    Default: replace-with-dashboard-token
+    Description: Static bearer token used by the Lambda authorizer and API usage plan.
+
+Resources:
+  # Persistent object store for raw extracts, curated Parquet, and bounded Athena results.
+  AnalyticsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: RawPrefix
+            Prefix: raw/
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+          - Id: CuratedPrefix
+            Prefix: curated/
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+          - Id: AthenaResultsExpireAfterSevenDays
+            Prefix: athena-results/
+            Status: Enabled
+            ExpirationInDays: 7
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 1
+      Tags:
+        - Key: Project
+          Value: kallo-analytics
+
+  # On-demand aggregate and watermark store; its two string keys match the locked schema.
+  AnalyticsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: metric
+          AttributeType: S
+        - AttributeName: date
+          AttributeType: S
+      KeySchema:
+        - AttributeName: metric
+          KeyType: HASH
+        - AttributeName: date
+          KeyType: RANGE
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: false
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Project
+          Value: kallo-analytics
+
+  # Catalog namespace lets Glue and Athena agree on the curated analytics schema.
+  AnalyticsGlueDatabase:
+    Type: AWS::Glue::Database
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput:
+        Description: Curated Kallo analytics datasets.
+
+  # Two-worker ETL job carries every mandatory lab-budget guard from the rubric.
+  AnalyticsGlueJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Role: !Sub arn:aws:iam::${AWS::AccountId}:role/LabRole
+      Command:
+        Name: glueetl
+        PythonVersion: '3'
+        ScriptLocation: !Ref GlueScriptS3Uri
+      DefaultArguments:
+        '--job-language': python
+        '--database_name': !Ref AnalyticsGlueDatabase
+        '--source_bucket': !Ref AnalyticsBucket
+        '--enable-metrics': 'true'
+      Description: Converts manifested raw JSON into curated Parquet and aggregates.
+      ExecutionProperty:
+        MaxConcurrentRuns: 1
+      GlueVersion: '4.0'
+      MaxRetries: 0
+      NumberOfWorkers: 2
+      Timeout: 10
+      WorkerType: G.1X
+
+  # Enforced workgroup prevents a dashboard query from scanning more than one GiB.
+  AnalyticsWorkGroup:
+    Type: AWS::Athena::WorkGroup
+    Properties:
+      Description: Cost-guarded workgroup for fixed dashboard query templates.
+      Name: !Sub ${AWS::StackName}-analytics
+      RecursiveDeleteOption: true
+      State: ENABLED
+      WorkGroupConfiguration:
+        BytesScannedCutoffPerQuery: 1073741824
+        EnforceWorkGroupConfiguration: true
+        PublishCloudWatchMetricsEnabled: true
+        ResultConfiguration:
+          EncryptionConfiguration:
+            EncryptionOption: SSE_S3
+          OutputLocation: !Sub s3://${AnalyticsBucket}/athena-results/
+
+  # Deployment-time placeholders keep credentials out of source control.
+  SupabaseCreds:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Restricted Supabase analytics URL and key.
+      SecretString: !Sub
+        - '{"url":"${SecretUrl}","key":"${SecretKey}"}'
+        - SecretUrl: !Ref SupabaseUrl
+          SecretKey: !Ref SupabaseKey
+      Tags:
+        - Key: Project
+          Value: kallo-analytics
+
+  # Separate Gemini secret limits accidental coupling with source credentials.
+  GeminiKey:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Gemini key for the weekly insight Lambda.
+      SecretString: !Ref GeminiApiKey
+      Tags:
+        - Key: Project
+          Value: kallo-analytics
+
+  # Static dashboard token is read by the authorizer and imported by the ECS task.
+  DashboardToken:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Static bearer token for the dashboard API.
+      SecretString: !Ref DashboardBearerToken
+      Tags:
+        - Key: Project
+          Value: kallo-analytics
+
+  # Extract placeholder owns the scheduled Supabase-to-S3 entrypoint for Chunk 2.
+  ExtractFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Placeholder for incremental Supabase extraction and one Glue job start.
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !Sub arn:aws:iam::${AWS::AccountId}:role/LabRole
+      Timeout: 300
+      MemorySize: 512
+      ReservedConcurrentExecutions: 1
+      Environment:
+        Variables:
+          BUCKET_NAME: !Ref AnalyticsBucket
+          GLUE_JOB_NAME: !Ref AnalyticsGlueJob
+          TABLE_NAME: !Ref AnalyticsTable
+          SUPABASE_SECRET_ARN: !Ref SupabaseCreds
+      Code:
+        ZipFile: |
+          import json
+
+          def handler(event, context):
+              """Chunk 1 placeholder; extraction is implemented in Chunk 2."""
+              return {"statusCode": 202, "body": json.dumps({"status": "extract-placeholder"})}
+
+  # Loader placeholder is invoked only after the named Glue job succeeds.
+  LoaderFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Placeholder for idempotent aggregate loads into DynamoDB.
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !Sub arn:aws:iam::${AWS::AccountId}:role/LabRole
+      Timeout: 120
+      MemorySize: 512
+      ReservedConcurrentExecutions: 1
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref AnalyticsTable
+          BUCKET_NAME: !Ref AnalyticsBucket
+      Code:
+        ZipFile: |
+          import json
+
+          def handler(event, context):
+              """Chunk 1 placeholder; aggregate loading is implemented in Chunk 2."""
+              return {"statusCode": 202, "body": json.dumps({"status": "loader-placeholder"})}
+
+  # Metrics API placeholder reserves the DynamoDB-backed read endpoint.
+  ApiMetricsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Placeholder for DynamoDB-backed dashboard metrics.
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !Sub arn:aws:iam::${AWS::AccountId}:role/LabRole
+      Timeout: 30
+      MemorySize: 256
+      ReservedConcurrentExecutions: 1
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref AnalyticsTable
+      Code:
+        ZipFile: |
+          import json
+
+          def handler(event, context):
+              return {"statusCode": 200, "headers": {"Content-Type": "application/json"},
+                      "body": json.dumps({"metrics": [], "placeholder": True})}
+
+  # Runs API placeholder reserves start-and-poll pipeline routes.
+  ApiRunsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Placeholder for starting and polling asynchronous analytics runs.
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !Sub arn:aws:iam::${AWS::AccountId}:role/LabRole
+      Timeout: 30
+      MemorySize: 256
+      ReservedConcurrentExecutions: 1
+      Environment:
+        Variables:
+          EXTRACT_FUNCTION_NAME: !Ref ExtractFunction
+          TABLE_NAME: !Ref AnalyticsTable
+      Code:
+        ZipFile: |
+          import json
+
+          def handler(event, context):
+              return {"statusCode": 202, "headers": {"Content-Type": "application/json"},
+                      "body": json.dumps({"run_id": "placeholder", "status": "accepted"})}
+
+  # Insight API placeholder reserves the weekly-summary integration with Gemini.
+  ApiInsightFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Placeholder for fixed Athena queries and the Gemini weekly summary.
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !Sub arn:aws:iam::${AWS::AccountId}:role/LabRole
+      Timeout: 120
+      MemorySize: 512
+      ReservedConcurrentExecutions: 1
+      Environment:
+        Variables:
+          ATHENA_WORKGROUP: !Ref AnalyticsWorkGroup
+          DATABASE_NAME: !Ref AnalyticsGlueDatabase
+          GEMINI_SECRET_ARN: !Ref GeminiKey
+      Code:
+        ZipFile: |
+          import json
+
+          def handler(event, context):
+              return {"statusCode": 200, "headers": {"Content-Type": "application/json"},
+                      "body": json.dumps({"summary": "Insight placeholder"})}
+
+  # TOKEN authorizer checks the bearer secret and supplies the API usage identifier.
+  AuthorizerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Static bearer-token Lambda authorizer for the dashboard.
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !Sub arn:aws:iam::${AWS::AccountId}:role/LabRole
+      Timeout: 10
+      MemorySize: 128
+      ReservedConcurrentExecutions: 1
+      Environment:
+        Variables:
+          TOKEN_SECRET_ARN: !Ref DashboardToken
+      Code:
+        ZipFile: |
+          import os
+          import boto3
+
+          _secret = None
+
+          def handler(event, context):
+              global _secret
+              if _secret is None:
+                  response = boto3.client("secretsmanager").get_secret_value(
+                      SecretId=os.environ["TOKEN_SECRET_ARN"])
+                  _secret = response["SecretString"]
+              supplied = event.get("authorizationToken", "")
+              token = supplied[7:] if supplied.startswith("Bearer ") else supplied
+              effect = "Allow" if token == _secret else "Deny"
+              return {
+                  "principalId": "dashboard",
+                  "usageIdentifierKey": _secret,
+                  "policyDocument": {
+                      "Version": "2012-10-17",
+                      "Statement": [{"Action": "execute-api:Invoke", "Effect": effect,
+                                     "Resource": event["methodArn"]}],
+                  },
+              }
+
+  # Regional REST API exposes only the locked metrics, run, and insight surfaces.
+  DashboardApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub '${AWS::StackName}-analytics-api'
+      Description: Cost-guarded API for the Kallo analytics dashboard.
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+      ApiKeySourceType: AUTHORIZER
+
+  # TOKEN mode makes the dashboard Authorization header the single user credential.
+  DashboardAuthorizer:
+    Type: AWS::ApiGateway::Authorizer
+    Properties:
+      Name: DashboardBearerAuthorizer
+      RestApiId: !Ref DashboardApi
+      Type: TOKEN
+      IdentitySource: method.request.header.Authorization
+      AuthorizerResultTtlInSeconds: 0
+      AuthorizerUri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthorizerFunction.Arn}/invocations
+
+  # /metrics is the aggregate dashboard read route.
+  MetricsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref DashboardApi
+      ParentId: !GetAtt DashboardApi.RootResourceId
+      PathPart: metrics
+
+  MetricsGetMethod:
+    # Protected GET proxy connects the metrics route to its dedicated Lambda.
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref DashboardApi
+      ResourceId: !Ref MetricsResource
+      HttpMethod: GET
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref DashboardAuthorizer
+      ApiKeyRequired: true
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiMetricsFunction.Arn}/invocations
+
+  # /runs supports the dashboard's explicit pipeline trigger.
+  RunsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref DashboardApi
+      ParentId: !GetAtt DashboardApi.RootResourceId
+      PathPart: runs
+
+  RunsPostMethod:
+    # Protected POST proxy reserves the manual pipeline-start operation.
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref DashboardApi
+      ResourceId: !Ref RunsResource
+      HttpMethod: POST
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref DashboardAuthorizer
+      ApiKeyRequired: true
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiRunsFunction.Arn}/invocations
+
+  # /runs/{id} is the asynchronous status polling route required by the UI.
+  RunIdResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref DashboardApi
+      ParentId: !Ref RunsResource
+      PathPart: '{id}'
+
+  RunIdGetMethod:
+    # Protected GET proxy reserves run-status polling by path identifier.
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref DashboardApi
+      ResourceId: !Ref RunIdResource
+      HttpMethod: GET
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref DashboardAuthorizer
+      ApiKeyRequired: true
+      RequestParameters:
+        method.request.path.id: true
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiRunsFunction.Arn}/invocations
+
+  # /insight isolates the comparatively slow Athena and Gemini operation.
+  InsightResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref DashboardApi
+      ParentId: !GetAtt DashboardApi.RootResourceId
+      PathPart: insight
+
+  InsightGetMethod:
+    # Protected GET proxy connects the summary route to its dedicated Lambda.
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref DashboardApi
+      ResourceId: !Ref InsightResource
+      HttpMethod: GET
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref DashboardAuthorizer
+      ApiKeyRequired: true
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiInsightFunction.Arn}/invocations
+
+  # A distinct deployment and stage make the URL stable for cross-stack export.
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - MetricsGetMethod
+      - RunsPostMethod
+      - RunIdGetMethod
+      - InsightGetMethod
+    Properties:
+      RestApiId: !Ref DashboardApi
+      Description: Initial Chunk 1 API deployment.
+
+  ApiStage:
+    # Production stage adds low per-second throttles without a billable API cache.
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      RestApiId: !Ref DashboardApi
+      DeploymentId: !Ref ApiDeployment
+      StageName: prod
+      MethodSettings:
+        - ResourcePath: '/*'
+          HttpMethod: '*'
+          MetricsEnabled: true
+          ThrottlingBurstLimit: 5
+          ThrottlingRateLimit: 2
+
+  # API key value equals the authorizer usage identifier, so no second UI token is needed.
+  DashboardApiKey:
+    Type: AWS::ApiGateway::ApiKey
+    Properties:
+      Description: Usage-plan key selected by the successful Lambda authorizer.
+      Enabled: true
+      Value: !Ref DashboardBearerToken
+
+  # Monthly quota is a hard rubric guard in addition to per-stage throttling.
+  DashboardUsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    Properties:
+      Description: Conservative quota for a single university demonstration dashboard.
+      ApiStages:
+        - ApiId: !Ref DashboardApi
+          Stage: !Ref ApiStage
+      Quota:
+        Limit: 10000
+        Period: MONTH
+      Throttle:
+        BurstLimit: 5
+        RateLimit: 2
+
+  DashboardUsagePlanKey:
+    # Association activates quota accounting for the authorizer-supplied API key.
+    Type: AWS::ApiGateway::UsagePlanKey
+    Properties:
+      KeyId: !Ref DashboardApiKey
+      KeyType: API_KEY
+      UsagePlanId: !Ref DashboardUsagePlan
+
+  # One permission covers the API's methods while retaining this API as source scope.
+  ApiMetricsInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ApiMetricsFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${DashboardApi}/*/*/*
+
+  ApiRunsInvokePermission:
+    # Source-scoped permission lets only this REST API invoke the runs Lambda.
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ApiRunsFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${DashboardApi}/*/*/*
+
+  ApiInsightInvokePermission:
+    # Source-scoped permission lets only this REST API invoke the insight Lambda.
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ApiInsightFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${DashboardApi}/*/*/*
+
+  AuthorizerInvokePermission:
+    # Source-scoped permission lets this REST API invoke its TOKEN authorizer.
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref AuthorizerFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${DashboardApi}/authorizers/*
+
+  # Daily rule is the only automatic extraction trigger, limiting Glue starts and spend.
+  DailyExtractRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Starts the incremental analytics extract once per day.
+      ScheduleExpression: rate(1 day)
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt ExtractFunction.Arn
+          Id: DailyExtractLambda
+          RoleArn: !Sub arn:aws:iam::${AWS::AccountId}:role/LabRole
+
+  DailyExtractInvokePermission:
+    # Resource policy grants only the daily rule permission to invoke extraction.
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ExtractFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt DailyExtractRule.Arn
+
+  # Exact job-name and SUCCEEDED filters prevent unrelated Glue jobs invoking the loader.
+  GlueSucceededRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Loads aggregates only after the analytics Glue job succeeds.
+      EventPattern:
+        source:
+          - aws.glue
+        detail-type:
+          - Glue Job State Change
+        detail:
+          jobName:
+            - !Ref AnalyticsGlueJob
+          state:
+            - SUCCEEDED
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt LoaderFunction.Arn
+          Id: GlueSucceededLoader
+          RoleArn: !Sub arn:aws:iam::${AWS::AccountId}:role/LabRole
+
+  GlueSucceededInvokePermission:
+    # Resource policy grants only the filtered Glue-success rule loader access.
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref LoaderFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt GlueSucceededRule.Arn
+
+Outputs:
+  BucketName:
+    Description: S3 bucket holding raw, curated, and Athena result prefixes.
+    Value: !Ref AnalyticsBucket
+  DynamoTableName:
+    Description: Aggregate and watermark DynamoDB table.
+    Value: !Ref AnalyticsTable
+  ApiBaseUrl:
+    Description: Base URL imported by the disposable presentation stack.
+    Value: !Sub https://${DashboardApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${ApiStage}
+    Export:
+      Name: !Sub ${AWS::StackName}-ApiUrl
+  DashboardTokenSecretArn:
+    Description: Secret ARN imported into the ECS task as DASHBOARD_TOKEN.
+    Value: !Ref DashboardToken
+    Export:
+      Name: !Sub ${AWS::StackName}-DashboardTokenSecretArn

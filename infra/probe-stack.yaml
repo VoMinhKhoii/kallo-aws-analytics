@@ -1,0 +1,109 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Tiny Session-0 permission and service-assumability probe for the Learner Lab.
+
+Parameters:
+  ProbeGlueScriptS3Uri:
+    Type: String
+    Description: S3 URI of a trivial uploaded PySpark script used for the probe run.
+    AllowedPattern: '^s3://[a-z0-9][a-z0-9.-]*/.+$'
+  ProbeSecretValue:
+    Type: String
+    NoEcho: true
+    Default: session-zero-placeholder
+    Description: Harmless value read by the probe Lambda; override if desired.
+
+Resources:
+  # Probe secret verifies that a LabRole Lambda can call Secrets Manager.
+  ProbeSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Non-production value for the Session-0 permission probe.
+      SecretString: !Ref ProbeSecretValue
+
+  # Inline Lambda performs both required read-only checks: GetSecretValue and ListBuckets.
+  ProbeFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Reads the probe secret and lists S3 buckets using LabRole.
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !Sub arn:aws:iam::${AWS::AccountId}:role/LabRole
+      Timeout: 30
+      MemorySize: 128
+      ReservedConcurrentExecutions: 1
+      Environment:
+        Variables:
+          SECRET_ARN: !Ref ProbeSecret
+      Code:
+        ZipFile: |
+          import os
+          import boto3
+
+          def handler(event, context):
+              secret = boto3.client("secretsmanager").get_secret_value(
+                  SecretId=os.environ["SECRET_ARN"])
+              buckets = boto3.client("s3").list_buckets().get("Buckets", [])
+              return {"secret_read": "SecretString" in secret, "bucket_count": len(buckets)}
+
+  # Disabled schedule proves EventBridge target wiring without producing recurring cost.
+  ProbeScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Disabled Session-0 EventBridge-to-Lambda permission probe.
+      ScheduleExpression: rate(1 day)
+      State: DISABLED
+      Targets:
+        - Arn: !GetAtt ProbeFunction.Arn
+          Id: ProbeLambda
+          RoleArn: !Sub arn:aws:iam::${AWS::AccountId}:role/LabRole
+
+  ProbeScheduleInvokePermission:
+    # Lambda resource policy completes the disabled EventBridge invocation path.
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ProbeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt ProbeScheduleRule.Arn
+
+  # Minimal two-worker job proves CloudFormation PassRole and Glue assumability.
+  ProbeGlueJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Description: Trivial two-worker Session-0 Glue execution probe.
+      Role: !Sub arn:aws:iam::${AWS::AccountId}:role/LabRole
+      Command:
+        Name: glueetl
+        PythonVersion: '3'
+        ScriptLocation: !Ref ProbeGlueScriptS3Uri
+      ExecutionProperty:
+        MaxConcurrentRuns: 1
+      GlueVersion: '4.0'
+      MaxRetries: 0
+      NumberOfWorkers: 2
+      Timeout: 10
+      WorkerType: G.1X
+
+  # Cost-limited workgroup is sufficient for a manual Session-0 SELECT 1 query.
+  ProbeAthenaWorkGroup:
+    Type: AWS::Athena::WorkGroup
+    Properties:
+      Description: Session-0 workgroup for a tiny manual permission query.
+      Name: !Sub ${AWS::StackName}-athena
+      RecursiveDeleteOption: true
+      State: ENABLED
+      WorkGroupConfiguration:
+        BytesScannedCutoffPerQuery: 1073741824
+        EnforceWorkGroupConfiguration: true
+        PublishCloudWatchMetricsEnabled: true
+
+Outputs:
+  ProbeFunctionName:
+    Description: Invoke this function once to test Secrets Manager and S3 access.
+    Value: !Ref ProbeFunction
+  ProbeGlueJobName:
+    Description: Start this job once to test Glue's LabRole assumption.
+    Value: !Ref ProbeGlueJob
+  ProbeAthenaWorkGroupName:
+    Description: Run SELECT 1 in this workgroup to test Athena access.
+    Value: !Ref ProbeAthenaWorkGroup

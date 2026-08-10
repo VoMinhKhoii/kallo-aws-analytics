@@ -1,0 +1,190 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Disposable ALB and ECS Fargate presentation tier for Kallo analytics.
+
+Parameters:
+  ImageUri:
+    Type: String
+    Description: Full ECR image URI for the linux/amd64 dashboard image.
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: Existing default VPC; this template deliberately creates no VPC.
+  PublicSubnetIdOne:
+    Type: AWS::EC2::Subnet::Id
+    Description: First public subnet in the default VPC.
+  PublicSubnetIdTwo:
+    Type: AWS::EC2::Subnet::Id
+    Description: Second public subnet in a different Availability Zone.
+  DataStackName:
+    Type: String
+    Description: Deployed data-stack name whose API and secret exports are imported.
+
+Resources:
+  # Public ALB security group exposes only the required HTTP demonstration port.
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow public HTTP access to the dashboard ALB.
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Project
+          Value: kallo-analytics
+
+  # Service tasks accept HTTP only when the packet originates from the ALB group.
+  ServiceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow dashboard traffic only from the presentation ALB.
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+      Tags:
+        - Key: Project
+          Value: kallo-analytics
+
+  # Internet-facing ALB is session-only and is deleted with this disposable stack.
+  DashboardLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internet-facing
+      Type: application
+      IpAddressType: ipv4
+      SecurityGroups:
+        - !Ref LoadBalancerSecurityGroup
+      Subnets:
+        - !Ref PublicSubnetIdOne
+        - !Ref PublicSubnetIdTwo
+      Tags:
+        - Key: Project
+          Value: kallo-analytics
+
+  # IP targets are required for Fargate tasks using awsvpc networking.
+  DashboardTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !Ref VpcId
+      TargetType: ip
+      Protocol: HTTP
+      Port: 80
+      HealthCheckEnabled: true
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTP
+      Matcher:
+        HttpCode: 200-399
+      Tags:
+        - Key: Project
+          Value: kallo-analytics
+
+  # Single HTTP listener forwards public requests to the one-task service.
+  DashboardListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref DashboardLoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref DashboardTargetGroup
+
+  # Empty ECS cluster contains no capacity after the service is deleted.
+  DashboardCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterSettings:
+        - Name: containerInsights
+          Value: disabled
+      Tags:
+        - Key: Project
+          Value: kallo-analytics
+
+  # Short-retention logs aid a live defence and disappear when this stack is deleted.
+  DashboardLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 7
+      Tags:
+        - Key: Project
+          Value: kallo-analytics
+
+  # Smallest Fargate size and X86_64 match the locked image and lab cost ceiling.
+  DashboardTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Cpu: '256'
+      Memory: '512'
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: X86_64
+        OperatingSystemFamily: LINUX
+      TaskRoleArn: !Sub arn:aws:iam::${AWS::AccountId}:role/LabRole
+      ExecutionRoleArn: !Sub arn:aws:iam::${AWS::AccountId}:role/LabRole
+      ContainerDefinitions:
+        - Name: dashboard
+          Essential: true
+          Image: !Ref ImageUri
+          PortMappings:
+            - ContainerPort: 80
+              Protocol: tcp
+          Environment:
+            - Name: API_BASE_URL
+              Value:
+                Fn::ImportValue:
+                  Fn::Sub: ${DataStackName}-ApiUrl
+          Secrets:
+            - Name: DASHBOARD_TOKEN
+              ValueFrom:
+                Fn::ImportValue:
+                  Fn::Sub: ${DataStackName}-DashboardTokenSecretArn
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref DashboardLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: dashboard
+      Tags:
+        - Key: Project
+          Value: kallo-analytics
+
+  # One public-IP task avoids NAT cost; its ingress remains restricted to the ALB.
+  DashboardService:
+    Type: AWS::ECS::Service
+    DependsOn: DashboardListener
+    Properties:
+      Cluster: !Ref DashboardCluster
+      TaskDefinition: !Ref DashboardTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      PlatformVersion: LATEST
+      HealthCheckGracePeriodSeconds: 60
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 0
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !Ref ServiceSecurityGroup
+          Subnets:
+            - !Ref PublicSubnetIdOne
+            - !Ref PublicSubnetIdTwo
+      LoadBalancers:
+        - ContainerName: dashboard
+          ContainerPort: 80
+          TargetGroupArn: !Ref DashboardTargetGroup
+      Tags:
+        - Key: Project
+          Value: kallo-analytics
+
+Outputs:
+  LoadBalancerDnsName:
+    Description: Public DNS name of the disposable dashboard ALB.
+    Value: !GetAtt DashboardLoadBalancer.DNSName
