@@ -182,7 +182,7 @@ Resources:
       ReservedConcurrentExecutions: 1
       Environment:
         Variables:
-          BUCKET_NAME: !Ref AnalyticsBucket
+          BUCKET: !Ref AnalyticsBucket
           GLUE_JOB_NAME: !Ref AnalyticsGlueJob
           TABLE_NAME: !Ref AnalyticsTable
           SUPABASE_SECRET_ARN: !Ref SupabaseCreds
@@ -208,7 +208,7 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME: !Ref AnalyticsTable
-          BUCKET_NAME: !Ref AnalyticsBucket
+          BUCKET: !Ref AnalyticsBucket
       Code:
         ZipFile: |
           import json
@@ -262,11 +262,35 @@ Resources:
               return {"statusCode": 202, "headers": {"Content-Type": "application/json"},
                       "body": json.dumps({"run_id": "placeholder", "status": "accepted"})}
 
+  # Athena API placeholder reserves the fixed-template asynchronous query routes.
+  ApiAthenaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Placeholder for starting and polling fixed-template Athena queries.
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !Sub arn:aws:iam::${AWS::AccountId}:role/LabRole
+      Timeout: 30
+      MemorySize: 256
+      ReservedConcurrentExecutions: 1
+      Environment:
+        Variables:
+          ATHENA_WORKGROUP: !Ref AnalyticsWorkGroup
+          ATHENA_DATABASE: !Ref AnalyticsGlueDatabase
+          ATHENA_OUTPUT: !Sub s3://${AnalyticsBucket}/athena-results/
+      Code:
+        ZipFile: |
+          import json
+
+          def handler(event, context):
+              return {"statusCode": 202, "headers": {"Content-Type": "application/json"},
+                      "body": json.dumps({"query_execution_id": "placeholder"})}
+
   # Insight API placeholder reserves the weekly-summary integration with Gemini.
   ApiInsightFunction:
     Type: AWS::Lambda::Function
     Properties:
-      Description: Placeholder for fixed Athena queries and the Gemini weekly summary.
+      Description: Placeholder for the DynamoDB-backed Gemini weekly summary.
       Runtime: python3.12
       Handler: index.handler
       Role: !Sub arn:aws:iam::${AWS::AccountId}:role/LabRole
@@ -275,8 +299,7 @@ Resources:
       ReservedConcurrentExecutions: 1
       Environment:
         Variables:
-          ATHENA_WORKGROUP: !Ref AnalyticsWorkGroup
-          DATABASE_NAME: !Ref AnalyticsGlueDatabase
+          TABLE_NAME: !Ref AnalyticsTable
           GEMINI_SECRET_ARN: !Ref GeminiKey
       Code:
         ZipFile: |
@@ -326,7 +349,7 @@ Resources:
                   },
               }
 
-  # Regional REST API exposes only the locked metrics, run, and insight surfaces.
+  # Regional REST API exposes only the locked metrics, run, Athena, and insight surfaces.
   DashboardApi:
     Type: AWS::ApiGateway::RestApi
     Properties:
@@ -348,7 +371,7 @@ Resources:
       AuthorizerResultTtlInSeconds: 0
       AuthorizerUri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthorizerFunction.Arn}/invocations
 
-  # /metrics is the aggregate dashboard read route.
+  # /metrics/{metric} is the aggregate dashboard read route.
   MetricsResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -356,20 +379,53 @@ Resources:
       ParentId: !GetAtt DashboardApi.RootResourceId
       PathPart: metrics
 
+  MetricResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref DashboardApi
+      ParentId: !Ref MetricsResource
+      PathPart: '{metric}'
+
   MetricsGetMethod:
     # Protected GET proxy connects the metrics route to its dedicated Lambda.
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref DashboardApi
-      ResourceId: !Ref MetricsResource
+      ResourceId: !Ref MetricResource
       HttpMethod: GET
       AuthorizationType: CUSTOM
       AuthorizerId: !Ref DashboardAuthorizer
       ApiKeyRequired: true
+      RequestParameters:
+        method.request.path.metric: true
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiMetricsFunction.Arn}/invocations
+
+  MetricsOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref DashboardApi
+      ResourceId: !Ref MetricResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Authorization,Content-Type'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
 
   # /runs supports the dashboard's explicit pipeline trigger.
   RunsResource:
@@ -394,13 +450,37 @@ Resources:
         IntegrationHttpMethod: POST
         Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiRunsFunction.Arn}/invocations
 
-  # /runs/{id} is the asynchronous status polling route required by the UI.
+  RunsOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref DashboardApi
+      ResourceId: !Ref RunsResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Authorization,Content-Type'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # /runs/{run_id} is the asynchronous status polling route required by the UI.
   RunIdResource:
     Type: AWS::ApiGateway::Resource
     Properties:
       RestApiId: !Ref DashboardApi
       ParentId: !Ref RunsResource
-      PathPart: '{id}'
+      PathPart: '{run_id}'
 
   RunIdGetMethod:
     # Protected GET proxy reserves run-status polling by path identifier.
@@ -413,13 +493,138 @@ Resources:
       AuthorizerId: !Ref DashboardAuthorizer
       ApiKeyRequired: true
       RequestParameters:
-        method.request.path.id: true
+        method.request.path.run_id: true
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiRunsFunction.Arn}/invocations
 
-  # /insight isolates the comparatively slow Athena and Gemini operation.
+  RunIdOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref DashboardApi
+      ResourceId: !Ref RunIdResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Authorization,Content-Type'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # /athena/query starts one of the fixed, cost-bounded query templates.
+  AthenaResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref DashboardApi
+      ParentId: !GetAtt DashboardApi.RootResourceId
+      PathPart: athena
+
+  AthenaQueryResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref DashboardApi
+      ParentId: !Ref AthenaResource
+      PathPart: query
+
+  AthenaQueryPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref DashboardApi
+      ResourceId: !Ref AthenaQueryResource
+      HttpMethod: POST
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref DashboardAuthorizer
+      ApiKeyRequired: true
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiAthenaFunction.Arn}/invocations
+
+  AthenaQueryOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref DashboardApi
+      ResourceId: !Ref AthenaQueryResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Authorization,Content-Type'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # /athena/query/{id} polls an asynchronous Athena query execution.
+  AthenaQueryIdResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref DashboardApi
+      ParentId: !Ref AthenaQueryResource
+      PathPart: '{id}'
+
+  AthenaQueryIdGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref DashboardApi
+      ResourceId: !Ref AthenaQueryIdResource
+      HttpMethod: GET
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref DashboardAuthorizer
+      ApiKeyRequired: true
+      RequestParameters:
+        method.request.path.id: true
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiAthenaFunction.Arn}/invocations
+
+  AthenaQueryIdOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref DashboardApi
+      ResourceId: !Ref AthenaQueryIdResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Authorization,Content-Type'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # /insight/weekly isolates the comparatively slow Gemini operation.
   InsightResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -427,13 +632,20 @@ Resources:
       ParentId: !GetAtt DashboardApi.RootResourceId
       PathPart: insight
 
-  InsightGetMethod:
-    # Protected GET proxy connects the summary route to its dedicated Lambda.
+  InsightWeeklyResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref DashboardApi
+      ParentId: !Ref InsightResource
+      PathPart: weekly
+
+  InsightWeeklyPostMethod:
+    # Protected POST proxy connects the weekly summary route to its Lambda.
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref DashboardApi
-      ResourceId: !Ref InsightResource
-      HttpMethod: GET
+      ResourceId: !Ref InsightWeeklyResource
+      HttpMethod: POST
       AuthorizationType: CUSTOM
       AuthorizerId: !Ref DashboardAuthorizer
       ApiKeyRequired: true
@@ -442,17 +654,49 @@ Resources:
         IntegrationHttpMethod: POST
         Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiInsightFunction.Arn}/invocations
 
+  InsightWeeklyOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref DashboardApi
+      ResourceId: !Ref InsightWeeklyResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Authorization,Content-Type'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
   # A distinct deployment and stage make the URL stable for cross-stack export.
   ApiDeployment:
     Type: AWS::ApiGateway::Deployment
     DependsOn:
       - MetricsGetMethod
+      - MetricsOptionsMethod
       - RunsPostMethod
+      - RunsOptionsMethod
       - RunIdGetMethod
-      - InsightGetMethod
+      - RunIdOptionsMethod
+      - AthenaQueryPostMethod
+      - AthenaQueryOptionsMethod
+      - AthenaQueryIdGetMethod
+      - AthenaQueryIdOptionsMethod
+      - InsightWeeklyPostMethod
+      - InsightWeeklyOptionsMethod
     Properties:
       RestApiId: !Ref DashboardApi
-      Description: Initial Chunk 1 API deployment.
+      Description: Dashboard API deployment for the implemented proxy routes.
 
   ApiStage:
     # Production stage adds low per-second throttles without a billable API cache.
@@ -499,32 +743,54 @@ Resources:
       KeyType: API_KEY
       UsagePlanId: !Ref DashboardUsagePlan
 
-  # One permission covers the API's methods while retaining this API as source scope.
+  # Route-scoped permissions allow API Gateway to invoke only implemented methods.
   ApiMetricsInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:InvokeFunction
       FunctionName: !Ref ApiMetricsFunction
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${DashboardApi}/*/*/*
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${DashboardApi}/*/GET/metrics/*
 
-  ApiRunsInvokePermission:
-    # Source-scoped permission lets only this REST API invoke the runs Lambda.
+  ApiRunsPostInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:InvokeFunction
       FunctionName: !Ref ApiRunsFunction
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${DashboardApi}/*/*/*
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${DashboardApi}/*/POST/runs
 
-  ApiInsightInvokePermission:
-    # Source-scoped permission lets only this REST API invoke the insight Lambda.
+  ApiRunIdGetInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ApiRunsFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${DashboardApi}/*/GET/runs/*
+
+  ApiAthenaPostInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ApiAthenaFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${DashboardApi}/*/POST/athena/query
+
+  ApiAthenaQueryIdGetInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ApiAthenaFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${DashboardApi}/*/GET/athena/query/*
+
+  ApiInsightWeeklyInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:InvokeFunction
       FunctionName: !Ref ApiInsightFunction
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${DashboardApi}/*/*/*
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${DashboardApi}/*/POST/insight/weekly
 
   AuthorizerInvokePermission:
     # Source-scoped permission lets this REST API invoke its TOKEN authorizer.
