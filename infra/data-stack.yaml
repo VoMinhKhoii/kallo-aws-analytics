@@ -6,6 +6,10 @@ Parameters:
     Type: String
     Description: S3 URI of the PySpark ETL entrypoint, for example s3://bucket/glue/etl.py.
     AllowedPattern: '^s3://[a-z0-9][a-z0-9.-]*/.+$'
+  GlueTransformsS3Uri:
+    Type: String
+    Description: S3 URI of the transforms.py module uploaded beside the PySpark ETL entrypoint.
+    AllowedPattern: '^s3://[a-z0-9][a-z0-9.-]*/.+$'
   SupabaseUrl:
     Type: String
     NoEcho: true
@@ -107,6 +111,7 @@ Resources:
         ScriptLocation: !Ref GlueScriptS3Uri
       DefaultArguments:
         '--job-language': python
+        '--extra-py-files': !Ref GlueTransformsS3Uri
         '--database_name': !Ref AnalyticsGlueDatabase
         '--source_bucket': !Ref AnalyticsBucket
         '--enable-metrics': 'true'
@@ -869,3 +874,24 @@ Outputs:
     Value: !Ref DashboardToken
     Export:
       Name: !Sub ${AWS::StackName}-DashboardTokenSecretArn
+  ExtractFunctionName:
+    Description: Function name used to deploy and manually invoke the extract code.
+    Value: !Ref ExtractFunction
+  LoaderFunctionName:
+    Description: Function name used to deploy the aggregate-loader code.
+    Value: !Ref LoaderFunction
+  ApiMetricsFunctionName:
+    Description: Function name used to deploy the metrics API code.
+    Value: !Ref ApiMetricsFunction
+  ApiRunsFunctionName:
+    Description: Function name used to deploy the runs API code.
+    Value: !Ref ApiRunsFunction
+  ApiAthenaFunctionName:
+    Description: Function name used to deploy the Athena API code.
+    Value: !Ref ApiAthenaFunction
+  ApiInsightFunctionName:
+    Description: Function name used to deploy the weekly-insight API code.
+    Value: !Ref ApiInsightFunction
+  AuthorizerFunctionName:
+    Description: Function name used to deploy the API authorizer code.
+    Value: !Ref AuthorizerFunction
