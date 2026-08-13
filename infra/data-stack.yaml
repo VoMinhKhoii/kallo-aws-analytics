@@ -100,6 +100,142 @@ Resources:
       DatabaseInput:
         Description: Curated Kallo analytics datasets.
 
+  MealsGlueTable:
+    Type: AWS::Glue::Table
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseName: !Ref AnalyticsGlueDatabase
+      TableInput:
+        Name: v_meals
+        TableType: EXTERNAL_TABLE
+        Parameters:
+          classification: parquet
+          projection.enabled: 'true'
+          projection.dt.type: date
+          projection.dt.format: yyyy-MM-dd
+          projection.dt.range: 2026-01-01,NOW
+          storage.location.template: !Sub s3://${AnalyticsBucket}/curated/v_meals/dt=${!dt}/
+        PartitionKeys:
+          - Name: dt
+            Type: string
+        StorageDescriptor:
+          Columns:
+            - Name: id
+              Type: string
+            - Name: user_hash
+              Type: string
+            - Name: logged_at
+              Type: string
+            - Name: meal_slot
+              Type: string
+            - Name: entry_mode
+              Type: string
+            - Name: confidence_overall
+              Type: double
+            - Name: calories_kcal
+              Type: double
+            - Name: protein_g
+              Type: double
+            - Name: carbohydrate_g
+              Type: double
+            - Name: fat_g
+              Type: double
+            - Name: fiber_g
+              Type: double
+          InputFormat: org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat
+          Location: !Sub s3://${AnalyticsBucket}/curated/v_meals/
+          OutputFormat: org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat
+          SerdeInfo:
+            SerializationLibrary: org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe
+
+  UserFunnelGlueTable:
+    Type: AWS::Glue::Table
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseName: !Ref AnalyticsGlueDatabase
+      TableInput:
+        Name: v_user_funnel
+        TableType: EXTERNAL_TABLE
+        Parameters:
+          classification: parquet
+          projection.enabled: 'true'
+          projection.dt.type: date
+          projection.dt.format: yyyy-MM-dd
+          projection.dt.range: 2026-01-01,NOW
+          storage.location.template: !Sub s3://${AnalyticsBucket}/curated/v_user_funnel/dt=${!dt}/
+        PartitionKeys:
+          - Name: dt
+            Type: string
+        StorageDescriptor:
+          Columns:
+            - Name: user_hash
+              Type: string
+            - Name: created_at
+              Type: string
+            - Name: onboarding_step
+              Type: bigint
+            - Name: onboarding_completed_at
+              Type: string
+            - Name: goal
+              Type: string
+            - Name: preferred_locale
+              Type: string
+          InputFormat: org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat
+          Location: !Sub s3://${AnalyticsBucket}/curated/v_user_funnel/
+          OutputFormat: org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat
+          SerdeInfo:
+            SerializationLibrary: org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe
+
+  PipelineRunsGlueTable:
+    Type: AWS::Glue::Table
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseName: !Ref AnalyticsGlueDatabase
+      TableInput:
+        Name: v_pipeline_runs
+        TableType: EXTERNAL_TABLE
+        Parameters:
+          classification: parquet
+          projection.enabled: 'true'
+          projection.dt.type: date
+          projection.dt.format: yyyy-MM-dd
+          projection.dt.range: 2026-01-01,NOW
+          storage.location.template: !Sub s3://${AnalyticsBucket}/curated/v_pipeline_runs/dt=${!dt}/
+        PartitionKeys:
+          - Name: dt
+            Type: string
+        StorageDescriptor:
+          Columns:
+            - Name: id
+              Type: string
+            - Name: created_at
+              Type: string
+            - Name: pipeline_version
+              Type: string
+            - Name: model_call1
+              Type: string
+            - Name: model_call2
+              Type: string
+            - Name: total_ms
+              Type: bigint
+            - Name: ingredient_count
+              Type: bigint
+            - Name: matched_count
+              Type: bigint
+            - Name: unmatched_count
+              Type: bigint
+            - Name: retry_count
+              Type: bigint
+            - Name: escalated
+              Type: boolean
+            - Name: cache_hit_l4
+              Type: boolean
+          InputFormat: org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat
+          Location: !Sub s3://${AnalyticsBucket}/curated/v_pipeline_runs/
+          OutputFormat: org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat
+          SerdeInfo:
+            SerializationLibrary: org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe
+
   # Two-worker ETL job carries every mandatory lab-budget guard from the rubric.
   AnalyticsGlueJob:
     Type: AWS::Glue::Job

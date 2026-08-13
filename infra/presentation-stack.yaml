@@ -42,8 +42,8 @@ Resources:
       VpcId: !Ref VpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
-          FromPort: 80
-          ToPort: 80
+          FromPort: 3000
+          ToPort: 3000
           SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
       Tags:
         - Key: Project
@@ -72,9 +72,10 @@ Resources:
       VpcId: !Ref VpcId
       TargetType: ip
       Protocol: HTTP
-      Port: 80
+      Port: 3000
       HealthCheckEnabled: true
-      HealthCheckPath: /
+      HealthCheckPath: /api/health
+      HealthCheckPort: traffic-port
       HealthCheckProtocol: HTTP
       Matcher:
         HttpCode: 200-399
@@ -132,7 +133,7 @@ Resources:
           Essential: true
           Image: !Ref ImageUri
           PortMappings:
-            - ContainerPort: 80
+            - ContainerPort: 3000
               Protocol: tcp
           Environment:
             - Name: API_BASE_URL
@@ -178,7 +179,7 @@ Resources:
             - !Ref PublicSubnetIdTwo
       LoadBalancers:
         - ContainerName: dashboard
-          ContainerPort: 80
+          ContainerPort: 3000
           TargetGroupArn: !Ref DashboardTargetGroup
       Tags:
         - Key: Project

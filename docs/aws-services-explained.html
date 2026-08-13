@@ -1,0 +1,990 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A beginner-friendly, project-specific guide to every AWS service used by the Kallo analytics plane.">
+  <title>Kallo Analytics: AWS Services Explained</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f6f8f5;
+      --surface: #ffffff;
+      --surface-soft: #eef4ef;
+      --surface-warm: #f4f1e8;
+      --ink: #18231e;
+      --muted: #55635c;
+      --faint: #738078;
+      --line: #d4ddd6;
+      --line-strong: #aab8ae;
+      --accent: #176b46;
+      --accent-dark: #104b32;
+      --accent-soft: #dcefe3;
+      --warning: #795b13;
+      --warning-bg: #fff7db;
+      --danger: #8b302a;
+      --danger-bg: #fff0ed;
+      --code-bg: #edf1ed;
+      --radius: 14px;
+      --shadow: 0 12px 32px rgba(34, 63, 47, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+      background: var(--paper);
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 88% 2%, rgba(23, 107, 70, 0.08), transparent 22rem),
+        var(--paper);
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 16px;
+      line-height: 1.68;
+      text-rendering: optimizeLegibility;
+    }
+
+    img { max-width: 100%; }
+
+    a {
+      color: var(--accent-dark);
+      text-underline-offset: 0.18em;
+    }
+
+    a:focus-visible,
+    summary:focus-visible {
+      outline: 3px solid rgba(23, 107, 70, 0.28);
+      outline-offset: 4px;
+      border-radius: 4px;
+    }
+
+    .page {
+      width: min(900px, calc(100% - 32px));
+      margin: 0 auto;
+    }
+
+    .hero {
+      padding: 72px 0 34px;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 230px;
+      gap: 42px;
+      align-items: end;
+    }
+
+    .kicker {
+      margin: 0 0 14px;
+      color: var(--accent-dark);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.11em;
+      text-transform: uppercase;
+    }
+
+    h1, h2, h3, h4 {
+      margin: 0;
+      line-height: 1.14;
+      letter-spacing: -0.03em;
+    }
+
+    h1 {
+      max-width: 13ch;
+      font-size: clamp(2.55rem, 7vw, 5rem);
+      font-weight: 760;
+    }
+
+    h2 {
+      font-size: clamp(1.85rem, 4vw, 2.8rem);
+      font-weight: 735;
+    }
+
+    h3 {
+      font-size: clamp(1.35rem, 3vw, 1.8rem);
+      font-weight: 720;
+    }
+
+    h4 {
+      margin-top: 24px;
+      font-size: 1rem;
+      letter-spacing: -0.01em;
+    }
+
+    p { margin: 12px 0 0; }
+
+    .hero-copy {
+      margin-top: 22px;
+      max-width: 68ch;
+      color: var(--muted);
+      font-size: 1.08rem;
+    }
+
+    .hero-stamp {
+      padding: 18px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.72);
+    }
+
+    .hero-stamp strong {
+      display: block;
+      font-size: 1.55rem;
+      letter-spacing: -0.04em;
+      line-height: 1;
+    }
+
+    .hero-stamp span {
+      display: block;
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 0.84rem;
+      line-height: 1.45;
+    }
+
+    .architecture {
+      margin: 30px 0 0;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .architecture img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    figcaption {
+      padding: 12px 16px;
+      border-top: 1px solid var(--line);
+      color: var(--faint);
+      font-size: 0.82rem;
+    }
+
+    .read-note,
+    .callout {
+      margin-top: 20px;
+      padding: 18px 20px;
+      border-left: 4px solid var(--accent);
+      border-radius: 0 var(--radius) var(--radius) 0;
+      background: var(--accent-soft);
+    }
+
+    .read-note strong,
+    .callout strong { color: var(--accent-dark); }
+
+    .section {
+      padding: 62px 0 10px;
+    }
+
+    .section-intro {
+      max-width: 68ch;
+      margin-top: 14px;
+      color: var(--muted);
+    }
+
+    .table-wrap {
+      margin-top: 28px;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.92rem;
+    }
+
+    th, td {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--accent-dark);
+      background: var(--surface-soft);
+      font-size: 0.75rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    tr:last-child td { border-bottom: 0; }
+    td:first-child { font-weight: 720; white-space: nowrap; }
+
+    code, .resource {
+      padding: 0.12em 0.38em;
+      border-radius: 5px;
+      background: var(--code-bg);
+      color: #284b38;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.88em;
+      overflow-wrap: anywhere;
+    }
+
+    .cards {
+      display: grid;
+      gap: 22px;
+      margin-top: 30px;
+    }
+
+    .service-card {
+      padding: clamp(22px, 5vw, 36px);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: 0 7px 24px rgba(34, 63, 47, 0.05);
+    }
+
+    .service-card:nth-child(3n + 2) { background: #fbfcfa; }
+
+    .service-heading {
+      display: grid;
+      grid-template-columns: 48px 1fr;
+      gap: 16px;
+      align-items: center;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .service-mark {
+      display: grid;
+      width: 48px;
+      height: 48px;
+      place-items: center;
+      border-radius: 12px;
+      color: var(--surface);
+      background: var(--accent-dark);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .service-heading p {
+      margin-top: 4px;
+      color: var(--faint);
+      font-size: 0.88rem;
+    }
+
+    .service-card ul {
+      margin: 10px 0 0;
+      padding-left: 1.25rem;
+    }
+
+    .service-card li + li { margin-top: 8px; }
+
+    .tradeoff {
+      margin-top: 22px;
+      padding: 18px;
+      border-radius: var(--radius);
+      background: var(--surface-warm);
+    }
+
+    .tradeoff h4 { margin-top: 0; }
+
+    .qa {
+      margin-top: 22px;
+      padding: 16px 18px;
+      border: 1px solid #a5ceb5;
+      border-radius: var(--radius);
+      background: var(--accent-soft);
+      color: var(--accent-dark);
+      font-weight: 650;
+    }
+
+    .qa::before {
+      content: "Say this in the Q&A";
+      display: block;
+      margin-bottom: 6px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.71rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .warning {
+      margin-top: 18px;
+      padding: 16px 18px;
+      border: 1px solid #ead78f;
+      border-radius: var(--radius);
+      background: var(--warning-bg);
+      color: #5e4913;
+    }
+
+    .gap {
+      margin-top: 18px;
+      padding: 16px 18px;
+      border: 1px solid #e2aaa3;
+      border-radius: var(--radius);
+      background: var(--danger-bg);
+      color: #702b26;
+    }
+
+    .flow-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 22px;
+      margin-top: 28px;
+    }
+
+    .flow {
+      padding: 26px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+    }
+
+    .flow ol {
+      margin: 20px 0 0;
+      padding-left: 1.4rem;
+    }
+
+    .flow li + li { margin-top: 13px; }
+
+    .flow li::marker {
+      color: var(--accent);
+      font-weight: 800;
+    }
+
+    .topology {
+      margin-top: 28px;
+    }
+
+    .reality-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 28px;
+    }
+
+    .reality-item {
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+    }
+
+    .reality-item strong {
+      display: block;
+      color: var(--accent-dark);
+      font-size: 1.05rem;
+    }
+
+    .reality-item p {
+      color: var(--muted);
+      font-size: 0.94rem;
+    }
+
+    .supporting {
+      margin-top: 24px;
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface-soft);
+    }
+
+    .supporting dl,
+    .glossary {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px 26px;
+      margin: 20px 0 0;
+    }
+
+    dt { font-weight: 750; }
+    dd {
+      margin: 3px 0 0;
+      color: var(--muted);
+    }
+
+    footer {
+      margin-top: 70px;
+      padding: 48px 0 72px;
+      border-top: 1px solid var(--line-strong);
+    }
+
+    .source-note {
+      margin-top: 28px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+      color: var(--faint);
+      font-size: 0.84rem;
+    }
+
+    @media (max-width: 720px) {
+      .page { width: min(100% - 22px, 900px); }
+      .hero { padding-top: 44px; }
+      .hero-grid, .flow-grid, .reality-grid, .supporting dl, .glossary {
+        grid-template-columns: 1fr;
+      }
+      .hero-grid { gap: 24px; }
+      .hero-stamp { max-width: 320px; }
+      .section { padding-top: 48px; }
+      .service-card { padding: 20px; }
+      .service-heading { grid-template-columns: 42px 1fr; gap: 12px; }
+      .service-mark { width: 42px; height: 42px; }
+      th, td { min-width: 190px; }
+      td:first-child { min-width: 145px; }
+    }
+
+    @media print {
+      body { background: #fff; font-size: 10.5pt; }
+      .page { width: 100%; max-width: none; }
+      .hero { padding-top: 18px; }
+      .service-card, .table-wrap, .architecture, .flow, .reality-item {
+        break-inside: avoid;
+        box-shadow: none;
+      }
+      .section { padding-top: 30px; }
+      a { color: inherit; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <div class="hero-grid">
+        <div>
+          <p class="kicker">Kallo Analytics Plane</p>
+          <h1>AWS services, explained from zero</h1>
+          <p class="hero-copy">This system copies a small, sanitized slice of Kallo's production data from Supabase into AWS once a day, transforms it into dashboard-ready metrics, and serves a Next.js analytics dashboard. The data side stays running cheaply; the public dashboard side is created only for a work session or demo.</p>
+        </div>
+        <aside class="hero-stamp" aria-label="Project constraints at a glance">
+          <strong>$50</strong>
+          <span>Total Learner Lab budget. Crossing it deletes the account, so every service has a cost fuse or a teardown plan.</span>
+        </aside>
+      </div>
+
+      <figure class="architecture">
+        <img src="doc_images/kallo-analytics-architecture.png" alt="Runtime architecture showing Supabase data entering AWS through Lambda, S3, Glue, EventBridge and DynamoDB, with a dashboard on ECS Fargate behind an ALB and API Gateway.">
+        <figcaption>Runtime architecture. Read the top path left to right for the daily data pipeline, and the bottom path left to right for a dashboard request.</figcaption>
+      </figure>
+
+      <div class="read-note">
+        <strong>How to read this page:</strong> Start with the 30-second table. Then use each service card as a Q&amp;A script: what it is, what our code actually does, why we chose it, and the configuration values worth remembering. The final two sections give you complete demo stories and Learner Lab constraints.
+      </div>
+    </header>
+
+    <section class="section" aria-labelledby="quick-version">
+      <h2 id="quick-version">The 30-second version</h2>
+      <p class="section-intro">AWS has hundreds of products. This project needs twelve main ones. The middle column is the job each service performs here, not its entire AWS feature list.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Service</th>
+              <th>One job in this project</th>
+              <th>Non-cloud mental model</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Lambda</td><td>Runs seven short Python functions for extraction, loading, API work and authorization.</td><td>A function that runs on demand, with no server kept on.</td></tr>
+            <tr><td>API Gateway</td><td>Exposes and protects the dashboard's metrics, run, Athena and insight routes.</td><td>An API router, bouncer and rate limiter.</td></tr>
+            <tr><td>S3</td><td>Holds raw JSONL, manifests, curated Parquet, aggregates and Athena results.</td><td>A practically infinite network disk organized by object keys.</td></tr>
+            <tr><td>DynamoDB</td><td>Stores metric-by-date payloads, extraction watermarks and run status.</td><td>A managed key-value database.</td></tr>
+            <tr><td>Glue</td><td>Rents Spark for one short ETL run, then gives it back.</td><td>A temporary data-processing cluster plus a schema catalog.</td></tr>
+            <tr><td>Athena</td><td>Runs three fixed SQL templates directly over curated S3 files.</td><td>A SQL console attached to files instead of a database server.</td></tr>
+            <tr><td>EventBridge</td><td>Starts the daily extract and reacts when the exact Glue job succeeds.</td><td><code>cron</code> plus an event router.</td></tr>
+            <tr><td>ECS Fargate</td><td>Runs the containerized Next.js dashboard for a demo session.</td><td><code>docker run</code> in the cloud, without managing the host.</td></tr>
+            <tr><td>ALB</td><td>Accepts public HTTP requests and forwards healthy traffic to the Fargate task.</td><td>An nginx reverse proxy and health checker.</td></tr>
+            <tr><td>ECR</td><td>Stores the private <code>linux/amd64</code> dashboard image.</td><td>AWS's private Docker Hub.</td></tr>
+            <tr><td>Secrets Manager</td><td>Holds Supabase credentials, the Gemini key and dashboard bearer token.</td><td>An encrypted <code>.env</code> vault.</td></tr>
+            <tr><td>CloudFormation</td><td>Creates the probe, persistent data and disposable presentation stacks from YAML.</td><td>A reproducible infrastructure installer and teardown recipe.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="service-guide">
+      <h2 id="service-guide">The service-by-service defense guide</h2>
+      <p class="section-intro">The safest exam answer has four parts: define the service simply, point to the concrete resource in this repository, compare it with one realistic alternative, and quote the cost or safety setting that made the choice acceptable.</p>
+
+      <div class="cards">
+        <article class="service-card" id="lambda">
+          <div class="service-heading">
+            <span class="service-mark">λ</span>
+            <div><h3>AWS Lambda</h3><p>Short-lived Python compute</p></div>
+          </div>
+          <h4>What it is</h4>
+          <p>Lambda runs one function when an event arrives. AWS starts the runtime, passes in an event object, and stops charging when the invocation finishes. You choose memory and a maximum duration, but you do not patch Linux or keep a process alive.</p>
+
+          <h4>What it does in this project</h4>
+          <p>The deployed data stack has <strong>seven</strong> Python 3.12 Lambdas. Six do application work and one is the API authorizer:</p>
+          <ul>
+            <li><code>ExtractFunction</code> reads seven allowlisted Supabase views in pages of 1,000, writes JSONL to S3, writes the manifest, and starts Glue exactly once.</li>
+            <li><code>LoaderFunction</code> runs only after the named Glue job reports <code>SUCCEEDED</code>. It validates every aggregate, writes deterministic metric/date items, and marks manual runs complete.</li>
+            <li><code>ApiMetricsFunction</code> validates a metric and date range, then performs a DynamoDB <code>Query</code>, never a table scan.</li>
+            <li><code>ApiRunsFunction</code> starts the extractor asynchronously and returns a UUID, or reads one run's status.</li>
+            <li><code>ApiAthenaFunction</code> starts or polls one of three fixed Athena query templates.</li>
+            <li><code>ApiInsightFunction</code> reads seven days of aggregate metrics and asks <code>gemini-2.5-flash</code> for a summary of at most 120 words.</li>
+            <li><code>AuthorizerFunction</code> compares the supplied bearer token in constant time with the Secrets Manager value.</li>
+          </ul>
+
+          <div class="tradeoff">
+            <h4>Why Lambda instead of EC2 or an always-on API server?</h4>
+            <p>These are short, event-driven jobs. Paying for a VPS all day so it can run a daily extract or answer a small number of API calls would add idle cost and patching. Lambda has cold starts and execution limits, so it is not our dashboard web server and it is not the Spark engine. The long-lived Next.js process belongs in a container; the larger transformation belongs in Glue.</p>
+          </div>
+
+          <h4>Config we chose and why</h4>
+          <ul>
+            <li>All seven functions use <code>ReservedConcurrentExecutions: 1</code>. The lab allows only 10 concurrent Lambda executions account-wide, so each function gets a conservative lane.</li>
+            <li>Extractor: <code>512 MB</code>, <code>300 seconds</code>. It may need multiple HTTPS pages from seven views.</li>
+            <li>Loader: <code>512 MB</code>, <code>120 seconds</code>. It reads and validates all aggregate files before writing.</li>
+            <li>Metrics, runs and Athena APIs: <code>256 MB</code>, <code>30 seconds</code>. Their work is small and mostly remote I/O.</li>
+            <li>Insight: <code>512 MB</code>, <code>120 seconds</code>, with its Gemini HTTP call capped at 25 seconds.</li>
+            <li>Authorizer: <code>128 MB</code>, <code>10 seconds</code>, result cache TTL <code>0</code>. Every request is checked against the current token.</li>
+            <li>Every role is the pre-existing <code>LabRole</code> because the Learner Lab forbids creating IAM roles.</li>
+          </ul>
+          <p class="qa">“I used Lambda for bounded, event-driven control work. Each function has reserved concurrency one, and the heavy data transform and persistent web server are deliberately placed elsewhere.”</p>
+        </article>
+
+        <article class="service-card" id="api-gateway">
+          <div class="service-heading">
+            <span class="service-mark">API</span>
+            <div><h3>Amazon API Gateway</h3><p>The spend-sensitive API boundary</p></div>
+          </div>
+          <h4>What it is</h4>
+          <p>API Gateway gives HTTP paths and methods to backend functions. It can authorize requests, apply rate limits and quotas, and translate an incoming request into a Lambda event. Think of it as the public contract in front of the Python handlers.</p>
+
+          <h4>What it does in this project</h4>
+          <p><code>DashboardApi</code> is a regional REST API with six protected operations: <code>GET /metrics/{metric}</code>, <code>POST /runs</code>, <code>GET /runs/{run_id}</code>, <code>POST /athena/query</code>, <code>GET /athena/query/{id}</code>, and <code>POST /insight/weekly</code>. OPTIONS methods provide CORS responses.</p>
+          <p>The <code>TOKEN</code> authorizer reads <code>Authorization: Bearer ...</code>. If valid, it returns an Allow policy and uses the same token as the usage-plan key, so the dashboard does not need to send a second API key.</p>
+
+          <div class="tradeoff">
+            <h4>Why this instead of “just expose the ALB”?</h4>
+            <p>The ALB exposes the visual dashboard. The API can start Glue, run Athena and call Gemini, so it is a separate spend-sensitive surface. API Gateway gives that surface authentication, route-level Lambda wiring, throttling and a monthly quota. A static token is acceptable for one tutor demo, but it is not a production multi-user identity system.</p>
+          </div>
+
+          <h4>Config we chose and why</h4>
+          <ul>
+            <li>Endpoint type <code>REGIONAL</code>, stage <code>prod</code>.</li>
+            <li>All real methods use custom authorization and <code>ApiKeyRequired: true</code>.</li>
+            <li>Stage throttle: <code>2 requests/second</code>, burst <code>5</code>.</li>
+            <li>Usage plan: <code>10,000 requests/month</code>, with the same 2-per-second and burst-5 limits.</li>
+            <li>No API cache, which avoids another billable feature and avoids stale run status.</li>
+            <li>Lambda proxy integration keeps request parsing in the handlers and returns normal status/body objects.</li>
+          </ul>
+          <div class="warning"><strong>Known load-test question:</strong> the dashboard currently starts 12 metric requests in parallel, while the API burst limit is 5. <code>Promise.allSettled</code> preserves successful panels, but this needs deployed validation or client-side batching before claiming the entire page load is reliable.</div>
+          <p class="qa">“The ALB publishes the website; API Gateway protects operations that can consume AWS or Gemini budget. The static token, 2-request-per-second throttle and 10,000-request monthly quota fit a single-operator university demo.”</p>
+        </article>
+
+        <article class="service-card" id="s3">
+          <div class="service-heading">
+            <span class="service-mark">S3</span>
+            <div><h3>Amazon S3</h3><p>The data lake and handoff boundary</p></div>
+          </div>
+          <h4>What it is</h4>
+          <p>S3 stores objects, not mounted disk blocks and not database rows. An object is bytes plus a key such as <code>raw/v_meals/dt=2026-08-13/part-0.jsonl</code>. Prefixes look like folders, but the full key is the real address.</p>
+
+          <h4>What it does in this project</h4>
+          <p><code>AnalyticsBucket</code> separates pipeline stages by prefix:</p>
+          <ul>
+            <li><code>raw/&lt;view&gt;/dt=YYYY-MM-DD/part-&lt;page&gt;.jsonl</code> contains exactly the rows returned by each 1,000-row PostgREST page.</li>
+            <li><code>raw/_manifests/dt=YYYY-MM-DD/manifest.json</code> lists the files and row count for all seven views. Glue reads only this declared set.</li>
+            <li><code>curated/&lt;view&gt;/dt=YYYY-MM-DD/*.parquet</code> contains typed, compressed columnar data written by Spark.</li>
+            <li><code>aggregates/dt=YYYY-MM-DD/&lt;metric&gt;.json</code> contains 12 dashboard payloads.</li>
+            <li><code>athena-results/</code> receives query output generated by Athena.</li>
+          </ul>
+
+          <div class="tradeoff">
+            <h4>Why S3 instead of a shared disk or database?</h4>
+            <p>Each pipeline stage can finish by writing durable files that the next stage reads later. S3 is cheap at this scale, works directly with Glue and Athena, and does not require a server. The trade-off is that S3 does not enforce schemas, transactions or joins. The manifest and Glue validation provide our explicit handoff contract.</p>
+          </div>
+
+          <h4>Config we chose and why</h4>
+          <ul>
+            <li>Server-side encryption uses <code>AES256</code>, also called SSE-S3.</li>
+            <li>All four public-access-block settings are enabled. This bucket is never a website.</li>
+            <li>Athena results expire after <code>7 days</code>; incomplete result uploads abort after 1 day.</li>
+            <li>Raw and curated incomplete multipart uploads abort after <code>7 days</code>.</li>
+            <li>Raw, curated, aggregates and manifests currently have no object-expiration rule, so they persist until the stack or objects are removed.</li>
+            <li>The same-date keys are overwritten by another run on that date. This behaves like “latest run for the UTC date,” not an immutable audit archive.</li>
+            <li>No EBS volume or <code>gp2</code> disk is needed. S3 is the persistent storage.</li>
+          </ul>
+          <p class="qa">“S3 is the durable boundary between stages. JSONL preserves the landing data, Parquet makes analytical scans efficient, and the manifest stops Glue from accidentally reading half-written or unrelated files.”</p>
+        </article>
+
+        <article class="service-card" id="dynamodb">
+          <div class="service-heading">
+            <span class="service-mark">DDB</span>
+            <div><h3>Amazon DynamoDB</h3><p>Fast keyed state, not a relational database</p></div>
+          </div>
+          <h4>What it is</h4>
+          <p>DynamoDB is a managed NoSQL database. You design the table around the exact keys your code reads rather than starting from normalized tables and arbitrary SQL. It scales and charges by requests in on-demand mode.</p>
+
+          <h4>What it does in this project</h4>
+          <p><code>AnalyticsTable</code> has partition key <code>metric</code> and sort key <code>date</code>, both strings. It stores three shapes:</p>
+          <ul>
+            <li>Aggregate: <code>metric=meal_volume</code>, <code>date=2026-08-13</code>, plus a canonical JSON payload.</li>
+            <li>Watermark: <code>metric=_watermark#v_meals</code>, <code>date=latest</code>, plus the last source timestamp.</li>
+            <li>Run status: <code>metric=_run#&lt;uuid&gt;</code>, <code>date=latest</code>, plus <code>extracting</code>, <code>transform_started</code> or <code>completed</code>.</li>
+          </ul>
+          <p>The metrics API queries one metric across a date range. Watermarks and run states use exact-key reads. The loader writes the same metric/date key on replay, so the result is idempotent.</p>
+
+          <div class="tradeoff">
+            <h4>Why DynamoDB instead of RDS Postgres?</h4>
+            <p>The design moved away from RDS because these access patterns are simple keyed reads with no runtime joins. RDS would introduce an always-available database lifecycle and, if placed privately while Lambdas need the internet, can lead to a NAT Gateway fixed-cost trap of roughly $32/month before data charges. DynamoDB needs no VPC, no NAT and no stop/start routine, and pay-per-request cost is approximately zero at this demo volume. We lose SQL joins and flexible queries, which is why Glue precomputes the aggregates and Athena handles the occasional SQL-over-files case.</p>
+          </div>
+
+          <h4>Config we chose and why</h4>
+          <ul>
+            <li><code>BillingMode: PAY_PER_REQUEST</code>. No read or write capacity guessing.</li>
+            <li>Encryption at rest enabled.</li>
+            <li>Point-in-time recovery disabled to avoid optional cost in a rebuildable lab system.</li>
+            <li>No secondary indexes and no TTL. The two-key design covers the implemented requests.</li>
+            <li>No VPC configuration, subnet or security group is needed for the Lambda clients.</li>
+          </ul>
+          <p class="qa">“DynamoDB fits because every online read is known in advance: metric plus date range, watermark by view, or run by ID. We traded away relational joins and moved them into the batch transform.”</p>
+        </article>
+
+        <article class="service-card" id="glue">
+          <div class="service-heading">
+            <span class="service-mark">ETL</span>
+            <div><h3>AWS Glue</h3><p>Managed Spark plus the Data Catalog</p></div>
+          </div>
+          <h4>What it is</h4>
+          <p>Glue ETL starts managed Apache Spark workers for a job, runs PySpark, and releases them when the job ends. Spark is a distributed data-processing engine. The Glue Data Catalog is a separate metadata registry that tells query tools what tables exist and where their S3 files live.</p>
+
+          <h4>What it does in this project</h4>
+          <p><code>AnalyticsGlueJob</code> receives <code>--run_id</code> and <code>--manifest_key</code>. It reads only the manifest-listed JSONL files, verifies expected row counts, writes each view as date-partitioned Parquet under <code>curated/</code>, and writes 12 JSON aggregates under <code>aggregates/</code>. The business transformations live in pure Python functions so pytest can run them without Spark.</p>
+          <p><code>AnalyticsGlueDatabase</code> creates the catalog namespace intended for Athena.</p>
+
+          <div class="tradeoff">
+            <h4>Why Glue instead of EMR?</h4>
+            <p>EMR would mean choosing and managing a cluster and its lifetime. Glue gives us per-run serverless Spark. Each G.1X worker is 1 DPU; at the cited region rate of about $0.44 per DPU-hour, 2 workers running the full 10-minute ceiling are roughly $0.15 for that run. Actual billing depends on runtime and AWS pricing.</p>
+            <p><strong>Honest answer:</strong> Glue is arguably overkill for only thousands of rows, and the current job even collects each small view to the driver. A Lambda or plain Python job would be simpler. Glue was chosen to satisfy the assignment's Analytics category and to learn Spark. Say that out loud. Examiners usually respect a proportionality argument more than a fake claim that Spark was required.</p>
+          </div>
+
+          <h4>Config we chose and why</h4>
+          <ul>
+            <li>Glue <code>4.0</code>, command <code>glueetl</code>, Python <code>3</code>.</li>
+            <li><code>WorkerType: G.1X</code>, <code>NumberOfWorkers: 2</code>. This is the lab minimum chosen for the job.</li>
+            <li><code>Timeout: 10</code> minutes, <code>MaxRetries: 0</code>, <code>MaxConcurrentRuns: 1</code>. These are cost fuses.</li>
+            <li>Dynamic partition overwrite and <code>dt=YYYY-MM-DD</code> Parquet partitions.</li>
+            <li><code>LabRole</code> is the job role because custom IAM roles are blocked.</li>
+          </ul>
+          <div class="gap"><strong>Catalog implementation:</strong> CloudFormation creates <code>AWS::Glue::Table</code> resources for <code>v_meals</code>, <code>v_user_funnel</code> and <code>v_pipeline_runs</code>. Each table projects its <code>dt</code> date partition and maps it directly to the matching S3 prefix, so Athena can discover date partitions without a crawler or repeated <code>MSCK REPAIR TABLE</code> commands.</div>
+          <p class="qa">“Glue gives us disposable Spark rather than a managed EMR cluster. It is intentionally bounded to two G.1X workers, one concurrent run, zero retries and ten minutes, and I acknowledge that Spark is educational rather than necessary at our current row count.”</p>
+        </article>
+
+        <article class="service-card" id="athena">
+          <div class="service-heading">
+            <span class="service-mark">SQL</span>
+            <div><h3>Amazon Athena</h3><p>SQL that scans S3 on demand</p></div>
+          </div>
+          <h4>What it is</h4>
+          <p>Athena runs SQL without a database server or warehouse cluster. It uses catalog metadata to understand table columns and scans the underlying S3 files when a query runs. Cost is mainly based on bytes scanned.</p>
+
+          <h4>What it does in this project</h4>
+          <p><code>AnalyticsWorkGroup</code> is the cost boundary. The Athena Lambda accepts only three template IDs: macro percentiles by date, meals by preferred locale, and p50/p95 pipeline latency by model. User input is limited to validated ISO dates, so callers cannot submit arbitrary SQL.</p>
+          <p>The API is asynchronous: POST returns a <code>query_execution_id</code>, GET polls status, and a successful poll returns at most 100 result rows. Athena writes results to <code>athena-results/</code>.</p>
+
+          <div class="tradeoff">
+            <h4>Why Athena instead of Redshift?</h4>
+            <p>Redshift is a data warehouse with running capacity to size and pay for. Athena charges per TB scanned over files and has no cluster to keep alive, which fits rare demonstration queries. It is slower and less predictable than an always-warm warehouse, and badly partitioned or broad queries can scan too much data. Parquet, fixed templates and the workgroup cap control that risk.</p>
+          </div>
+
+          <h4>Config we chose and why</h4>
+          <ul>
+            <li><code>BytesScannedCutoffPerQuery: 1073741824</code>, exactly 1 GiB.</li>
+            <li><code>EnforceWorkGroupConfiguration: true</code>, so a client cannot bypass the output and cost settings.</li>
+            <li>Query results use SSE-S3 encryption and expire from S3 after 7 days.</li>
+            <li>CloudWatch workgroup metrics are enabled.</li>
+            <li>Only fixed SQL templates are exposed; dates become validated <code>DATE</code> literals.</li>
+          </ul>
+          <div class="gap"><strong>Partition projection trade-off:</strong> the clean stack creates all three catalog tables and derives <code>dt</code> partitions from configured date ranges and S3 location templates. This removes crawler cost, scheduling and catalog-update lag, and avoids manual <code>MSCK REPAIR TABLE</code> maintenance; the trade-off is that the projection rules must continue to match the actual S3 partition layout.</div>
+          <p class="qa">“Athena is our bounded exploratory SQL path, not the normal dashboard database. We pay only when a fixed query scans Parquet, and the enforced workgroup stops any query above 1 GiB.”</p>
+        </article>
+
+        <article class="service-card" id="eventbridge">
+          <div class="service-heading">
+            <span class="service-mark">EVT</span>
+            <div><h3>Amazon EventBridge</h3><p>Schedule and service-event wiring</p></div>
+          </div>
+          <h4>What it is</h4>
+          <p>EventBridge can fire on a schedule or match events emitted by AWS services. When a rule matches, it sends the event to a target such as Lambda. It replaces a small amount of cron and polling-server code.</p>
+
+          <h4>What it does in this project</h4>
+          <p><code>DailyExtractRule</code> invokes the extractor with <code>rate(1 day)</code>. <code>GlueSucceededRule</code> listens for a Glue Job State Change where both the job name matches <code>AnalyticsGlueJob</code> and state equals <code>SUCCEEDED</code>, then invokes the loader. Lambda resource policies allow only those scoped rules to invoke their functions.</p>
+
+          <div class="tradeoff">
+            <h4>Why EventBridge instead of cron, Step Functions or polling Glue?</h4>
+            <p>There is no always-on machine on which to install cron. The pipeline is linear enough that Step Functions would add another orchestration layer without much value. Glue already emits a success event, so polling its status would waste calls and code. EventBridge does not provide the rich visual workflow and retry state that Step Functions would, so failures currently live in service logs rather than a workflow state machine.</p>
+          </div>
+
+          <h4>Config we chose and why</h4>
+          <ul>
+            <li>Daily schedule is <code>rate(1 day)</code>. It is a 24-hour cadence from rule creation or update, not “midnight UTC.”</li>
+            <li>Both production rules are enabled.</li>
+            <li>The Glue rule matches the exact job and only <code>SUCCEEDED</code>, so the loader never intentionally reads incomplete output.</li>
+            <li>The probe stack includes the same daily schedule in <code>DISABLED</code> state to test wiring without recurring cost.</li>
+            <li>No dead-letter queue or failure rule is configured.</li>
+          </ul>
+          <p class="qa">“EventBridge owns time and service events. One rule replaces cron; the other reacts to the exact Glue success event, so the loader never has to poll and never starts on a failed job.”</p>
+        </article>
+
+        <article class="service-card" id="fargate">
+          <div class="service-heading">
+            <span class="service-mark">ECS</span>
+            <div><h3>Amazon ECS with AWS Fargate</h3><p>The disposable dashboard runtime</p></div>
+          </div>
+          <h4>What it is</h4>
+          <p>ECS is the service that describes containers, starts them, replaces unhealthy tasks and keeps a desired count running. Fargate is the compute mode: AWS supplies the host, so there is no EC2 instance to select, patch or SSH into.</p>
+
+          <h4>What it does in this project</h4>
+          <p><code>DashboardCluster</code> contains one <code>DashboardService</code> with desired count 1. The task pulls the Next.js image from ECR, receives <code>API_BASE_URL</code> as a normal environment variable, receives <code>DASHBOARD_TOKEN</code> directly from Secrets Manager, and sends logs to a 7-day CloudWatch log group.</p>
+          <p>The presentation stack is created by <code>scripts/lab-up.sh</code> for a work session and deleted by <code>scripts/lab-down.sh</code> afterward. This is teardown-to-zero between sessions, not automatic autoscaling to zero while the stack exists.</p>
+
+          <div class="tradeoff">
+            <h4>Why Fargate instead of Elastic Beanstalk or EC2?</h4>
+            <p>EC2 would require a VM lifecycle, OS patching and container process management. Beanstalk can manage an application environment, but it hides more infrastructure behavior and still creates an environment that must be understood and cleaned up. Fargate directly runs the Docker artifact with no host administration, while ECS gives explicit task, service, network and health settings.</p>
+          </div>
+
+          <h4>Config we chose and why</h4>
+          <ul>
+            <li>Task size <code>256 CPU units</code> and <code>512 MiB</code>, the smallest configured Fargate size.</li>
+            <li><code>DesiredCount: 1</code>, launch type <code>FARGATE</code>, platform <code>LATEST</code>.</li>
+            <li><code>RuntimePlatform: X86_64 / LINUX</code>. Apple Silicon defaults to ARM builds, so <code>docker build --platform linux/amd64</code> pins a compatible image.</li>
+            <li><code>awsvpc</code> networking and a public IP in two default-VPC public subnets. This avoids a NAT Gateway.</li>
+            <li>The task security group accepts traffic only from the ALB security group.</li>
+            <li><code>LabRole</code> is both task role and execution role because the lab forbids creating dedicated roles.</li>
+            <li>No EBS or <code>gp2</code> volume. The container is disposable and persistent data lives in AWS services.</li>
+          </ul>
+          <div class="gap"><strong>Implemented network path:</strong> the task definition, ECS service and target group all use application port <code>3000</code>. The task security group admits that port only from the ALB security group, and the target group checks <code>/api/health</code>, keeping public port 80 at the listener while aligning the private hop with the Next.js container.</div>
+          <p class="qa">“ECS defines the desired container state and Fargate supplies the host. We use one 0.25-vCPU, 512-MiB x86 task only during sessions, then delete the whole presentation stack.”</p>
+        </article>
+
+        <article class="service-card" id="alb">
+          <div class="service-heading">
+            <span class="service-mark">ALB</span>
+            <div><h3>Application Load Balancer</h3><p>The temporary public front door</p></div>
+          </div>
+          <h4>What it is</h4>
+          <p>An ALB receives HTTP requests, checks which backend targets are healthy, and forwards traffic. “Application” means it operates at HTTP level rather than merely forwarding raw network packets.</p>
+
+          <h4>What it does in this project</h4>
+          <p><code>DashboardLoadBalancer</code> is internet-facing and IPv4. Its listener accepts HTTP on port 80 and forwards to <code>DashboardTargetGroup</code>. The target type is <code>ip</code>, which is required for Fargate tasks using <code>awsvpc</code>. Health checks request <code>/</code> and accept status 200 through 399.</p>
+          <p>The ALB security group allows public port 80. The task security group allows its application port only when the packet came from the ALB security group.</p>
+
+          <div class="tradeoff">
+            <h4>Why ALB instead of CloudFront?</h4>
+            <p>CloudFront is blocked in AWS Academy Learner Lab. ALB is the supported layer-7 front door and integrates directly with an ECS IP target group. CloudFront would be a CDN and edge cache, which is useful for global static delivery but not required for one regional tutor demo. ALB has an hourly cost, so it lives in the disposable stack.</p>
+          </div>
+
+          <h4>Config we chose and why</h4>
+          <ul>
+            <li>Two public subnets in different Availability Zones, discovered from the existing default VPC by <code>lab-up.sh</code>.</li>
+            <li>Internet-facing, IPv4, one HTTP listener.</li>
+            <li>IP target group with <code>/</code> health check and a 200-399 matcher.</li>
+            <li>Fargate health-check grace period <code>60 seconds</code>.</li>
+            <li>No domain, certificate, HTTPS listener or WAF is configured. The current stack output is an <code>http://</code> ALB DNS URL.</li>
+          </ul>
+          <div class="gap"><strong>Aligned routing:</strong> the public listener receives HTTP on port <code>80</code>, then forwards to the IP target group on port <code>3000</code>, matching the ECS service and container port. Health checks use <code>/api/health</code>, and the service security group accepts port 3000 only from the ALB security group.</div>
+          <p class="qa">“ALB is our session-only HTTP reverse proxy and health router. CloudFront is unavailable in the lab, and the ALB is deleted after the demo to stop its hourly cost.”</p>
+        </article>
+
+        <article class="service-card" id="ecr">
+          <div class="service-heading">
+            <span class="service-mark">ECR</span>
+            <div><h3>Amazon Elastic Container Registry</h3><p>The private dashboard image store</p></div>
+          </div>
+          <h4>What it is</h4>
+          <p>ECR stores Docker-compatible image layers and tags inside an AWS account and region. ECS pulls the image URI from ECR before it can start a task.</p>
+
+          <h4>What it does in this project</h4>
+          <p><code>scripts/push-image.sh</code> builds <code>dashboard/</code> for <code>linux/amd64</code>, creates the <code>kallo-dashboard</code> repository if it does not exist, enables scan-on-push, logs Docker into the registry, pushes the tag, and writes <code>IMAGE_URI</code> to the ignored <code>.lab-config</code>. <code>lab-up.sh</code> passes that URI into the task definition.</p>
+
+          <div class="tradeoff">
+            <h4>Why ECR instead of Docker Hub?</h4>
+            <p>ECR is private, region-local and integrated with ECS task image pulls. It avoids depending on an external public registry or its pull limits. The trade-off is AWS authentication and stored-image cost. Images persist after <code>lab-down.sh</code>, so they need deliberate cleanup if tags accumulate.</p>
+          </div>
+
+          <h4>Config we chose and why</h4>
+          <ul>
+            <li>Repository name defaults to <code>kallo-dashboard</code>; tag defaults to <code>latest</code> but the demo guide uses named tags such as <code>first-demo</code>.</li>
+            <li>Image scanning is enabled when the script creates the repository.</li>
+            <li>Build command pins <code>--platform linux/amd64</code> to prevent Apple Silicon from producing an ARM-only image.</li>
+            <li>ECR is script-managed, not declared in CloudFormation.</li>
+            <li>The repository and images are intentionally not deleted by <code>lab-down.sh</code>.</li>
+          </ul>
+          <div class="warning"><strong>Learner Lab detail:</strong> <code>LabRole</code> can pull images for ECS but is read-only for ECR pushes. The operator must run <code>aws ecr get-login-password</code> with current federated session credentials. When the lab session expires, log in again and repeat the push authentication.</div>
+          <p class="qa">“ECR is the private handoff between my laptop build and Fargate. I pin amd64, push with temporary federated session credentials, and let the task pull through LabRole.”</p>
+        </article>
+
+        <article class="service-card" id="secrets-manager">
+          <div class="service-heading">
+            <span class="service-mark">SEC</span>
+            <div><h3>AWS Secrets Manager</h3><p>Credentials outside source and images</p></div>
+          </div>
+          <h4>What it is</h4>
+          <p>Secrets Manager stores sensitive strings and returns them only to authorized AWS identities. Code keeps an ARN or environment variable reference, while the secret value stays outside Git and the container image.</p>
+
+          <h4>What it does in this project</h4>
+          <p>The persistent stack creates three secrets:</p>
+          <ul>
+            <li><code>SupabaseCreds</code> stores the project URL and restricted analytics key as JSON. The extractor retrieves it at runtime.</li>
+            <li><code>GeminiKey</code> stores the Gemini API key. The insight Lambda reads it on the first invocation of a warm environment and caches it in memory.</li>
+            <li><code>DashboardToken</code> stores the static bearer token. The authorizer reads it; ECS injects the same value as <code>DASHBOARD_TOKEN</code>.</li>
+          </ul>
+
+          <div class="tradeoff">
+            <h4>Why not put secrets in code or ordinary environment values?</h4>
+            <p>Hard-coded keys leak through Git history, ZIP files and images. Plain CloudFormation environment values are visible as configuration. Secrets Manager keeps the stored value behind an ARN and supports runtime retrieval or ECS secret injection. It does not automatically make the static token multi-user or rotate it; rotation is manual here.</p>
+          </div>
+
+          <h4>Config we chose and why</h4>
+          <ul>
+            <li>Template parameters use <code>NoEcho: true</code>, so normal CloudFormation output does not print their values.</li>
+            <li>Dashboard token length is constrained to 20-128 characters.</li>
+            <li>Supabase, Gemini and dashboard credentials are separate secrets to avoid accidental coupling.</li>
+            <li>Secret values are passed at deployment from shell environment variables and never committed.</li>
+            <li><code>LabRole</code> performs reads because the lab does not allow a custom least-privilege role.</li>
+          </ul>
+          <p class="qa">“Secrets Manager prevents keys from entering Git, Lambda packages or the image. The application holds only secret ARNs, and values arrive through runtime reads or ECS secret injection.”</p>
+        </article>
+
+        <article class="service-card" id="cloudformation">
+          <div class="service-heading">
+            <span class="service-mark">CFN</span>
+            <div><h3>AWS CloudFormation</h3><p>Infrastructure as reproducible stacks</p></div>
+          </div>
+          <h4>What it is</h4>
+          <p>CloudFormation reads a template, creates resources in dependency order, updates changed resources, and can delete the whole group as a stack. It turns console clicking into reviewable infrastructure as code.</p>
+
+          <h4>What it does in this project</h4>
+          <p>There are three templates:</p>
+          <ul>
+            <li><code>infra/probe-stack.yaml</code> is a disposable Session-0 permission test: one tiny Lambda, one disabled schedule, one two-worker Glue job, one Athena workgroup and a harmless secret.</li>
+            <li><code>infra/data-stack.yaml</code> is persistent and cheap: S3, DynamoDB, Glue job/database, Athena workgroup, seven Lambdas, API Gateway, EventBridge and three secrets.</li>
+            <li><code>infra/presentation-stack.yaml</code> is disposable: ALB, target group, security groups, ECS cluster/service/task and a 7-day log group.</li>
+          </ul>
+          <p><code>deploy-data-stack.sh</code> deploys the data template and then replaces its seven inline placeholder functions with ZIPs from the repository. <code>lab-up.sh</code> and <code>lab-down.sh</code> create and delete the presentation stack.</p>
+
+          <div class="tradeoff">
+            <h4>Why CloudFormation instead of manual console setup?</h4>
+            <p>The $50 Learner Lab can delete the whole AWS account after an overrun, and sessions provide temporary credentials. Infrastructure as code is therefore disaster recovery: after obtaining a fresh lab, one scripted deployment per stack recreates named resources and safety settings consistently. Operator inputs still matter: secrets, deployment-bucket URI, image URI and default-VPC IDs are not magically recoverable.</p>
+          </div>
+
+          <h4>Config we chose and why</h4>
+          <ul>
+            <li>Every template targets the operator-selected region; all scripts default to <code>us-east-1</code>.</li>
+            <li>No template contains <code>AWS::IAM::Role</code> or <code>AWS::IAM::Policy</code>. Role ARNs point to <code>LabRole</code>.</li>
+            <li>Cross-stack exports give the presentation stack the API URL and dashboard secret ARN.</li>
+            <li>The default VPC and two public subnet IDs are parameters, so the template creates no VPC.</li>
+            <li>The data and presentation stacks are separated so expensive session resources can be deleted without deleting data.</li>
+            <li>ECR creation remains in <code>push-image.sh</code>, outside CloudFormation, and Lambda application ZIP updates happen after stack deployment.</li>
+          </ul>
+          <p class="qa">“CloudFormation is both repeatability and budget control. The persistent and disposable tiers are separate stacks, so I can tear down the ALB and Fargate task after every session and rebuild consistently after a lab reset.”</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="demo-flows">
+      <h2 id="demo-flows">Two flows to narrate in the demo</h2>
+      <p class="section-intro">Point at the runtime diagram while speaking. Name the handoff object or key at every step. That proves you understand how the services connect rather than merely recognizing their icons.</p>
+
+      <div class="flow-grid">
+        <article class="flow">
+          <h3>The unattended daily pipeline</h3>
+          <ol>
+            <li><strong>EventBridge invokes the extractor</strong> once every 24 hours with <code>rate(1 day)</code>.</li>
+            <li><strong>The extract Lambda reads Supabase over HTTPS.</strong> It reads only seven sanitized analytics views, asks for explicit columns, pages 1,000 rows at a time, and uses a DynamoDB watermark for incremental views. <code>v_food_composition</code> is a full refresh.</li>
+            <li><strong>S3 receives raw JSONL.</strong> Each page becomes <code>raw/&lt;view&gt;/dt=&lt;date&gt;/part-&lt;n&gt;.jsonl</code>. If all seven views finish, Lambda writes one manifest containing file names and row counts.</li>
+            <li><strong>Lambda starts Glue exactly once.</strong> It passes the run ID and manifest key. A partial extraction never produces a manifest and never intentionally starts Glue.</li>
+            <li><strong>Glue transforms the declared files.</strong> Two G.1X workers validate counts, write partitioned Parquet, and compute 12 aggregate JSON files.</li>
+            <li><strong>Glue emits success; EventBridge filters it.</strong> Only <code>SUCCEEDED</code> for this exact job invokes the loader.</li>
+            <li><strong>The loader writes DynamoDB idempotently.</strong> Each payload goes to <code>(metric, date)</code>. Replaying the same date replaces the same keys rather than duplicating records.</li>
+          </ol>
+        </article>
+
+        <article class="flow">
+          <h3>A page load and “Run now” click</h3>
+          <ol>
+            <li><strong>The browser requests the ALB URL.</strong> The ALB should forward to the one healthy Fargate task. First acknowledge that the current 80-versus-3000 port mismatch must be fixed before this path works.</li>
+            <li><strong>Next.js renders the latest 90-day dashboard.</strong> Server-side code starts 12 metric requests for nine panels. The bearer token remains server-side.</li>
+            <li><strong>API Gateway authorizes and throttles.</strong> The TOKEN Lambda checks the bearer secret, then the metrics Lambda queries DynamoDB by metric and date range.</li>
+            <li><strong>Next.js merges daily payloads.</strong> <code>Promise.allSettled</code> keeps available panels if one metric fails. Mention that the 12-call fan-out needs testing against burst 5.</li>
+            <li><strong>The operator selects Run pipeline now.</strong> The browser calls the same-origin Next.js route, which calls <code>POST /runs</code> through API Gateway.</li>
+            <li><strong>The runs Lambda returns quickly.</strong> It creates a UUID and asynchronously invokes the extractor. The browser receives HTTP 202 instead of waiting minutes.</li>
+            <li><strong>The browser polls every 5 seconds.</strong> <code>GET /runs/{run_id}</code> reads <code>_run#&lt;uuid&gt;/latest</code> from DynamoDB until the loader changes the phase to <code>completed</code>. An immediate first poll can briefly return 404 before the asynchronous extractor creates the record.</li>
+          </ol>
+        </article>
+      </div>
+
+      <figure class="architecture topology">
+        <img src="doc_images/kallo-cross-platform-topology.png" alt="Deployment topology showing two Git repositories on a developer laptop, production on GCP and Supabase, and the analytics project in AWS Learner Lab.">
+        <figcaption>Two repositories, three platforms. The product repository deploys the live Kallo app to GCP Cloud Run and adds sanitized views to Supabase. This assignment repository deploys only the read-only analytics plane to AWS. The browser reaches AWS for the tutor demo; AWS reads production analytics views over HTTPS but does not replace or write to the production application.</figcaption>
+      </figure>
+    </section>
+
+    <section class="section" aria-labelledby="lab-reality">
+      <h2 id="lab-reality">The Learner Lab reality</h2>
+      <p class="section-intro">These are not side notes. They explain several architecture choices that would look unusual in a normal company AWS account.</p>
+
+      <div class="reality-grid">
+        <div class="reality-item"><strong>$50 kill-switch</strong><p>Exceeding the total budget deletes the AWS account. Glue has time, retry and concurrency fuses; Athena has a 1 GiB scan fuse; API Gateway has rate and monthly limits; ALB and Fargate are session-only.</p></div>
+        <div class="reality-item"><strong>us-east-1 only</strong><p>Every deployment script defaults to <code>us-east-1</code>. ECR images, Glue jobs, Lambdas, stacks and lookups must stay in the same intended region.</p></div>
+        <div class="reality-item"><strong>LabRole only</strong><p>The lab forbids creating IAM users, roles and policies. Lambda, Glue, ECS task execution, ECS application calls and EventBridge targets all reference the supplied <code>LabRole</code>. This is compliant but broader than production least privilege.</p></div>
+        <div class="reality-item"><strong>No CloudFront or Cognito</strong><p>ALB replaces the unavailable CDN/front door. A static bearer TOKEN authorizer replaces unavailable Cognito for one known operator. That is a demo security model, not customer identity.</p></div>
+        <div class="reality-item"><strong>ECR push uses session credentials</strong><p>ECS can pull with <code>LabRole</code>, but the role is read-only for pushes. Docker login and push use the operator's current federated credentials. Expired credentials require a new lab session and login.</p></div>
+        <div class="reality-item"><strong>Session expiry is not teardown</strong><p>Console and CLI credentials expire, but S3, DynamoDB, secrets, ECR images, ALBs and running Fargate tasks persist and can still cost money. <code>End Lab</code> is not a substitute for <code>scripts/lab-down.sh</code>.</p></div>
+        <div class="reality-item"><strong>No NAT Gateway</strong><p>Lambda and managed data services stay outside a VPC. The Fargate task gets a public IP in default-VPC public subnets, but its inbound rule trusts only the ALB security group. This avoids the roughly $32/month NAT fixed-cost trap.</p></div>
+        <div class="reality-item"><strong>Probe before the real stack</strong><p>The probe checks that <code>LabRole</code>, PassRole, secret reads, Lambda, Glue and Athena work in this lab. Delete <code>kallo-probe</code> when those one-time checks pass.</p></div>
+      </div>
+
+      <div class="supporting">
+        <h3>Supporting AWS pieces you will also be asked about</h3>
+        <dl>
+          <div><dt>IAM and <code>LabRole</code></dt><dd>IAM decides who may call which AWS action. This repository cannot create least-privilege roles, so it supplies the existing LabRole ARN everywhere a service identity is required.</dd></div>
+          <div><dt>Default VPC and public subnets</dt><dd>The VPC is the private network boundary for ALB and ECS. <code>lab-up.sh</code> discovers the existing default VPC and two public subnets in different Availability Zones.</dd></div>
+          <div><dt>Security groups</dt><dd>Stateful virtual firewalls. One allows the public to reach ALB port 80; the other allows task traffic only when its source is the ALB security group.</dd></div>
+          <div><dt>CloudWatch</dt><dd>AWS logging and metrics. The dashboard has a 7-day ECS log group, and metrics are enabled for API Gateway, Athena and Glue. There are no alarms, dashboards or explicit Lambda log-retention resources.</dd></div>
+          <div><dt>Glue Data Catalog</dt><dd>The schema directory Athena needs to map table names to S3 Parquet. The database exists, but table definitions or a crawler are the known missing piece.</dd></div>
+          <div><dt>EC2</dt><dd>No EC2 instance is created. Fargate supplies container compute, Lambda supplies function compute, and Glue supplies Spark compute. That removes server patching and EBS volume choices.</dd></div>
+        </dl>
+      </div>
+
+      <div class="callout"><strong>A defensible final summary:</strong> “I separated a persistent, mostly pay-per-use data plane from a disposable presentation plane. The data path is event-driven and file-based; the online API reads precomputed DynamoDB aggregates. Every expensive or user-triggered path has a limit, and the entire environment is reproducible from templates and scripts.”</div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="page">
+      <h2>Glossary for the live Q&amp;A</h2>
+      <dl class="glossary">
+        <div><dt>IAM role</dt><dd>A set of AWS permissions assumed by a service or task. It is an identity, not a server.</dd></div>
+        <div><dt>ARN</dt><dd>Amazon Resource Name, the globally structured identifier for an AWS resource, such as the LabRole or a secret.</dd></div>
+        <div><dt>Stack</dt><dd>A group of resources created, updated and deleted together by CloudFormation.</dd></div>
+        <div><dt>Workgroup</dt><dd>An Athena policy boundary that enforces query output, monitoring and byte-scan limits.</dd></div>
+        <div><dt>DPU</dt><dd>Data Processing Unit, Glue's compute unit. A G.1X worker provides 1 DPU.</dd></div>
+        <div><dt>Watermark</dt><dd>The last successfully extracted source cursor, used to request only newer rows next time.</dd></div>
+        <div><dt>Manifest</dt><dd>A small JSON contract listing exactly which raw files and row counts belong to one pipeline run.</dd></div>
+        <div><dt>Idempotent</dt><dd>Safe to repeat with the same input. The loader overwrites the same metric/date key rather than creating duplicates.</dd></div>
+        <div><dt>Cold start</dt><dd>The extra first-invocation time while Lambda creates a fresh runtime environment.</dd></div>
+        <div><dt>VPC</dt><dd>Virtual Private Cloud, an isolated AWS network containing subnets and security rules.</dd></div>
+        <div><dt>Subnet</dt><dd>A slice of VPC address space in one Availability Zone. A public subnet has a route toward an internet gateway.</dd></div>
+        <div><dt>Security group</dt><dd>A stateful virtual firewall attached to an ALB or task network interface.</dd></div>
+        <div><dt>Target group</dt><dd>The registered backend addresses and health-check rules to which a load balancer forwards traffic.</dd></div>
+        <div><dt>Task definition</dt><dd>The ECS recipe for an image, CPU, memory, ports, roles, environment, secrets and logging.</dd></div>
+        <div><dt>PostgREST</dt><dd>The HTTP API layer Supabase exposes over Postgres. The extractor uses Range headers, filters and explicit column selection.</dd></div>
+      </dl>
+      <p class="source-note">Grounded in <code>PROJECT_SPEC.md</code>, the three CloudFormation templates, deployment scripts, Lambda handlers and core modules, <code>glue/job.py</code>, <code>glue/transforms.py</code>, and the current Next.js dashboard source. Known boundaries are included so the guide remains defensible against the repository as it exists.</p>
+    </div>
+  </footer>
+</body>
+</html>
