@@ -1,0 +1,726 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: #c9a87c; } a:hover { color: #d4b88c; }
+    .mono { font-family: "Geist Mono", ui-monospace, SFMono-Regular, monospace; }
+    .lbl { font-size: 11px; line-height: 1.3; color: #8a8580; }
+    .card { border: 1px solid #3d3529; border-radius: 10px; background: #251f15; }
+    .ph { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-bottom: 1px solid #3d3529; }
+    .pt { font-size: 13px; font-weight: 600; color: #f5f0e8; }
+    .info { display: inline-grid; place-items: center; width: 13px; height: 13px; border: 1px solid #4a4336; border-radius: 50%; font-size: 9px; color: #8a8580; cursor: help; }
+    .navitem { display: flex; align-items: center; justify-content: space-between; height: 30px; padding: 0 10px; border-radius: 6px; font-size: 13px; color: #b8a88e; cursor: pointer; }
+    .navitem:hover { background: #221c12; color: #f5f0e8; }
+    .navitem.sel { background: #2a2418; color: #f5f0e8; font-weight: 500; }
+    .sub { display: flex; align-items: center; height: 27px; padding: 0 10px 0 22px; font-size: 12px; color: #8a8580; cursor: pointer; }
+    .sub:hover { color: #f5f0e8; }
+    .tab { padding: 5px 11px; border-radius: 6px; font-size: 12px; color: #b8a88e; cursor: pointer; }
+    .tab:hover { color: #f5f0e8; }
+    .tab.sel { background: #2a2418; color: #f5f0e8; font-weight: 500; }
+    .pill { display: inline-flex; align-items: center; gap: 5px; padding: 2px 7px; border-radius: 4px; background: #2a2418; font-size: 11px; color: #b8a88e; }
+    .pill b { font-weight: 500; color: #f5f0e8; }
+    .btn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 1px solid #3d3529; border-radius: 6px; background: transparent; color: #b8a88e; font-family: inherit; font-size: 12px; cursor: pointer; }
+    .btn:hover { border-color: #4a4336; color: #f5f0e8; }
+    .row { display: grid; align-items: center; gap: 12px; padding: 0 14px; height: 36px; border-bottom: 1px solid #2a2418; }
+    .rowh { display: grid; align-items: center; gap: 12px; padding: 0 14px; height: 30px; background: #1c1810; border-bottom: 1px solid #3d3529; }
+    .runrow { grid-template-columns: 78px 1fr 74px 120px 62px 72px 14px; cursor: pointer; }
+    .runrow:hover { background: #2a2418; }
+    .ingrow { grid-template-columns: 168px 14px 1fr 84px 62px 14px; cursor: pointer; }
+    .ingrow:hover { background: #2a2418; }
+    .asmrow { grid-template-columns: 1fr 64px 58px 58px 58px; }
+    .sh { display: grid; grid-template-columns: 14px 1fr auto 12px; align-items: center; gap: 10px; height: 40px; cursor: pointer; }
+    .sh:hover .pt { color: #c9a87c; }
+    .stat { padding: 12px 14px; }
+    .statn { font-family: "Geist Mono", ui-monospace, monospace; font-size: 26px; line-height: 1.05; letter-spacing: -0.03em; font-weight: 500; color: #f5f0e8; }
+    .statu { font-size: 14px; color: #8a8580; letter-spacing: 0; }
+  </style>
+</helmet>
+
+<div style="width: 1400px; display: flex; background: #16130d; color: #f5f0e8; font-family: 'Be Vietnam Pro', ui-sans-serif, system-ui, sans-serif; font-feature-settings: 'tnum' 1; font-size: 13px;">
+
+  <!-- Sidebar -->
+  <div style="width: 208px; flex-shrink: 0; display: flex; flex-direction: column; padding: 14px 10px; border-right: 1px solid #2a2418;">
+    <div style="display: flex; align-items: center; gap: 8px; padding: 0 10px 16px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c9a87c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="3.2"/></svg>
+      <span style="font-size: 14px; font-weight: 600;">Kallo</span>
+      <span class="mono" style="padding: 1px 5px; border-radius: 3px; background: #2a2418; font-size: 10px; color: #8a8580;">ops</span>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 1px;">
+      <sc-for list="{{nav}}" as="n" hint-placeholder-count="3">
+        <div class="{{n.cls}}" onClick="{{n.go}}">
+          <span>{{n.label}}</span>
+          <sc-if value="{{n.badge}}" hint-placeholder-val="{{true}}">
+            <span class="mono" style="font-size: 10px; color: {{n.badgeFg}};">{{n.badge}}</span>
+          </sc-if>
+        </div>
+      </sc-for>
+    </div>
+
+    <p class="lbl" style="margin: 16px 0 4px; padding: 0 10px;">Data</p>
+    <div style="display: flex; flex-direction: column;">
+      <div class="sub">Source views</div>
+      <div class="sub">Aggregates</div>
+      <div class="sub">Athena</div>
+    </div>
+
+    <p class="lbl" style="margin: 14px 0 4px; padding: 0 10px;">Ops</p>
+    <div style="display: flex; flex-direction: column;">
+      <div class="sub">Schedule</div>
+      <div class="sub">Cost</div>
+      <div class="sub">Deploys</div>
+    </div>
+
+    <div style="margin-top: auto; padding: 14px 10px 0; display: flex; align-items: center; justify-content: space-between;">
+      <span class="mono lbl">us-east-1</span>
+      <span class="mono lbl">$12.40 / $50</span>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div style="flex: 1; min-width: 0;">
+
+    <!-- Toolbar -->
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 48px; padding: 0 18px; border-bottom: 1px solid #2a2418;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <sc-for list="{{tabs}}" as="t" hint-placeholder-count="3">
+          <span class="{{t.cls}}" onClick="{{t.go}}">{{t.label}}</span>
+        </sc-for>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px; width: 240px; height: 28px; padding: 0 10px; border: 1px solid #3d3529; border-radius: 6px;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8a8580" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5L21 21"/></svg>
+          <span class="lbl">Search id or meal text</span>
+          <span class="mono" style="margin-left: auto; font-size: 10px; color: #6e6960;">⌘K</span>
+        </div>
+        <span class="pill"><span style="width: 5px; height: 5px; border-radius: 50%; background: #7ca368;"></span>2m</span>
+        <button class="btn">Refresh</button>
+        <button class="btn" style="border-color: #c9a87c; color: #c9a87c;">Run now</button>
+      </div>
+    </div>
+
+    <div style="padding: 16px 18px 24px;">
+
+      <!-- ══ OVERVIEW ══ -->
+      <sc-if value="{{isOverview}}" hint-placeholder-val="{{true}}">
+        <div>
+          <div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px;">
+            <sc-for list="{{stats}}" as="s" hint-placeholder-count="6">
+              <div class="card stat">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                  <span class="lbl">{{s.label}}</span>
+                  <sc-if value="{{s.tag}}" hint-placeholder-val="{{true}}">
+                    <span class="mono" style="font-size: 10px; color: {{s.tagFg}};">{{s.tag}}</span>
+                  </sc-if>
+                </div>
+                <div style="margin-top: 7px;"><span class="statn">{{s.value}}<span class="statu">{{s.unit}}</span></span></div>
+                <p class="lbl" style="margin: 6px 0 0;">{{s.sub}}</p>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 12px; margin-top: 12px;">
+            <div class="card">
+              <div class="ph">
+                <span style="display: flex; align-items: center; gap: 7px;"><span class="pt">Needs review</span><span class="info" title="Runs flagged by the three plausibility rules, plus anything that errored.">i</span></span>
+                <span class="btn" onClick="{{goRuns}}">All requests</span>
+              </div>
+              <div class="rowh runrow">
+                <span class="lbl">Request</span><span class="lbl">Input</span><span class="lbl">Status</span><span class="lbl">Flag</span><span class="lbl">Match</span><span class="lbl" style="text-align: right;">Duration</span><span></span>
+              </div>
+              <sc-for list="{{flagged}}" as="r" hint-placeholder-count="4">
+                <div class="row runrow" onClick="{{r.open}}">
+                  <span class="mono" style="font-size: 12px; color: #b8a88e;">{{r.shortId}}</span>
+                  <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{r.input}}</span>
+                  <span style="font-size: 12px; color: {{r.statusFg}};">{{r.status}}</span>
+                  <span style="font-size: 12px; color: {{r.flagFg}}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{r.flag}}</span>
+                  <span class="mono" style="font-size: 12px; color: {{r.matchFg}};">{{r.matchLabel}}</span>
+                  <span class="mono" style="font-size: 12px; color: #b8a88e; text-align: right;">{{r.duration}}</span>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6e6960" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
+                </div>
+              </sc-for>
+            </div>
+
+            <div class="card">
+              <div class="ph"><span class="pt">Stage flow</span><span class="mono lbl">n · p95</span></div>
+              <div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 9px;">
+                <sc-for list="{{stageFlow}}" as="s" hint-placeholder-count="4">
+                  <div style="display: grid; grid-template-columns: 86px 1fr 84px; align-items: center; gap: 10px;">
+                    <span style="font-size: 12px;">{{s.name}}</span>
+                    <div style="height: 16px; border-radius: 3px; background: #2a2418; overflow: hidden;"><div style="height: 16px; width: {{s.pct}}; border-radius: 3px; background: #c9a87c;"></div></div>
+                    <span class="mono" style="font-size: 11px; color: {{s.fg}}; text-align: right;">{{s.label}}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-top: 12px;">
+            <div class="card">
+              <div class="ph">
+                <span style="display: flex; align-items: center; gap: 7px;"><span class="pt">Decision outcomes</span><span class="info" title="n=906 verdicts from 260 assembly payloads. Reflects the pipeline's final decision, not validated accuracy.">i</span></span>
+                <span class="mono lbl">n=906</span>
+              </div>
+              <div style="padding: 14px;">
+                <div style="display: flex; gap: 2px; height: 28px;">
+                  <div style="width: 59.7%; border-radius: 4px; background: #7ca368;"></div>
+                  <div style="width: 28.9%; border-radius: 4px; background: #e8c55c;"></div>
+                  <div style="width: 11.4%; border-radius: 4px; background: #8a8580;"></div>
+                </div>
+                <div style="display: flex; gap: 20px; margin-top: 11px;">
+                  <span style="display: flex; align-items: center; gap: 6px; font-size: 12px;"><span style="width: 8px; height: 8px; border-radius: 2px; background: #7ca368;"></span>Top retained <span class="mono" style="color: #8a8580;">541</span></span>
+                  <span style="display: flex; align-items: center; gap: 6px; font-size: 12px;"><span style="width: 8px; height: 8px; border-radius: 2px; background: #e8c55c;"></span>Alternate <span class="mono" style="color: #8a8580;">262</span></span>
+                  <span style="display: flex; align-items: center; gap: 6px; font-size: 12px;"><span style="width: 8px; height: 8px; border-radius: 2px; background: #8a8580;"></span>Unresolved <span class="mono" style="color: #8a8580;">103</span></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="ph">
+                <span style="display: flex; align-items: center; gap: 7px;"><span class="pt">Coverage gaps</span><span class="info" title="Food names retrieval could not resolve, by frequency. Each is a candidate composition row or alias.">i</span></span>
+                <span class="mono lbl">121 unmatched</span>
+              </div>
+              <div style="padding: 12px 14px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px 24px;">
+                <sc-for list="{{gaps}}" as="g" hint-placeholder-count="6">
+                  <div style="display: grid; grid-template-columns: 1fr 44px 26px; align-items: center; gap: 9px;">
+                    <span style="font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{g.name}}</span>
+                    <div style="height: 5px; border-radius: 3px; background: #2a2418; overflow: hidden;"><div style="height: 5px; width: {{g.pct}}; border-radius: 3px; background: #8a8580;"></div></div>
+                    <span class="mono" style="font-size: 11px; color: #b8a88e; text-align: right;">{{g.count}}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- ══ REQUESTS ══ -->
+      <sc-if value="{{isRuns}}" hint-placeholder-val="{{false}}">
+        <div>
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <sc-for list="{{filters}}" as="f" hint-placeholder-count="3">
+                <span class="{{f.cls}}" onClick="{{f.pick}}">{{f.label}}</span>
+              </sc-for>
+            </div>
+            <span class="mono lbl">{{visibleCount}} of 348</span>
+          </div>
+          <div class="card">
+            <div class="rowh runrow">
+              <span class="lbl">Request</span><span class="lbl">Input</span><span class="lbl">Status</span><span class="lbl">Flag</span><span class="lbl">Match</span><span class="lbl" style="text-align: right;">Duration</span><span></span>
+            </div>
+            <sc-for list="{{visibleRuns}}" as="r" hint-placeholder-count="6">
+              <div class="row runrow" onClick="{{r.open}}">
+                <span class="mono" style="font-size: 12px; color: #b8a88e;">{{r.shortId}}</span>
+                <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{r.input}}</span>
+                <span style="font-size: 12px; color: {{r.statusFg}};">{{r.status}}</span>
+                <span style="font-size: 12px; color: {{r.flagFg}}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{r.flag}}</span>
+                <span class="mono" style="font-size: 12px; color: {{r.matchFg}};">{{r.matchLabel}}</span>
+                <span class="mono" style="font-size: 12px; color: #b8a88e; text-align: right;">{{r.duration}}</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6e6960" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- ══ INSPECTOR ══ -->
+      <sc-if value="{{isRun}}" hint-placeholder-val="{{false}}">
+        <div>
+          <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px; cursor: pointer;" onClick="{{goRuns}}">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8a8580" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+            <span class="lbl">Requests</span>
+            <span class="lbl">/</span>
+            <span class="mono lbl">{{run.shortId}}</span>
+          </div>
+
+          <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 20px;">
+            <div style="min-width: 0;">
+              <p style="margin: 0; font-size: 16px; font-weight: 600; color: #f5f0e8;">{{run.input}}</p>
+              <p class="mono" style="margin: 5px 0 0; font-size: 11px; color: #6e6960;">{{run.id}}</p>
+            </div>
+            <div style="display: flex; gap: 6px; flex-shrink: 0;">
+              <button class="btn">Replay</button>
+              <button class="btn">Dry-run</button>
+              <button class="btn">Compare</button>
+            </div>
+          </div>
+
+          <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px;">
+            <span class="pill" style="background: {{run.statusBg}}; color: {{run.statusFg}};">{{run.status}}</span>
+            <sc-for list="{{run.meta}}" as="m" hint-placeholder-count="8">
+              <span class="pill">{{m.label}} <b style="color: {{m.fg}};">{{m.value}}</b></span>
+            </sc-for>
+          </div>
+
+          <sc-if value="{{run.hasFlag}}" hint-placeholder-val="{{true}}">
+            <div style="display: flex; align-items: flex-start; gap: 8px; margin-top: 12px; padding: 9px 12px; border: 1px solid {{run.flagBorder}}; border-left-width: 2px; border-radius: 6px; background: {{run.flagBg}};">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="{{run.flagFg}}" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 1px;"><path d="M12 8.5v4.5M12 16.5v.5"/><circle cx="12" cy="12" r="9"/></svg>
+              <p style="margin: 0; font-size: 12px; line-height: 1.5; color: #cfc4b2;"><span style="font-weight: 600; color: {{run.flagFg}};">{{run.flagTitle}}.</span> {{run.flagBody}}</p>
+            </div>
+          </sc-if>
+
+          <div class="card" style="margin-top: 12px; padding: 0 14px;">
+            <sc-for list="{{run.stages}}" as="s" hint-placeholder-count="4">
+              <div style="border-bottom: 1px solid #2a2418;">
+                <div class="sh" onClick="{{s.toggle}}">
+                  <span style="display: grid; place-items: center;"><span style="width: 7px; height: 7px; border-radius: 50%; background: {{s.dot}};"></span></span>
+                  <span style="display: flex; align-items: baseline; gap: 9px;">
+                    <span class="pt">{{s.title}}</span>
+                    <span class="mono lbl">{{s.meta}}</span>
+                  </span>
+                  <span style="display: flex; gap: 5px;">
+                    <sc-for list="{{s.chips}}" as="c" hint-placeholder-count="1">
+                      <span class="mono" style="padding: 1px 6px; border-radius: 3px; background: {{c.bg}}; font-size: 10px; color: {{c.fg}};">{{c.text}}</span>
+                    </sc-for>
+                  </span>
+                  <span style="color: #6e6960; font-size: 10px;">{{s.caret}}</span>
+                </div>
+
+                <sc-if value="{{s.open}}" hint-placeholder-val="{{true}}">
+                  <div style="padding: 0 0 14px 24px;">
+
+                    <sc-if value="{{s.isInput}}" hint-placeholder-val="{{false}}">
+                      <p class="mono" style="margin: 0; padding: 9px 11px; border-radius: 6px; background: #1c1810; font-size: 12px; line-height: 1.6; color: #cfc4b2;">{{run.input}}</p>
+                    </sc-if>
+
+                    <sc-if value="{{s.isDecomp}}" hint-placeholder-val="{{false}}">
+                      <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+                        <sc-for list="{{run.ingredients}}" as="ing" hint-placeholder-count="5">
+                          <span class="pill">{{ing.name}} <b class="mono">{{ing.grams}}</b></span>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+
+                    <sc-if value="{{s.isMatch}}" hint-placeholder-val="{{true}}">
+                      <div style="border: 1px solid #3d3529; border-radius: 8px; overflow: hidden;">
+                        <div class="rowh ingrow">
+                          <span class="lbl">Ingredient</span><span></span><span class="lbl">Matched</span><span class="lbl">Similarity</span><span class="lbl">Conf</span><span></span>
+                        </div>
+                        <sc-for list="{{run.matchRows}}" as="m" hint-placeholder-count="5">
+                          <div>
+                            <div class="row ingrow" onClick="{{m.toggle}}">
+                              <span style="display: flex; align-items: center; gap: 7px; min-width: 0;">
+                                <span style="width: 6px; height: 6px; border-radius: 50%; background: {{m.dot}}; flex-shrink: 0;"></span>
+                                <span style="font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{m.name}}</span>
+                                <span class="mono lbl" style="flex-shrink: 0;">{{m.grams}}</span>
+                              </span>
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#6e6960" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                              <span style="display: flex; align-items: center; gap: 7px; min-width: 0;">
+                                <span style="font-size: 12px; color: {{m.targetFg}}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{m.target}}</span>
+                                <sc-for list="{{m.chips}}" as="c" hint-placeholder-count="2">
+                                  <span class="mono" style="padding: 1px 5px; border-radius: 3px; background: {{c.bg}}; font-size: 10px; color: {{c.fg}}; flex-shrink: 0;">{{c.text}}</span>
+                                </sc-for>
+                              </span>
+                              <span style="display: flex; align-items: center; gap: 7px;">
+                                <span style="width: 34px; height: 4px; border-radius: 2px; background: #2a2418; overflow: hidden;"><span style="display: block; height: 4px; width: {{m.simPct}}; border-radius: 2px; background: {{m.simBar}};"></span></span>
+                                <span class="mono" style="font-size: 11px; color: #b8a88e;">{{m.sim}}</span>
+                              </span>
+                              <span class="mono" style="font-size: 11px; color: {{m.confFg}};">{{m.conf}}</span>
+                              <span style="color: #6e6960; font-size: 10px;">{{m.caret}}</span>
+                            </div>
+
+                            <sc-if value="{{m.open}}" hint-placeholder-val="{{true}}">
+                              <div style="padding: 9px 14px 11px 30px; background: #1c1810; border-bottom: 1px solid #2a2418;">
+                                <sc-if value="{{m.zeroCandidates}}" hint-placeholder-val="{{false}}">
+                                  <p style="margin: 0; font-size: 12px; color: #e0937f;">0 candidates — nothing cleared the retrieval floors.</p>
+                                </sc-if>
+                                <sc-if value="{{m.hasCandidates}}" hint-placeholder-val="{{true}}">
+                                  <div>
+                                    <sc-for list="{{m.candidates}}" as="c" hint-placeholder-count="3">
+                                      <div style="display: grid; grid-template-columns: 22px 1fr 56px 46px 50px 54px; align-items: center; gap: 10px; height: 24px;">
+                                        <span class="mono" style="font-size: 11px; color: {{c.rankFg}};">{{c.rank}}</span>
+                                        <span style="font-size: 12px; color: {{c.nameFg}};">{{c.name}}</span>
+                                        <span class="mono" style="font-size: 11px; color: #b8a88e;">{{c.sim}}</span>
+                                        <span class="mono lbl" style="text-transform: uppercase;">{{c.source}}</span>
+                                        <span class="mono lbl">{{c.type}}</span>
+                                        <span class="mono lbl">{{c.state}}</span>
+                                      </div>
+                                    </sc-for>
+                                    <p class="lbl" style="margin: 7px 0 0;">{{m.poolNote}}</p>
+                                  </div>
+                                </sc-if>
+                              </div>
+                            </sc-if>
+                          </div>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+
+                    <sc-if value="{{s.isAssembly}}" hint-placeholder-val="{{false}}">
+                      <div style="border: 1px solid #3d3529; border-radius: 8px; overflow: hidden;">
+                        <div class="rowh asmrow">
+                          <span class="lbl">Item</span><span class="lbl" style="text-align: right;">kcal</span><span class="lbl" style="text-align: right;">P</span><span class="lbl" style="text-align: right;">C</span><span class="lbl" style="text-align: right;">F</span>
+                        </div>
+                        <sc-for list="{{run.assembly}}" as="a" hint-placeholder-count="2">
+                          <div class="row asmrow">
+                            <span style="font-size: 12px;">{{a.name}}</span>
+                            <span class="mono" style="font-size: 12px; color: #b8a88e; text-align: right;">{{a.kcal}}</span>
+                            <span class="mono" style="font-size: 12px; color: #b8a88e; text-align: right;">{{a.p}}</span>
+                            <span class="mono" style="font-size: 12px; color: {{a.cFg}}; text-align: right;">{{a.c}}</span>
+                            <span class="mono" style="font-size: 12px; color: #b8a88e; text-align: right;">{{a.f}}</span>
+                          </div>
+                        </sc-for>
+                        <div class="row asmrow" style="background: #1c1810; border-bottom: none;">
+                          <span style="font-size: 12px; font-weight: 600;">Total</span>
+                          <span class="mono" style="font-size: 12px; font-weight: 600; text-align: right;">{{run.totals.kcal}}</span>
+                          <span class="mono" style="font-size: 12px; color: #b8a88e; text-align: right;">{{run.totals.p}}</span>
+                          <span class="mono" style="font-size: 12px; color: {{run.totals.cFg}}; text-align: right;">{{run.totals.c}}</span>
+                          <span class="mono" style="font-size: 12px; color: #b8a88e; text-align: right;">{{run.totals.f}}</span>
+                        </div>
+                      </div>
+                      <p class="lbl" style="margin: 8px 0 0;">{{run.assemblyNote}}</p>
+                    </sc-if>
+
+                  </div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{}'>
+const INK = '#f5f0e8', MUTED = '#b8a88e', SOFT = '#8a8580';
+const GREEN = '#7ca368', YELLOW = '#e8c55c', RED = '#e0937f', STONE = '#8a8580', TAN = '#c9a87c';
+
+const RUNS = [
+  {
+    id: '7c1e4a92-3f5b-4d18-9a26-b83e0f7c1d44', short: '7c1e4a92',
+    input: 'bánh ướt thịt nướng, 1 dĩa',
+    status: 'success', flag: 'zero-carb staple', flagKind: 'warn',
+    matched: 4, total: 5, duration: '9.4s', version: 'v3.1',
+    slot: 'lunch', tokens: '4180', user: 'u_8f21', at: '04:12Z', retries: 0, guard: 'pass',
+    flagTitle: 'Carb staple at 0g carbohydrate',
+    flagBody: 'Matching resolved bánh ướt to a raw-flour row instead of a cooked rice-sheet row. Open Matching → bánh ướt.',
+    ings: [['bánh ướt','180g'],['thịt heo nướng','90g'],['nước mắm','15g'],['hành phi','8g'],['rau thơm','20g']],
+    matchRows: [
+      { name: 'bánh ướt', grams: '180g', target: 'Rice flour, raw', sim: '0.612', conf: 'low', kind: 'low',
+        chips: [['fuzzy','#2a2418',MUTED],['fao','#2a2418',MUTED],['raw','rgba(232,197,92,0.15)',YELLOW]],
+        candidates: [
+          { rank: 'c1', name: 'Rice flour, raw', sim: '0.612', source: 'fao', type: 'fuzzy', state: 'raw', picked: true },
+          { rank: 'c2', name: 'Rice noodle sheet, cooked', sim: '0.598', source: 'fao', type: 'vector', state: 'cooked' },
+          { rank: 'c3', name: 'Rice, steamed', sim: '0.541', source: 'usda', type: 'vector', state: 'cooked' }
+        ],
+        poolNote: 'c2 is correct and lost by 0.014 — no state-aware tiebreak in the cascade.' },
+      { name: 'thịt heo nướng', grams: '90g', target: 'Pork, grilled', sim: '0.941', conf: 'high', kind: 'high',
+        chips: [['vector','#2a2418',MUTED],['usda','#2a2418',MUTED]],
+        candidates: [
+          { rank: 'c1', name: 'Pork, grilled', sim: '0.941', source: 'usda', type: 'vector', state: 'cooked', picked: true },
+          { rank: 'c2', name: 'Pork shoulder, roasted', sim: '0.887', source: 'usda', type: 'vector', state: 'cooked' }
+        ], poolNote: '0.054 separation.' },
+      { name: 'nước mắm', grams: '15g', target: 'Fish sauce', sim: '0.968', conf: 'high', kind: 'high',
+        chips: [['exact','#2a2418',MUTED],['fao','#2a2418',MUTED]],
+        candidates: [ { rank: 'c1', name: 'Fish sauce', sim: '0.968', source: 'fao', type: 'vector', state: 'unknown', picked: true } ],
+        poolNote: 'Single candidate above floor.' },
+      { name: 'hành phi', grams: '8g', target: 'Onion, fried', sim: '0.822', conf: 'med', kind: 'medium',
+        chips: [['vector','#2a2418',MUTED],['fao','#2a2418',MUTED],['alias','rgba(232,197,92,0.15)',YELLOW]],
+        candidates: [
+          { rank: 'c1', name: 'Onion, fried', sim: '0.822', source: 'fao', type: 'vector', state: 'cooked', picked: true },
+          { rank: 'c2', name: 'Shallot, raw', sim: '0.744', source: 'fao', type: 'vector', state: 'raw' }
+        ], poolNote: 'Resolved through the alias table.' },
+      { name: 'rau thơm', grams: '20g', target: null, sim: null, conf: 'none', kind: 'unmatched', chips: [], candidates: [], poolNote: '' }
+    ],
+    assembly: [ { name: 'Bánh ướt thịt nướng', kcal: '486', p: '24g', c: '0g', f: '18g', cBad: true } ],
+    totals: { kcal: '486', p: '24g', c: '0g', f: '18g', cBad: true },
+    assemblyNote: '4/4/9 predicts 258 kcal against 486 reported — a 47% gap.'
+  },
+  {
+    id: 'a13d90b7-88c2-41ee-b5a1-2d4f6e9c0a17', short: 'a13d90b7',
+    input: 'phở bò tái, tô lớn', status: 'success', flag: '—', flagKind: 'none',
+    matched: 7, total: 7, duration: '6.2s', version: 'v3.1',
+    slot: 'breakfast', tokens: '5020', user: 'u_31c7', at: '01:44Z', retries: 0, guard: 'pass',
+    flagTitle: '', flagBody: '',
+    ings: [['bánh phở','200g'],['thịt bò tái','80g'],['nước dùng','400g'],['hành lá','10g'],['giá đỗ','30g'],['rau quế','15g'],['chanh','5g']],
+    matchRows: [
+      { name: 'bánh phở', grams: '200g', target: 'Rice noodle, cooked', sim: '0.954', conf: 'high', kind: 'high',
+        chips: [['vector','#2a2418',MUTED],['fao','#2a2418',MUTED]],
+        candidates: [ { rank: 'c1', name: 'Rice noodle, cooked', sim: '0.954', source: 'fao', type: 'vector', state: 'cooked', picked: true }, { rank: 'c2', name: 'Rice noodle, dried', sim: '0.831', source: 'fao', type: 'vector', state: 'raw' } ],
+        poolNote: 'State-correct, clear separation.' },
+      { name: 'thịt bò tái', grams: '80g', target: 'Beef, lean, rare', sim: '0.903', conf: 'high', kind: 'high',
+        chips: [['vector','#2a2418',MUTED],['usda','#2a2418',MUTED]],
+        candidates: [ { rank: 'c1', name: 'Beef, lean, rare', sim: '0.903', source: 'usda', type: 'vector', state: 'cooked', picked: true } ], poolNote: 'Single candidate above floor.' },
+      { name: 'nước dùng', grams: '400g', target: 'Beef broth', sim: '0.887', conf: 'high', kind: 'high',
+        chips: [['vector','#2a2418',MUTED],['fao','#2a2418',MUTED]],
+        candidates: [ { rank: 'c1', name: 'Beef broth', sim: '0.887', source: 'fao', type: 'vector', state: 'cooked', picked: true } ], poolNote: 'Single candidate above floor.' }
+    ],
+    assembly: [ { name: 'Phở bò tái', kcal: '612', p: '32g', c: '78g', f: '14g', cBad: false } ],
+    totals: { kcal: '612', p: '32g', c: '78g', f: '14g', cBad: false },
+    assemblyNote: '4/4/9 predicts 566 kcal — 7.5% gap, inside the band.'
+  },
+  {
+    id: 'c04e7f28-5a91-4b3c-8e77-1f0d9a2b6c53', short: 'c04e7f28',
+    input: 'cơm tấm sườn bì chả', status: 'error', flag: 'stage failure', flagKind: 'bad',
+    matched: 0, total: 0, duration: '31.2s', version: 'v3.1',
+    slot: 'lunch', tokens: '1940', user: 'u_5b02', at: '12:03Z', retries: 2, guard: 'pass',
+    flagTitle: 'Failed at matching',
+    flagBody: 'Exceeded budget after two retries. Decomposition output is intact, so this is a safe replay candidate.',
+    ings: [['cơm tấm','220g'],['sườn nướng','120g'],['bì heo','40g'],['chả trứng','60g']],
+    matchRows: [],
+    assembly: [],
+    totals: { kcal: '—', p: '—', c: '—', f: '—', cBad: false },
+    assemblyNote: 'No output — pipeline stopped at matching.'
+  },
+  {
+    id: '6b7a1155-2c4d-4f80-a913-77e5c8b0d266', short: '6b7a1155',
+    input: 'cà phê sữa đá', status: 'success', flag: 'macro mismatch', flagKind: 'warn',
+    matched: 2, total: 2, duration: '3.9s', version: 'v2.5',
+    slot: 'snack', tokens: '1610', user: 'u_9d13', at: '08:31Z', retries: 0, guard: 'pass',
+    flagTitle: '4/4/9 mismatch above 40%',
+    flagBody: '180 kcal reported against macros predicting 96. Both ingredients matched high, so the gap is in the composition rows.',
+    ings: [['cà phê đen','120g'],['sữa đặc','30g']],
+    matchRows: [
+      { name: 'cà phê đen', grams: '120g', target: 'Coffee, brewed', sim: '0.971', conf: 'high', kind: 'high',
+        chips: [['exact','#2a2418',MUTED],['usda','#2a2418',MUTED]],
+        candidates: [ { rank: 'c1', name: 'Coffee, brewed', sim: '0.971', source: 'usda', type: 'vector', state: 'cooked', picked: true } ], poolNote: 'Single candidate above floor.' },
+      { name: 'sữa đặc', grams: '30g', target: 'Condensed milk, sweetened', sim: '0.933', conf: 'high', kind: 'high',
+        chips: [['vector','#2a2418',MUTED],['fao','#2a2418',MUTED]],
+        candidates: [ { rank: 'c1', name: 'Condensed milk, sweetened', sim: '0.933', source: 'fao', type: 'vector', state: 'unknown', picked: true } ], poolNote: 'Single candidate above floor.' }
+    ],
+    assembly: [ { name: 'Cà phê sữa đá', kcal: '180', p: '3g', c: '21g', f: '0g', cBad: false } ],
+    totals: { kcal: '180', p: '3g', c: '21g', f: '0g', cBad: false },
+    assemblyNote: '4/4/9 predicts 96 kcal against 180 — an 87% gap.'
+  },
+  {
+    id: '2f8c33d1-7e40-4a55-b6c8-90a1e4f27b39', short: '2f8c33d1',
+    input: 'gỏi cuốn tôm thịt, 3 cuốn', status: 'success', flag: '—', flagKind: 'none',
+    matched: 6, total: 6, duration: '5.1s', version: 'v3.1',
+    slot: 'snack', tokens: '3440', user: 'u_31c7', at: '06:15Z', retries: 0, guard: 'pass',
+    flagTitle: '', flagBody: '',
+    ings: [['bánh tráng','30g'],['tôm luộc','60g'],['thịt heo luộc','50g'],['bún tươi','80g'],['rau xà lách','25g'],['hẹ','10g']],
+    matchRows: [
+      { name: 'bánh tráng', grams: '30g', target: 'Rice paper', sim: '0.945', conf: 'high', kind: 'high',
+        chips: [['vector','#2a2418',MUTED],['fao','#2a2418',MUTED]],
+        candidates: [ { rank: 'c1', name: 'Rice paper', sim: '0.945', source: 'fao', type: 'vector', state: 'raw', picked: true } ], poolNote: 'Single candidate above floor.' },
+      { name: 'tôm luộc', grams: '60g', target: 'Shrimp, boiled', sim: '0.958', conf: 'high', kind: 'high',
+        chips: [['vector','#2a2418',MUTED],['usda','#2a2418',MUTED]],
+        candidates: [ { rank: 'c1', name: 'Shrimp, boiled', sim: '0.958', source: 'usda', type: 'vector', state: 'cooked', picked: true } ], poolNote: 'State-correct match.' }
+    ],
+    assembly: [ { name: 'Gỏi cuốn tôm thịt', kcal: '291', p: '19g', c: '38g', f: '5g', cBad: false } ],
+    totals: { kcal: '291', p: '19g', c: '38g', f: '5g', cBad: false },
+    assemblyNote: '4/4/9 predicts 273 kcal — 6.2% gap.'
+  },
+  {
+    id: '9e5b7712-04af-4c93-81d0-6b3a2e8f5c10', short: '9e5b7712',
+    input: 'bún chả Hà Nội', status: 'success', flag: 'zero candidates', flagKind: 'warn',
+    matched: 4, total: 6, duration: '11.8s', version: 'v2.5',
+    slot: 'lunch', tokens: '4610', user: 'u_5b02', at: '11:52Z', retries: 1, guard: 'retry',
+    flagTitle: 'Two ingredients returned zero candidates',
+    flagBody: 'Retrieval ran and nothing cleared the acceptance floors — coverage gaps, not retrieval failures.',
+    ings: [['bún tươi','180g'],['chả viên','90g'],['thịt ba chỉ nướng','70g'],['nước chấm','60g'],['đu đủ ngâm','30g'],['rau sống','25g']],
+    matchRows: [
+      { name: 'bún tươi', grams: '180g', target: 'Rice vermicelli, cooked', sim: '0.921', conf: 'high', kind: 'high',
+        chips: [['vector','#2a2418',MUTED],['fao','#2a2418',MUTED]],
+        candidates: [ { rank: 'c1', name: 'Rice vermicelli, cooked', sim: '0.921', source: 'fao', type: 'vector', state: 'cooked', picked: true } ], poolNote: 'State-correct match.' },
+      { name: 'đu đủ ngâm', grams: '30g', target: null, sim: null, conf: 'none', kind: 'unmatched', chips: [], candidates: [], poolNote: '' },
+      { name: 'nước chấm', grams: '60g', target: null, sim: null, conf: 'none', kind: 'unmatched', chips: [], candidates: [], poolNote: '' }
+    ],
+    assembly: [ { name: 'Bún chả Hà Nội', kcal: '648', p: '31g', c: '74g', f: '24g', cBad: false } ],
+    totals: { kcal: '648', p: '31g', c: '74g', f: '24g', cBad: false },
+    assemblyNote: 'Two unmatched ingredients contribute nothing, so the total understates the meal.'
+  }
+];
+
+const GAPS = [
+  { name: 'nước chấm', count: 14 }, { name: 'đu đủ ngâm', count: 11 },
+  { name: 'rau thơm', count: 9 }, { name: 'mắm tôm', count: 7 },
+  { name: 'bánh phồng tôm', count: 6 }, { name: 'tương đen', count: 5 }
+];
+
+const STAGE_FLOW = [
+  { name: 'Decompose', n: 339, p95: '2.1s', bad: false },
+  { name: 'Match', n: 278, p95: '14.9s', bad: true },
+  { name: 'Nutrition', n: 275, p95: '3.4s', bad: false },
+  { name: 'Assemble', n: 260, p95: '1.8s', bad: false }
+];
+
+const STATS = [
+  { label: 'Requests', value: '348', unit: '', sub: '70d' },
+  { label: 'Errors', value: '14.9', unit: '%', sub: '52 of 348', tag: '↑1.9', tagFg: RED },
+  { label: 'Match rate', value: '88.4', unit: '%', sub: '918 / 1,039' },
+  { label: 'Accepted', value: '88.6', unit: '%', sub: 'n=906' },
+  { label: 'p95 latency', value: '14.9', unit: 's', sub: 'matching', tag: 'tail', tagFg: YELLOW },
+  { label: 'Needs review', value: '7', unit: '', sub: 'flagged', tag: 'queue', tagFg: YELLOW }
+];
+
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { view: 'overview', runIdx: 0, filter: 'all', openStages: { match: true }, openRows: { 0: true } };
+  }
+
+  statusStyle(status) {
+    if (status === 'success') return { bg: 'rgba(124,163,104,0.14)', fg: GREEN };
+    if (status === 'error') return { bg: 'rgba(211,123,105,0.14)', fg: RED };
+    return { bg: '#2a2418', fg: SOFT };
+  }
+
+  confStyle(kind) {
+    if (kind === 'high') return { fg: GREEN, dot: GREEN, bar: GREEN };
+    if (kind === 'medium') return { fg: YELLOW, dot: YELLOW, bar: YELLOW };
+    if (kind === 'low') return { fg: RED, dot: RED, bar: RED };
+    return { fg: SOFT, dot: STONE, bar: STONE };
+  }
+
+  summary(run, index) {
+    const st = this.statusStyle(run.status);
+    return {
+      shortId: run.short, input: run.input, status: run.status, statusFg: st.fg,
+      flag: run.flag,
+      flagFg: run.flagKind === 'none' ? '#6e6960' : run.flagKind === 'bad' ? RED : YELLOW,
+      matchLabel: run.total > 0 ? run.matched + '/' + run.total : '—',
+      matchFg: run.total === 0 ? SOFT : run.matched === run.total ? MUTED : YELLOW,
+      duration: run.duration,
+      open: () => this.setState({ view: 'run', runIdx: index, openStages: { match: true }, openRows: { 0: true } })
+    };
+  }
+
+  renderVals() {
+    const s = this.state;
+    const run = RUNS[s.runIdx];
+
+    const nav = [
+      { key: 'overview', label: 'Overview', badge: null },
+      { key: 'runs', label: 'Requests', badge: '348', badgeFg: SOFT },
+      { key: 'review', label: 'Needs review', badge: '7', badgeFg: YELLOW }
+    ].map((n) => ({
+      label: n.label, badge: n.badge, badgeFg: n.badgeFg,
+      cls: (n.key === 'overview' && s.view === 'overview') || (n.key === 'runs' && (s.view === 'runs' || s.view === 'run')) ? 'navitem sel' : 'navitem',
+      go: () => this.setState({ view: n.key === 'review' ? 'overview' : n.key })
+    }));
+
+    const tabs = [
+      { key: 'overview', label: 'Overview' },
+      { key: 'runs', label: 'Requests' }
+    ].map((t) => ({
+      label: t.label,
+      cls: (t.key === 'overview' && s.view === 'overview') || (t.key === 'runs' && (s.view === 'runs' || s.view === 'run')) ? 'tab sel' : 'tab',
+      go: () => this.setState({ view: t.key })
+    }));
+
+    const filters = [
+      { key: 'all', label: 'All' }, { key: 'error', label: 'Errored' }, { key: 'flagged', label: 'Flagged' }
+    ].map((f) => ({
+      label: f.label,
+      cls: s.filter === f.key ? 'tab sel' : 'tab',
+      pick: () => this.setState({ filter: f.key })
+    }));
+
+    const visible = RUNS.filter((r) => {
+      if (s.filter === 'error') return r.status === 'error';
+      if (s.filter === 'flagged') return r.flagKind !== 'none';
+      return true;
+    });
+
+    const stages = [
+      { key: 'input', title: 'Input', meta: run.slot, ok: true },
+      { key: 'decomp', title: 'Decompose', meta: run.ings.length + ' ingredients', ok: true },
+      { key: 'match', title: 'Match', meta: run.total > 0 ? run.matched + '/' + run.total : 'incomplete', ok: run.status !== 'error' },
+      { key: 'assembly', title: 'Assemble', meta: run.assembly.length > 0 ? run.totals.kcal + ' kcal' : 'no output', ok: run.assembly.length > 0 }
+    ].map((st) => {
+      const failed = !st.ok;
+      const open = !!s.openStages[st.key];
+      const chips = [];
+      if (st.key === 'match' && run.total > run.matched) chips.push({ text: (run.total - run.matched) + ' unmatched', bg: 'rgba(232,197,92,0.14)', fg: YELLOW });
+      if (failed) chips.push({ text: 'failed', bg: 'rgba(211,123,105,0.14)', fg: RED });
+      return {
+        title: st.title, meta: st.meta, chips,
+        dot: failed ? RED : GREEN,
+        open, caret: open ? '▾' : '▸',
+        isInput: st.key === 'input', isDecomp: st.key === 'decomp',
+        isMatch: st.key === 'match', isAssembly: st.key === 'assembly',
+        toggle: () => {
+          const next = Object.assign({}, this.state.openStages);
+          next[st.key] = !next[st.key];
+          this.setState({ openStages: next });
+        }
+      };
+    });
+
+    const matchRows = run.matchRows.map((m, i) => {
+      const cs = this.confStyle(m.kind);
+      const open = !!s.openRows[i];
+      const unmatched = m.kind === 'unmatched';
+      return {
+        name: m.name, grams: m.grams,
+        target: unmatched ? 'no match' : m.target,
+        targetFg: unmatched ? RED : INK,
+        sim: unmatched ? '—' : m.sim,
+        simPct: unmatched ? '0%' : Math.round(parseFloat(m.sim) * 100) + '%',
+        simBar: cs.bar, conf: m.conf, confFg: cs.fg, dot: cs.dot,
+        chips: m.chips.map((c) => ({ text: c[0], bg: c[1], fg: c[2] })),
+        candidates: m.candidates.map((c) => ({
+          rank: c.rank, name: c.name, sim: c.sim, source: c.source, type: c.type, state: c.state,
+          rankFg: c.picked ? TAN : '#6e6960', nameFg: c.picked ? INK : MUTED
+        })),
+        hasCandidates: m.candidates.length > 0,
+        zeroCandidates: m.candidates.length === 0,
+        poolNote: m.poolNote,
+        open, caret: open ? '▾' : '▸',
+        toggle: () => {
+          const next = Object.assign({}, this.state.openRows);
+          next[i] = !next[i];
+          this.setState({ openRows: next });
+        }
+      };
+    });
+
+    const st = this.statusStyle(run.status);
+    const flagFg = run.flagKind === 'bad' ? RED : YELLOW;
+
+    return {
+      isOverview: s.view === 'overview', isRuns: s.view === 'runs', isRun: s.view === 'run',
+      nav, tabs, filters,
+      goRuns: () => this.setState({ view: 'runs' }),
+      stats: STATS,
+      visibleRuns: visible.map((r) => this.summary(r, RUNS.indexOf(r))),
+      visibleCount: visible.length,
+      flagged: RUNS.filter((r) => r.flagKind !== 'none').map((r) => this.summary(r, RUNS.indexOf(r))),
+      gaps: GAPS.map((g) => ({ name: g.name, count: g.count, pct: Math.round((g.count / 14) * 100) + '%' })),
+      stageFlow: STAGE_FLOW.map((f) => ({
+        name: f.name, pct: Math.round((f.n / 339) * 100) + '%',
+        label: f.n + ' · ' + f.p95, fg: f.bad ? RED : MUTED
+      })),
+      run: {
+        id: run.id, shortId: run.short, input: run.input, status: run.status,
+        statusBg: st.bg, statusFg: st.fg,
+        hasFlag: run.flagKind !== 'none',
+        flagTitle: run.flagTitle, flagBody: run.flagBody, flagFg,
+        flagBorder: run.flagKind === 'bad' ? 'rgba(211,123,105,0.35)' : 'rgba(232,197,92,0.35)',
+        flagBg: run.flagKind === 'bad' ? 'rgba(211,123,105,0.06)' : 'rgba(232,197,92,0.05)',
+        meta: [
+          { label: 'ver', value: run.version, fg: INK },
+          { label: 'slot', value: run.slot, fg: INK },
+          { label: 'dur', value: run.duration, fg: run.status === 'error' ? RED : INK },
+          { label: 'tok', value: run.tokens, fg: INK },
+          { label: 'match', value: run.total > 0 ? run.matched + '/' + run.total : '—', fg: run.matched === run.total ? INK : YELLOW },
+          { label: 'retry', value: String(run.retries), fg: run.retries > 0 ? YELLOW : INK },
+          { label: 'guard', value: run.guard, fg: run.guard === 'pass' ? INK : YELLOW },
+          { label: 'user', value: run.user, fg: INK },
+          { label: 'at', value: run.at, fg: INK }
+        ],
+        ingredients: run.ings.map((i) => ({ name: i[0], grams: i[1] })),
+        stages, matchRows,
+        assembly: run.assembly.map((a) => ({ name: a.name, kcal: a.kcal, p: a.p, c: a.c, f: a.f, cFg: a.cBad ? RED : MUTED })),
+        totals: { kcal: run.totals.kcal, p: run.totals.p, c: run.totals.c, f: run.totals.f, cFg: run.totals.cBad ? RED : MUTED },
+        assemblyNote: run.assemblyNote
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

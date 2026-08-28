@@ -2,6 +2,22 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: Tiny Session-0 permission and service-assumability probe for the Learner Lab.
 
 Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: Existing default VPC; this template deliberately creates no VPC.
+  PublicSubnetIdOne:
+    Type: AWS::EC2::Subnet::Id
+    Description: First public subnet in the default VPC.
+  PublicSubnetIdTwo:
+    Type: AWS::EC2::Subnet::Id
+    Description: Second public subnet in a different Availability Zone.
+  ProbeImageUri:
+    Type: String
+    Default: ''
+    Description: >-
+      Leave empty on the first pass so only the ECR repository is created. Push a
+      trivial image to that repository with the federated session credentials,
+      then update the stack with its URI to create the ALB and Fargate tier.
   ProbeGlueScriptS3Uri:
     Type: String
     Description: S3 URI of a trivial uploaded PySpark script used for the probe run.
@@ -11,6 +27,12 @@ Parameters:
     NoEcho: true
     Default: session-zero-placeholder
     Description: Harmless value read by the probe Lambda; override if desired.
+
+Conditions:
+  # The container tier cannot exist before an image does, so it is created on a
+  # second pass. This is the whole point of the probe: prove the ECR push works
+  # with session credentials AND that LabRole can pull the result.
+  HasProbeImage: !Not [!Equals [!Ref ProbeImageUri, '']]
 
 Resources:
   # Probe secret verifies that a LabRole Lambda can call Secrets Manager.
@@ -97,6 +119,159 @@ Resources:
         EnforceWorkGroupConfiguration: true
         PublishCloudWatchMetricsEnabled: true
 
+  # Proves the operator's federated session credentials can create and write to
+  # ECR. LabRole is read-only there, so a role-based push would fail silently
+  # until demo day if it were never tested.
+  ProbeEcrRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      EmptyOnDelete: true
+      ImageScanningConfiguration:
+        ScanOnPush: false
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {"rules":[{"rulePriority":1,"description":"Expire probe images after one day",
+          "selection":{"tagStatus":"any","countType":"sinceImagePushed","countUnit":"days","countNumber":1},
+          "action":{"type":"expire"}}]}
+
+  ProbeLoadBalancerSecurityGroup:
+    Condition: HasProbeImage
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow public HTTP access to the Session-0 probe ALB.
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+
+  ProbeServiceSecurityGroup:
+    Condition: HasProbeImage
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow probe task traffic only from the probe ALB.
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3000
+          ToPort: 3000
+          SourceSecurityGroupId: !Ref ProbeLoadBalancerSecurityGroup
+
+  # Mirrors the presentation stack exactly, so a networking failure surfaces on
+  # day one rather than during the demo.
+  ProbeLoadBalancer:
+    Condition: HasProbeImage
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internet-facing
+      Type: application
+      IpAddressType: ipv4
+      SecurityGroups:
+        - !Ref ProbeLoadBalancerSecurityGroup
+      Subnets:
+        - !Ref PublicSubnetIdOne
+        - !Ref PublicSubnetIdTwo
+
+  ProbeTargetGroup:
+    Condition: HasProbeImage
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !Ref VpcId
+      TargetType: ip
+      Protocol: HTTP
+      Port: 3000
+      HealthCheckEnabled: true
+      HealthCheckPath: /
+      HealthCheckPort: traffic-port
+      HealthCheckProtocol: HTTP
+      HealthCheckIntervalSeconds: 15
+      HealthyThresholdCount: 2
+      Matcher:
+        HttpCode: '200'
+
+  ProbeListener:
+    Condition: HasProbeImage
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ProbeLoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ProbeTargetGroup
+
+  ProbeCluster:
+    Condition: HasProbeImage
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterSettings:
+        - Name: containerInsights
+          Value: disabled
+
+  ProbeLogGroup:
+    Condition: HasProbeImage
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 1
+
+  # LabRole as BOTH task role and execution role is the lab-specific constraint
+  # the presentation stack depends on; the pull itself is what is under test.
+  ProbeTaskDefinition:
+    Condition: HasProbeImage
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Cpu: '256'
+      Memory: '512'
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: X86_64
+        OperatingSystemFamily: LINUX
+      TaskRoleArn: !Sub arn:aws:iam::${AWS::AccountId}:role/LabRole
+      ExecutionRoleArn: !Sub arn:aws:iam::${AWS::AccountId}:role/LabRole
+      ContainerDefinitions:
+        - Name: probe
+          Essential: true
+          Image: !Ref ProbeImageUri
+          PortMappings:
+            - ContainerPort: 3000
+              Protocol: tcp
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref ProbeLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: probe
+
+  ProbeService:
+    Condition: HasProbeImage
+    DependsOn: ProbeListener
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref ProbeCluster
+      TaskDefinition: !Ref ProbeTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      PlatformVersion: LATEST
+      HealthCheckGracePeriodSeconds: 60
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 0
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !Ref ProbeServiceSecurityGroup
+          Subnets:
+            - !Ref PublicSubnetIdOne
+            - !Ref PublicSubnetIdTwo
+      LoadBalancers:
+        - ContainerName: probe
+          ContainerPort: 3000
+          TargetGroupArn: !Ref ProbeTargetGroup
+
 Outputs:
   ProbeFunctionName:
     Description: Invoke this function once to test Secrets Manager and S3 access.
@@ -107,3 +282,14 @@ Outputs:
   ProbeAthenaWorkGroupName:
     Description: Run SELECT 1 in this workgroup to test Athena access.
     Value: !Ref ProbeAthenaWorkGroup
+  ProbeEcrRepositoryUri:
+    Description: Push a trivial linux/amd64 image here with session credentials.
+    Value: !GetAtt ProbeEcrRepository.RepositoryUri
+  ProbeLoadBalancerDnsName:
+    Condition: HasProbeImage
+    Description: Public probe URL; a 200 here proves ALB, ECS, and the ECR pull.
+    Value: !GetAtt ProbeLoadBalancer.DNSName
+  ProbeTargetGroupArn:
+    Condition: HasProbeImage
+    Description: Check target health here to confirm the Fargate task registered.
+    Value: !Ref ProbeTargetGroup

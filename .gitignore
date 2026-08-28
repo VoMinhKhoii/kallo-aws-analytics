@@ -3,5 +3,9 @@ node_modules/
 __pycache__/
 *.pyc
 .env*
+!.env.example
+!.env.local.example
 .DS_Store
 .lab-config
+.local/
+*.tsbuildinfo

@@ -110,14 +110,9 @@ Resources:
         TableType: EXTERNAL_TABLE
         Parameters:
           classification: parquet
-          projection.enabled: 'true'
-          projection.dt.type: date
-          projection.dt.format: yyyy-MM-dd
-          projection.dt.range: 2026-01-01,NOW
-          storage.location.template: !Sub s3://${AnalyticsBucket}/curated/v_meals/dt=${!dt}/
-        PartitionKeys:
-          - Name: dt
-            Type: string
+        # No dt partition: the Glue job overwrites curated/ with the
+        # latest complete snapshot on every run. A date partition would
+        # keep one full copy per run and multiply every Athena count.
         StorageDescriptor:
           Columns:
             - Name: id
@@ -158,14 +153,9 @@ Resources:
         TableType: EXTERNAL_TABLE
         Parameters:
           classification: parquet
-          projection.enabled: 'true'
-          projection.dt.type: date
-          projection.dt.format: yyyy-MM-dd
-          projection.dt.range: 2026-01-01,NOW
-          storage.location.template: !Sub s3://${AnalyticsBucket}/curated/v_user_funnel/dt=${!dt}/
-        PartitionKeys:
-          - Name: dt
-            Type: string
+        # No dt partition: the Glue job overwrites curated/ with the
+        # latest complete snapshot on every run. A date partition would
+        # keep one full copy per run and multiply every Athena count.
         StorageDescriptor:
           Columns:
             - Name: user_hash
@@ -196,14 +186,9 @@ Resources:
         TableType: EXTERNAL_TABLE
         Parameters:
           classification: parquet
-          projection.enabled: 'true'
-          projection.dt.type: date
-          projection.dt.format: yyyy-MM-dd
-          projection.dt.range: 2026-01-01,NOW
-          storage.location.template: !Sub s3://${AnalyticsBucket}/curated/v_pipeline_runs/dt=${!dt}/
-        PartitionKeys:
-          - Name: dt
-            Type: string
+        # No dt partition: the Glue job overwrites curated/ with the
+        # latest complete snapshot on every run. A date partition would
+        # keep one full copy per run and multiply every Athena count.
         StorageDescriptor:
           Columns:
             - Name: id
@@ -992,6 +977,39 @@ Resources:
       FunctionName: !Ref LoaderFunction
       Principal: events.amazonaws.com
       SourceArn: !GetAtt GlueSucceededRule.Arn
+
+  # Without this rule a failed transform leaves a dashboard-started run polling
+  # "transform_started" forever; the loader turns the event into a terminal
+  # failed phase instead.
+  GlueFailedRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Records a terminal failed phase when the analytics Glue job does not succeed.
+      EventPattern:
+        source:
+          - aws.glue
+        detail-type:
+          - Glue Job State Change
+        detail:
+          jobName:
+            - !Ref AnalyticsGlueJob
+          state:
+            - FAILED
+            - TIMEOUT
+            - STOPPED
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt LoaderFunction.Arn
+          Id: GlueFailedLoader
+          RoleArn: !Sub arn:aws:iam::${AWS::AccountId}:role/LabRole
+
+  GlueFailedInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref LoaderFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt GlueFailedRule.Arn
 
 Outputs:
   BucketName:

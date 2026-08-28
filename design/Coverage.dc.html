@@ -1,0 +1,783 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; }
+    .m { font-family: "Geist Mono", ui-monospace, SFMono-Regular, monospace; font-variant-numeric: tabular-nums; }
+    .lbl { font-size: 11px; color: #8d8a82; }
+    .hd { font-size: 10px; font-weight: 600; color: #8d8a82; text-transform: uppercase; letter-spacing: .06em; }
+    .card { border: 1px solid #e8e6dc; border-radius: 8px; background: #fff; }
+    .ph { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 9px 12px; border-bottom: 1px solid #e8e6dc; }
+    .pt { font-size: 12px; font-weight: 600; color: #141413; }
+    .chip { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 9px; border: 1px solid #e8e6dc; border-radius: 4px; background: #fff; font-size: 11px; color: #4a4842; }
+    .chip b { font-weight: 500; color: #141413; }
+    .rg { display: inline-flex; align-items: center; height: 24px; padding: 0 11px; border: 1px solid #e8e6dc; border-left-width: 0; background: #fff; font-size: 11px; color: #6e6d66; cursor: pointer; }
+    .rg:first-child { border-left-width: 1px; border-radius: 4px 0 0 4px; }
+    .rg:last-child { border-radius: 0 4px 4px 0; }
+    .rg.sel { background: #141413; border-color: #141413; color: #fff; }
+    .tick { font-family: "Geist Mono", monospace; font-size: 10px; fill: #a8a29e; }
+    .tr { display: grid; align-items: center; gap: 10px; padding: 0 12px; height: 28px; border-bottom: 1px solid #f4f2ec; font-size: 12px; }
+    .th { display: grid; align-items: center; gap: 10px; padding: 0 12px; height: 24px; background: #faf9f6; border-bottom: 1px solid #e8e6dc; }
+    .pick { cursor: pointer; }
+    .pick:hover { background: #faf9f6; }
+    .pick.sel { background: #f6f4ee; box-shadow: inset 2px 0 0 #141413; }
+    .seg { display: grid; align-items: center; gap: 8px; padding: 7px 12px; border-bottom: 1px solid #f4f2ec; grid-template-columns: 9px 1fr 46px 52px; }
+    .tg { display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border: 1px solid #e8e6dc; border-radius: 4px; background: #fff; font-size: 11px; color: #6e6d66; cursor: pointer; }
+    .tg.sel { background: #141413; border-color: #141413; color: #fff; }
+    .bk { display: block; padding: 8px 10px; border: 1px solid #e8e6dc; border-radius: 6px; cursor: pointer; background: #fff; }
+    .bk.sel { border-color: #141413; box-shadow: inset 0 0 0 1px #141413; }
+    .nm { display: inline-block; padding: 2px 7px; margin: 0 4px 4px 0; border: 1px solid #eeece4; border-radius: 3px; background: #faf9f6; font-size: 11px; color: #4a4842; }
+    .cand { display: grid; grid-template-columns: 26px 1fr 54px 46px 42px 44px 44px 44px; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid #f4f2ec; font-size: 11px; }
+    .cand.win { background: #f4f7f4; box-shadow: inset 2px 0 0 #16794a; }
+    .cand.top { background: #fdf6f4; box-shadow: inset 2px 0 0 #b3402f; }
+    .note { display: flex; gap: 8px; padding: 9px 10px; border: 1px solid #eadfc4; border-left-width: 2px; border-radius: 5px; background: #fbf6ea; }
+    .note p { margin: 0; font-size: 11.5px; line-height: 1.55; color: #4a4842; }
+    .nv { height: 36px; display: inline-flex; align-items: center; padding: 0 13px; font-size: 12px; color: #6e6d66; cursor: pointer; border-bottom: 2px solid transparent; }
+    .nv:hover { color: #141413; }
+    .nv.on { color: #141413; font-weight: 600; border-bottom-color: #141413; }
+    .nv.off { color: #b3402f; cursor: default; }
+    .nv.off:hover { color: #b3402f; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; background: #fcfcfc; color: #141413; font-family: 'Be Vietnam Pro', ui-sans-serif, system-ui, sans-serif; font-size: 13px; padding: 16px 18px 22px;">
+
+  <!-- App nav -->
+  <div style="display:flex;align-items:center;gap:2px;margin:-16px -18px 12px;padding:0 18px;background:#fff;border-bottom:1px solid #e8e6dc;">
+    <span style="font-size:12px;font-weight:600;letter-spacing:-.01em;margin-right:14px;">Kallo analytics</span>
+    <span class="nv">App metrics</span>
+    <span class="nv">Pipeline overview</span>
+    <span class="nv">Retrieval &amp; matching</span>
+    <span class="nv on">Coverage &amp; corpus</span>
+    <span class="nv">Trace viewer</span>
+    <span class="lbl m" style="margin-left:auto;font-size:10px;">AWS analytics plane · RMIT A3</span>
+  </div>
+
+  <!-- Range bar — drives every figure on this page -->
+  <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+    <span style="font-size: 15px; font-weight: 600;">Coverage & corpus</span>
+    <span style="display:inline-flex;">
+      <sc-for list="{{ranges}}" as="r" hint-placeholder-count="4">
+        <span class="{{r.cls}}" onClick="{{r.pick}}">{{r.label}}</span>
+      </sc-for>
+    </span>
+    <span class="chip m">{{rng.from}} → {{rng.to}}</span>
+    <span class="lbl m">{{rng.days}} · {{rng.meals}} meals · {{rng.verdicts}} verdicts</span>
+    <span style="margin-left: auto; display: flex; gap: 6px; align-items: center;">
+      <span class="chip">version <b>v2</b> <span style="color:#a8a29e;cursor:pointer;">×</span></span>
+      <span class="chip" style="border-style:dashed;color:#8d8a82;cursor:pointer;">+ filter</span>
+      <span class="lbl m">snapshot 2026-08-24</span>
+    </span>
+  </div>
+
+  <!-- Stat strip -->
+  <div class="card" style="display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); margin-bottom: 12px;">
+    <sc-for list="{{stats}}" as="s" hint-placeholder-count="6">
+      <div style="padding: 11px 13px; border-right: 1px solid #f0eee7;">
+        <p class="lbl" style="margin:0;">{{s.label}}</p>
+        <p class="m" style="margin:6px 0 0; font-size:21px; letter-spacing:-.02em; color:{{s.fg}};">{{s.value}}<span style="font-size:12px;color:#8d8a82;">{{s.unit}}</span></p>
+        <p class="lbl m" style="margin:5px 0 0; font-size:10px;">{{s.denom}}</p>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:12px;margin-bottom:12px;">
+  <div class="card">
+    <div class="ph"><span class="pt">Candidate pool size — and which ingredients landed in each bucket</span><span class="lbl m">n={{adj.n}} in range</span></div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:11px 12px 0;">
+      <sc-for list="{{buckets}}" as="b" hint-placeholder-count="4">
+        <span class="{{b.cls}}" onClick="{{b.pick}}">
+          <span class="lbl" style="display:block;font-size:10px;">{{b.label}}</span>
+          <span class="m" style="display:block;font-size:17px;margin-top:3px;color:{{b.fg}};">{{b.n}}<span style="font-size:10px;color:#8d8a82;"> · {{b.pct}}</span></span>
+          <span style="display:block;height:4px;margin-top:5px;border-radius:2px;background:#f0eee7;">
+            <span style="display:block;height:4px;width:{{b.w}};border-radius:2px;background:{{b.fg}};"></span>
+          </span>
+        </span>
+      </sc-for>
+    </div>
+    <div style="padding:11px 12px 12px;">
+      <p class="hd" style="margin:0 0 7px;">{{bk.title}}</p>
+      <div style="height:112px;overflow:hidden;">
+        <sc-for list="{{bk.names}}" as="n" hint-placeholder-count="24">
+          <span class="nm">{{n.v}}</span>
+        </sc-for>
+      </div>
+      <p class="lbl" style="margin:8px 0 0;line-height:1.5;">{{bk.note}}</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="ph"><span class="pt">Unresolved ingredient names</span><span class="lbl m">{{gapHead}}</span></div>
+    <div class="th" style="grid-template-columns:1fr 96px 34px;"><span class="hd">Query</span><span class="hd">Frequency</span><span class="hd" style="text-align:right;">n</span></div>
+    <sc-for list="{{gaps}}" as="g" hint-placeholder-count="10">
+      <div class="tr" style="grid-template-columns:1fr 96px 34px;height:24px;">
+        <span style="font-size:12px;">{{g.name}}</span>
+        <span><span style="display:block;height:5px;width:{{g.pct}};border-radius:3px;background:#b3402f;"></span></span>
+        <span class="m" style="font-size:11px;text-align:right;color:#6e6d66;">{{g.n}}</span>
+      </div>
+    </sc-for>
+    <p class="lbl" style="margin:9px 12px 12px;line-height:1.5;">Two distinct failures share this list. <span class="m">Tôm</span> and <span class="m">Rau</span> have rows in the table — they fail because stage 1 emitted a bare category term, a decomposition-specificity defect. <span class="m">Bánh cuốn</span>, <span class="m">Bánh canh</span>, <span class="m">Cơm tấm</span> have no row at all — a corpus-coverage gap. Telling them apart automatically needs a labelled set, which does not exist yet.</p>
+  </div>
+  </div>
+
+  <div class="card" style="margin-bottom:12px;">
+    <div class="ph">
+      <span class="pt">Composition-table usage — which rows absorb the traffic, and what resolves into them</span>
+      <span class="lbl m">{{corpHead}}</span>
+    </div>
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) 400px;">
+      <div style="border-right:1px solid #e8e6dc;">
+        <div class="th" style="grid-template-columns:1fr 120px 96px 40px 44px;"><span class="hd">Composition row</span><span class="hd">id</span><span class="hd">hits</span><span class="hd" style="text-align:right;">n</span><span class="hd" style="text-align:right;">queries</span></div>
+        <sc-for list="{{corpus}}" as="r" hint-placeholder-count="12">
+          <div class="{{r.cls}}" onClick="{{r.pick}}" style="display:grid;grid-template-columns:1fr 120px 96px 40px 44px;align-items:center;gap:10px;padding:0 12px;height:27px;border-bottom:1px solid #f4f2ec;font-size:12px;">
+            <span style="min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{r.nm}}</span>
+            <span class="m" style="font-size:10px;color:#a8a29e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{r.id}}</span>
+            <span><span style="display:block;height:6px;width:{{r.w}};border-radius:3px;background:{{r.c}};"></span></span>
+            <span class="m" style="font-size:11px;text-align:right;color:#141413;">{{r.n}}</span>
+            <span class="m" style="font-size:11px;text-align:right;color:{{r.dqFg}};">{{r.dq}}</span>
+          </div>
+        </sc-for>
+        <p class="lbl" style="margin:9px 12px 12px;line-height:1.5;">{{corpNote}}</p>
+      </div>
+      <div>
+        <div style="padding:9px 12px;border-bottom:1px solid #f4f2ec;">
+          <p class="lbl" style="margin:0;">Queries that resolved into</p>
+          <p style="margin:3px 0 0;font-size:12.5px;font-weight:500;line-height:1.35;">{{row.nm}}</p>
+          <p class="lbl m" style="margin:4px 0 0;font-size:10px;">{{row.id}} · {{row.src}} · {{row.n}} hits · {{row.dq}} distinct queries in range</p>
+        </div>
+        <sc-for list="{{row.queries}}" as="q" hint-placeholder-count="7">
+          <div style="display:grid;grid-template-columns:1fr 30px;align-items:center;gap:8px;padding:0 12px;height:26px;border-bottom:1px solid #f4f2ec;font-size:12px;">
+            <span>{{q.v}}</span>
+            <span class="m" style="font-size:11px;text-align:right;color:#6e6d66;">{{q.n}}</span>
+          </div>
+        </sc-for>
+        <div style="padding:10px 12px 12px;">
+          <div class="note"><p>{{row.finding}}</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+const GREEN='#16794a', AMBER='#b8860b', BRICK='#b3402f', INK='#141413', MUT='#6e6d66', SOFT='#a8a29e', DIM='#cfcabb';
+const F_GREEN='#16794a', F_AMBER='#b8860b', F_BRICK='#b3402f', F_GREY='#8a857a';
+
+/* =========================================================================
+   Every number below was queried from production on 2026-08-24 at four
+   range cut-offs. Selecting a range re-reads this table; nothing is scaled
+   or interpolated.
+   ========================================================================= */
+const R = {
+  '7d':  { label:'7d',  from:'2026-08-17', to:'2026-08-24', days:'7 days',  firstWeek:13,
+           meals:44,  verdicts:182, acc:174, unm:6,  rej:2,  mis:0,
+           pool:[6,41,6,129],   choice:133, ovr:63,  a2:5,  o2:0,  a3:128, o3:63,
+           degraded:6,  matchP95:6127,
+           sim:{ n:174, bins:[22,29,17,9,0,0,97,0] },
+           stages:[['decomposition',2026,3288,47],['matching',3568,6127,44],['nutrition',3126,7763,44],['assembly',42,130,44]],
+           reasons:{ n:8,  nul:8,  none:0, cat:0, other:0 },
+           rowsUsed:96,  matches:174, unmN:8,  unmDistinct:8, ovrPairs:39,
+           ovrGroups:[['Dầu đậu nành',2,8],['Chả lụa',3,5],['Bánh tráng',2,4],['Nước mắm',2,3],['Pate gan',3,3],['Dầu thực vật',3,3],['Sữa tươi không đường',2,2],['Thịt lợn',2,2],['Thịt nguội',2,2],['Sữa tươi nguyên chất',3,2]],
+           topRows:[['usda_4034_raw',8,1],['usda_20058_cooked',8,1],['usda_4044_raw',7,1],['fao_vn_2007_1012_raw',6,1],['usda_7010_raw',5,2],['fao_vn_2007_9001_raw',5,2],['fao_vn_2007_6005_raw',4,1],['fao_vn_2007_4027_raw',4,1],['usda_35143_raw',4,1],['usda_4669_raw',4,1],['usda_1211_raw',3,2],['fao_vn_2007_10001_raw',3,3]],
+           gaps:[['Bánh canh',1],['Bánh cuốn',1],['Bánh ướt',1],['Bì heo',1],['Cá bớp',1],['Chả trứng',1],['Cơm tấm',1],['Tàu hủ ky',1]],
+           bucketNames:[
+             { dn:6,  v:['Bánh cuốn','Bánh ướt','Bì heo','Cá bớp','Cơm tấm','Tàu hủ ky'] },
+             { dn:18, v:['Banana','Bánh mỳ','Bơ thực vật','Cà chua','Cá quả','Cá thu','Đậu phụ','Dưa chuột','Đường kính','Hạt tiêu','Khoai lang','Mực tươi','Sữa bò tươi','Táo tây','Tôm biển','Tôm khô','Trứng chim cút','Trứng gà'] },
+             { dn:5,  v:['Bánh canh','Bún tươi','Chả cá','Chả giò chay','Ice cream sundae'] },
+             { dn:70, v:['Bánh tráng','Bắp cải','Bí đỏ','Bột trà xanh','Cà phê đen','Cà phê espresso','Cá phi lê','Cá viên','Cải muối chua','Cải ngọt','Cải thìa','Chả lụa','Chả trứng','Cháo trắng','Chuối','Cơm','Dầu ăn','Dầu đậu nành','Đậu phộng','Dầu thực vật','Đồ chua','Dứa','Dừa','Đùi vịt','Hàu','Khổ qua','Lạp xưởng','Măng','Mì ăn liền','Mì trứng','Mỡ hành','Muối ăn','Nghệ','Nho','Nước dùng','Nước dùng bò','Nước dùng cá','Nước dùng dấm','Nước dùng lẩu','Nước dùng rau củ'] }
+           ] },
+
+  '30d': { label:'30d', from:'2026-07-25', to:'2026-08-24', days:'30 days', firstWeek:10,
+           meals:118, verdicts:395, acc:368, unm:9,  rej:18, mis:0,
+           pool:[11,120,14,250], choice:250, ovr:130, a2:13, o2:0,  a3:237, o3:130,
+           degraded:25, matchP95:5398,
+           sim:{ n:365, bins:[50,53,43,18,0,0,167,34] },
+           stages:[['decomposition',1986,3273,125],['matching',2354,5398,118],['nutrition',2516,7271,118],['assembly',6,130,118]],
+           reasons:{ n:27, nul:23, none:0, cat:2, other:2 },
+           rowsUsed:150, matches:365, unmN:18, unmDistinct:14, ovrPairs:71,
+           ovrGroups:[['Dầu đậu nành',2,8],['Hành lá',2,7],['Cơm',2,6],['Thịt lợn',3,5],['Bánh tráng',2,5],['Chả lụa',3,5],['Dầu thực vật',3,5],['Cà phê đen',2,4],['Cà rốt',3,4],['Sữa tươi',2,3]],
+           topRows:[['fao_vn_2007_1012_raw',16,1],['usda_20058_cooked',14,1],['fao_vn_2007_8051_raw',13,1],['usda_20134_cooked',12,3],['usda_4044_raw',10,1],['fao_vn_2007_7017_raw',10,5],['fao_vn_2007_10001_raw',9,4],['usda_4034_raw',8,1],['fao_vn_2007_9001_raw',7,2],['fao_vn_2007_4038_raw',7,1],['fao_vn_2007_9007_raw',7,1],['usda_1211_raw',6,5]],
+           gaps:[['Rau',3],['Bánh bột lọc',2],['Nước dùng thái',2],['Bánh canh',1],['Bánh cuốn',1],['Bánh hủ tíu',1],['Bánh ướt',1],['Bì heo',1],['Cá bớp',1],['Chả trứng',1]],
+           bucketNames:[
+             { dn:10,  v:['Bánh bột lọc','Bánh cuốn','Bánh hủ tíu','Bánh ướt','Bì heo','Bột trà xanh matcha','Cá bớp','Cơm tấm','Mì ăn liền','Tàu hủ ky'] },
+             { dn:37,  v:['Banana','Bánh bao nhân thịt','Bánh hủ tiếu','Bánh mỳ','Bánh phở','Bơ thực vật','Cà chua','Cá hồi','Cá quả','Cá thu','Củ cải trắng','Đậu phụ','Dưa chuột','Đường kính','Gan lợn','Hạt tiêu','Khoai lang','Mật ong','Mực tươi','Nước mắm pha','Ổi','Rau ăn kèm','Rau muống','Sứa','Sữa bò tươi','Sườn lợn','Táo tây','Thịt lợn nạc','Thịt vịt','Tim lợn','Tôm biển','Tôm khô','Trứng chim cút','Trứng gà','Trứng vịt lộn','Trứng vịt muối','Ức gà'] },
+             { dn:6,   v:['Bánh canh','Bún tươi','Chả cá','Chả giò chay','Ice cream sundae','Quẩy'] },
+             { dn:106, v:['Bánh tráng','Bắp cải','Bí đỏ','Bột cacao','Bột trà xanh','Cà phê đen','Cà phê espresso','Cá phi lê','Cà rốt','Cá viên','Cải muối chua','Cải ngọt','Cải thìa','Chả lụa','Chả trứng','Cháo trắng','Chuối','Cơm','Dầu ăn','Dầu đậu nành','Dầu giấm','Đậu phộng','Dầu thực vật','Đồ chua','Dứa','Dừa','Đùi gà','Đùi lợn','Đùi vịt','Hành lá','Hạt óc chó','Hạt sen','Hàu','Khổ qua','Lạp xưởng','Măng','Mì ăn liền','Mì trứng','Mỡ hành','Mù tạt'] }
+           ] },
+
+  '90d': { label:'90d', from:'2026-05-26', to:'2026-08-24', days:'90 days', firstWeek:2,
+           meals:240, verdicts:780, acc:704, unm:31, rej:44, mis:1,
+           pool:[38,169,48,525], choice:543, ovr:237, a2:40, o2:8,  a3:503, o3:229,
+           degraded:71, matchP95:14402,
+           sim:{ n:701, bins:[104,115,92,48,1,0,260,81] },
+           stages:[['decomposition',1982,3584,293],['matching',2517,14402,241],['nutrition',2642,7941,241],['assembly',3,100,240]],
+           reasons:{ n:76, nul:65, none:5, cat:3, other:3 },
+           rowsUsed:259, matches:701, unmN:61, unmDistinct:45, ovrPairs:141,
+           ovrGroups:[['Cơm',2,12],['Dầu đậu nành',2,9],['Hành lá',2,8],['Nước mắm',2,8],['Cà phê đen',2,7],['Thịt lợn',3,6],['Cà rốt',3,5],['Chả lụa',3,5],['Dầu thực vật',3,5],['Sữa tươi',2,5]],
+           topRows:[['usda_20134_cooked',25,5],['usda_20058_cooked',25,1],['fao_vn_2007_9001_raw',22,4],['fao_vn_2007_7017_raw',18,7],['fao_vn_2007_1012_raw',17,1],['usda_11253_raw',16,5],['fao_vn_2007_8051_raw',16,1],['usda_4044_raw',14,2],['fao_vn_2007_10001_raw',12,5],['fao_vn_2007_13017_raw',11,2],['fao_vn_2007_12014_raw',10,1],['fao_vn_2007_4038_raw',10,1]],
+           gaps:[['Bánh canh',3],['Nước dùng',3],['Rau',3],['Tôm',3],['Apple',2],['Bánh bao',2],['Bánh bột lọc',2],['Bánh mì',2],['Bánh mì sandwich',2],['Bánh ướt',2]],
+           bucketNames:[
+             { dn:28,  v:['Bánh bao','Bánh bột lọc','Bánh canh','Bánh cuốn','Bánh hỏi','Bánh hủ tíu','Bánh mì','Bánh ướt','Bì heo','Bột trà xanh matcha','Bún riêu','Cá bớp','Cơm tấm','Giò sống','Mì ăn liền','Mì tôm','Mực ống','Nui','Nước dùng bún riêu','Nước dùng hủ tiếu','Nước sốt xá xíu','Rau lang','Riêu cua','Tàu hủ ky','Tôm','Tôm sú','Tôm viên','Tré'] },
+             { dn:51,  v:['Banana','Bánh bao','Bánh bao nhân thịt','Bánh hủ tiếu','Bánh mì','Bánh mì sandwich','Bánh mỳ','Bánh phở','Bơ thực vật','Cà chua','Cá hồi','Cá quả','Cá thu','Cơm','Củ cải trắng','Cua đồng','Đậu phụ','Dưa chuột','Đường kính','Flavoring','Gan lợn','Hạt tiêu','Khoai lang','Mật ong','Mực ống','Mực tươi','Nem nướng','Nhãn','Nước mắm pha','Ổi','Rau ăn kèm','Rau muống','Rau xanh','Sứa','Sữa bò tươi','Sườn lợn','Táo tây','Thịt lợn nạc','Thịt lợn xá xíu','Thịt vịt'] },
+             { dn:19,  v:['Bánh bao nhân thịt','Bánh canh','Bánh mì gạo lứt','Bánh mì hamburger','Bánh mì sandwich','Bắp rang bơ','Bún tươi','Cải ngọt','Chả cá','Chả giò chay','Cơm','Ice cream sundae','Khổ qua','Mực','Nước dùng tôm','Nước mắm','Quẩy','Tử cung gà','Xoài'] },
+             { dn:205, v:['Apple','Banana','Bánh mì','Bánh ngọt','Bánh phở','Bánh tráng','Bắp bò','Bắp cải','Bí đỏ','Bông cải xanh','Bột cacao','Bột chiên giòn','Bột mì','Bột trà xanh','Bún gạo lứt','Bưởi','Cà chua','Cá hồi','Cà phê đen','Cà phê espresso','Cá phi lê','Cá quả','Cà rốt','Cá viên','Cải bẹ xanh','Cải muối chua','Cải ngọt','Cải thìa','Cánh gà','Chả bò','Chả lụa','Chả trứng','Cháo trắng','Chuối','Chuối chín','Cơm','Cơm gạo lứt','Cua đồng','Dầu ăn','Dầu đậu nành'] }
+           ] },
+
+  'all': { label:'All', from:'2026-05-21', to:'2026-08-24', days:'95 days', firstWeek:0,
+           meals:264, verdicts:926, acc:822, unm:55, rej:48, mis:1,
+           pool:[62,185,63,616], choice:647, ovr:270, a2:55, o2:11, a3:592, o3:259,
+           degraded:83, matchP95:14870,
+           sim:{ n:819, bins:[123,155,106,58,4,0,292,81] },
+           stages:[['decomposition',2027,6261,343],['matching',2544,14870,282],['nutrition',2884,9277,282],['assembly',3,98,279]],
+           reasons:{ n:104, nul:92, none:5, cat:3, other:4 },
+           rowsUsed:304, matches:819, unmN:89, unmDistinct:61, ovrPairs:159,
+           ovrGroups:[['Cơm',2,14],['Dầu đậu nành',2,9],['Nước mắm',2,8],['Hành lá',2,8],['Cà phê đen',2,7],['Thịt lợn',3,6],['Trứng gà',3,5],['Bánh tráng',2,5],['Sữa tươi',2,5],['Chả lụa',3,5]],
+           topRows:[['usda_20058_cooked',30,1],['usda_20134_cooked',29,5],['fao_vn_2007_9001_raw',26,5],['usda_11253_raw',20,5],['fao_vn_2007_7017_raw',20,7],['fao_vn_2007_1012_raw',17,1],['fao_vn_2007_8051_raw',16,1],['usda_4044_raw',14,2],['fao_vn_2007_10001_raw',14,5],['fao_vn_2007_13017_raw',11,2],['usda_1140_raw',11,2],['fao_vn_2007_12014_raw',10,1]],
+           gaps:[['Rau',5],['Tôm',5],['Bánh bao',4],['Bánh canh',3],['Bánh cuốn',3],['Nước dùng',3],['Pastry',3],['Sốt',3],['Apple',2],['Bánh bột lọc',2]],
+           bucketNames:[
+             { dn:40,  v:['Bánh bao','Bánh bột lọc','Bánh canh','Bánh cuốn','Bánh hỏi','Bánh hủ tíu','Bánh kếp nhỏ','Bánh mì','Bánh sampa','Bánh ướt','Bì heo','Bột bánh','Bột trà xanh matcha','Bún riêu','Cá bớp','Cơm tấm','Đường','Gạo','Giò sống','Kem tươi','Mì ăn liền','Mì tôm','Mực ống','Nem rán','Nho','Nui','Nước dùng bún riêu','Nước dùng hủ tiếu','Nước sốt xá xíu','Rau lang','Riêu cua','Sô cô la','Sốt burrito','Sốt cà ri xanh','Tàu hủ ky','Tôm','Tôm sú','Tôm viên','Trái cây','Tré'] },
+             { dn:56,  v:['Banana','Bánh bao','Bánh bao nhân thịt','Bánh hủ tiếu','Bánh mì','Bánh mì sandwich','Bánh mỳ','Bánh phở','Bơ thực vật','Cà chua','Cá hồi','Cá quả','Cá thu','Chả lụa','Cơm','Củ cải trắng','Cua đồng','Đậu phụ','Dưa chuột','Đường kính','Flavoring','Gan lợn','Hạt tiêu','Khoai lang','Mật ong','Mực ống','Mực tươi','Nem nướng','Nhãn','Nước mắm pha','Ốc hương','Ốc sên','Ổi','Rau ăn kèm','Rau muống','Rau xanh','Sứa','Sữa bò tươi','Sườn lợn','Táo'] },
+             { dn:23,  v:['Bánh bao nhân thịt','Bánh canh','Bánh mì gạo lứt','Bánh mì hamburger','Bánh mì sandwich','Bắp rang bơ','Bún tươi','Cải ngọt','Chả cá','Chả giò chay','Cơm','Ice cream sundae','Khổ qua','Mực','Nấm','Nước dùng tôm','Nước mắm','Quẩy','Sốt salsa','Trứng cút','Trứng vịt muối','Tử cung gà','Xoài'] },
+             { dn:235, v:['Apple','Banana','Bánh mì','Bánh ngọt','Bánh phở','Bánh tortilla','Bánh tráng','Bắp bò','Bắp cải','Bắp cừu','Bí đỏ','Bông cải xanh','Bột cacao','Bột chiên giòn','Bột mì','Bột trà xanh','Bún gạo lứt','Bưởi','Cà chua','Cá hồi','Cá hồi xông khói','Cá ngừ','Cà phê đen','Cà phê espresso','Cá phi lê','Cá quả','Cà rốt','Cá thu','Cá viên','Cải bẹ xanh','Cải muối chua','Cải ngọt','Cải thìa','Cam','Cánh gà','Chả bò','Chả lụa','Chả trứng','Cháo trắng','Chuối'] }
+           ] }
+};
+const RKEYS = ['7d','30d','90d','all'];
+
+/* ---- candidate pools, one real request per overturn group ---- */
+const POOLS = {
+  'Cơm': { rank:2, pool:[
+      ['Rau giền cơm','fao','fuzzy','1.001','21','0.3','3.4','1.1'],
+      ['Cơm trắng, hấp, nhà hàng Trung Quốc','usda','vector','0.739','151','0.27','3.2','33.88'],
+      ['Quả cơm cháy tươi','usda','fuzzy','1.001','73','0.5','0.66','18.4']],
+    finding:'The fuzzy arm ranks <b>Rau giền cơm</b> (amaranth greens, 1.1 g carb) and <b>Quả cơm cháy tươi</b> (elderberry) at <span class="m">1.001</span> for the query <span class="m">Cơm</span>, because both contain the token as a contiguous word extent. The only correct row — steamed white rice, 33.9 g carb — reaches the pool on the vector arm at <span class="m">0.739</span> and sits at rank 2. Fixing the ranker here removes 14 of the 270 all-time overturns outright. Switch to <b>7d</b>: this group disappears entirely.' },
+  'Dầu đậu nành': { rank:2, pool:[
+      ['Dầu, đậu nành, salad hoặc nấu ăn','usda','vector','0.874','884','100','0','0'],
+      ['Dầu ăn, dầu đậu nành, dầu trộn salad hoặc dầu nấu ăn, (đã hydro hóa một phần)','usda','fuzzy','1.000','884','100','0','0'],
+      ['Dầu thực vật, dầu đậu nành, dầu tinh luyện','usda','vector','0.870','884','100','0','0']],
+    finding:'All three candidates are soybean oil at <span class="m">884 kcal / 100 g fat</span>. The overturn is nutritionally inert — the model moved from rank 1 to rank 2 for a row whose only difference is partial hydrogenation. Overturn rate alone cannot separate this from the Cơm case; that is exactly why the rate needs a drill-down beside it.' },
+  'Hành lá': { rank:2, pool:[
+      ['Hành tây, hành lá (bao gồm cả phần ngọn và củ), sống','usda','vector','0.809','32','0.19','1.83','7.34'],
+      ['Hành lá (hành hoa)','fao','fuzzy','1.001','22','null','1.3','4.3'],
+      ['Hành tây non, chỉ lấy phần ngọn.','usda','vector','0.787','27','0.47','0.97','5.74']],
+    finding:'Retrieval put the USDA scallion row first at <span class="m">0.809</span>; the model took the exact FAO Vietnamese row at <span class="m">1.001</span>. The chosen row has <span class="m">fat: null</span> — FAO rows carry sparse macros, so preferring the local name trades naming accuracy for a missing nutrient. That trade never shows in an aggregate.' },
+  'Thịt lợn': { rank:3, pool:[
+      ['Thịt lợn mỡ','fao','fuzzy','1.001','394','37.3','14.5','0'],
+      ['Thịt lợn, thịt lợn muối, thịt lợn sống','usda','vector','0.832','748','80.5','5.05','0'],
+      ['Thịt lợn nạc','fao','fuzzy','1.001','139','7','19','0']],
+    finding:'The largest nutritional repair on this list. Rank 1 is <b>pork fat</b> at <span class="m">394 kcal / 37.3 g</span> and rank 2 is <b>cured pork</b> at <span class="m">748 kcal / 80.5 g</span>; the model reached rank 3 for lean pork at <span class="m">139 kcal / 7 g</span>. Left to the retriever, a generic <span class="m">Thịt lợn</span> ships <b>5.3× the fat</b>. Ranks 1 and 3 both score <span class="m">1.001</span> — the score cannot tell them apart.' },
+  'Cà phê đen': { rank:2, pool:[
+      ['Beverages, coffee, instant, regular, prepared with water','usda','vector','0.725','2','0','0.1','0.34'],
+      ['Beverages, coffee, brewed, breakfast blend','usda','vector','0.722','2','0','0.3','0.17'],
+      ['Beverages, coffee, instant, regular, powder','usda','vector','0.718','353','0.5','12.2','75.4']],
+    finding:'Ranks 1 and 2 are both ~2 kcal brewed coffee separated by <span class="m">0.003</span> — noise. What matters is rank 3: instant coffee <b>powder</b> at <span class="m">353 kcal</span>, 175× the energy, sitting <span class="m">0.007</span> below rank 1. The pool holds a landmine the score does not flag. The model avoided it; nothing in the pipeline guarantees that.' },
+  'Dầu thực vật': { rank:3, pool:[
+      ['Dầu thực vật, dầu hạt cọ','usda','vector','0.793','862','100','0','0'],
+      ['Dầu cọ','usda','fuzzy','1.000','884','100','0','0'],
+      ['Dầu thực vật, dầu đậu nành, dầu tinh luyện','usda','vector','0.792','884','100','0','0']],
+    finding:'Rank 2 is palm oil at a saturated <span class="m">1.000</span>; the model went past it to soybean oil at rank 3. Energy is identical across all three, so the macro impact is nil — but the fatty-acid profile the app never stores is not. Here the pipeline has no signal either way.' },
+  'Nước mắm': { rank:2, pool:[
+      ['Nước mắm cô','fao','fuzzy','1.001','131','0','32.8','0'],
+      ['Nước mắm cá','fao','fuzzy','1.001','35','0.01','5.1','3.6'],
+      ['Nước mắm loại II','fao','fuzzy','1.001','21','0','5.2','0']],
+    finding:'All three fish-sauce rows score <span class="m">1.001</span> — identical, maximal, and above the scale’s own ceiling. Protein spans <span class="m">32.8 → 5.1 g</span>, a 6.4× range; energy spans <span class="m">131 → 21 kcal</span>. Ranking is arbitrary here. The model is the only thing choosing, and it has nothing but the row names to choose from.' },
+  'Bánh tráng': { rank:2, pool:[
+      ['Papad','usda','vector','0.756','371','3.25','25.56','59.87'],
+      ['Bánh Tortilla, bao gồm loại thường và loại dùng làm nhân bánh mì kẹp thịt cừu (Navajo).','usda','fuzzy','1.000','237','0.95','7.28','49.94'],
+      ['Bánh quy giòn, bánh quy nước','usda','vector','0.737','384','7.14','7.14','72.81']],
+    finding:'No Vietnamese rice paper exists in the corpus. The pool offers Indian papad, a Navajo tortilla and a water cracker; the model took the tortilla at <span class="m">1.000</span>. Energy across the pool spans <span class="m">237 → 384 kcal</span>. This is a coverage gap wearing an acceptance — it never appears in the unresolved list because a row <i>was</i> selected.' },
+  'Chả lụa': { rank:3, pool:[
+      ['Bánh mì ăn trưa, không thịt','usda','vector','0.762','189','11.11','17.78','4.44'],
+      ['Xúc xích Bologna, thịt bò và thịt lợn','usda','fuzzy','1.000','308','24.59','15.2','5.49'],
+      ['Xúc xích Bologna, thịt lợn','usda','fuzzy','1.000','247','19.87','15.3','0.73']],
+    finding:'Retrieval ranked <b>meatless luncheon bread</b> first for a pork sausage. The model went to rank 3, pork Bologna, over rank 2, beef-and-pork Bologna — a defensible distinction made on the row name alone, since ranks 2 and 3 both score exactly <span class="m">1.000</span>. Fat differs by <span class="m">4.7 g/100 g</span> between them.' },
+  'Trứng gà': { rank:3, pool:[
+      ['Trứng gà','fao','vector','1.000','166','11.6','14.8','0.5'],
+      ['Lòng trắng trứng gà','fao','vector','0.904','46','0.1','10.3','1'],
+      ['Trứng, nguyên quả, sống, tươi','usda','vector','0.897','143','9.51','12.56','0.72']],
+    finding:'The only case on this list where the overturn looks wrong. Rank 1 is the exact FAO row <b>Trứng gà</b> at <span class="m">1.000</span>; the model skipped it for a generic USDA whole-egg row at <span class="m">0.897</span>, losing <span class="m">23 kcal</span> and <span class="m">2.2 g protein</span> per 100 g. Rank 2 being egg-white-only shows the pool was not clean, but rank 1 was correct.' },
+  'Cà rốt': { rank:3, pool:[
+      ['Cà rốt sống','usda','vector','0.841','41','0.24','0.93','9.58'],
+      ['Cà rốt khô','fao','fuzzy','1.001','292','1.5','9.2','60.4'],
+      ['Cà rốt (củ đỏ, vàng)','fao','fuzzy','1.001','39','0.2','1.5','7.8']],
+    finding:'Rank 2 is <b>dried</b> carrot at <span class="m">292 kcal</span> — 7× fresh — and it scores <span class="m">1.001</span>, identical to the correct rank-3 row. Had the model stopped one position earlier the meal would have carried seven times the carbohydrate. Dehydrated variants scoring level with fresh ones is a systematic corpus hazard, not a one-off.' },
+  'Pate gan': { rank:3, pool:[
+      ['Pate, gan ngỗng hun khói, đóng hộp','usda','vector','0.701','462','43.84','11.4','4.67'],
+      ['Phết xúc xích gan','usda','fuzzy','1.000','305','25.45','12.38','5.89'],
+      ['Pate, gan gà, đóng hộp','usda','fuzzy','1.000','201','13.1','13.45','6.55']],
+    finding:'Rank 1 is smoked <b>goose</b> liver pâté at <span class="m">462 kcal / 43.8 g fat</span>, admitted on a <span class="m">0.701</span> vector score barely over the USDA floor. The model reached rank 3, chicken liver pâté, at <span class="m">201 kcal / 13.1 g</span> — a <b>3.3× fat</b> correction the ranker did not make.' },
+  'Sữa tươi': { rank:2, pool:[
+      ['Kem tươi, sữa tươi pha loãng, ít béo','usda','fuzzy','1.001','72','5','3.33','3.33'],
+      ['Sữa tươi, dạng lỏng, hàm lượng chất béo 3,7%','usda','vector','0.787','64','3.66','3.28','4.65'],
+      ['Sữa bò tươi','fao','vector','0.846','74','4.4','3.9','4.8']],
+    finding:'Rank 1 is <b>cream</b>, not milk, admitted at <span class="m">1.001</span> because the row name contains the query as a word extent. Both remaining candidates are actual milk. Note the ordering defect: rank 3 scores <span class="m">0.846</span>, higher than rank 2 at <span class="m">0.787</span> — RRF fusion, not raw similarity, sets the order, so the column is not monotonic and should not be read as a ranking key.' },
+  'Sữa tươi không đường': { rank:2, pool:[
+      ['Đồ uống, sữa gạo, không đường','usda','vector','0.805','47','0.97','0.28','9.17'],
+      ['Sữa nguyên kem, hàm lượng chất béo 3,25%, không bổ sung vitamin A và vitamin D.','usda','fuzzy','0.750','61','3.27','3.15','4.78'],
+      ['Sữa chua, không đường, sữa nguyên kem','usda','vector','0.778','61','3.25','3.47','4.66']],
+    finding:'Rank 1 is unsweetened <b>rice milk</b> — <span class="m">0.28 g</span> protein against <span class="m">3.15</span> for real milk, an 11× shortfall. The model corrected to rank 2 despite it holding the <i>lowest</i> similarity in the pool at <span class="m">0.750</span>. Any rule that trusted the score over the model would have shipped the rice milk.' },
+  'Sữa tươi nguyên chất': { rank:3, pool:[
+      ['Sữa tươi, dạng lỏng, hàm lượng chất béo 3,7%','usda','vector','0.801','64','3.66','3.28','4.65'],
+      ['Sữa bò tươi','fao','vector','0.840','74','3.9','3.9','4.8'],
+      ['Sữa nguyên kem, hàm lượng chất béo 3,25%, có bổ sung vitamin D','usda','fuzzy','1.000','61','3.25','3.15','4.8']],
+    finding:'Three legitimate whole-milk rows spanning <span class="m">61 → 74 kcal</span>, a 21% spread on an ingredient people log daily. The model took the vitamin-D-fortified USDA row. There is no ground truth to say which is right; what the panel shows is that the choice is unforced and repeated.' },
+  'Thịt nguội': { rank:2, pool:[
+      ['Thịt nguội, thịt lợn, đóng hộp','usda','vector','0.820','334','30.3','12.5','2.1'],
+      ['HORMEL, Giăm bông Cure 81','usda','fuzzy','1.000','106','3.59','18.43','0.21'],
+      ['Bánh mì dã ngoại, thịt lợn, thịt bò','usda','vector','0.791','232','16.64','14.92','4.76']],
+    finding:'The model traded canned luncheon pork at <span class="m">334 kcal / 30.3 g fat</span> for a <b>branded</b> ham row (HORMEL Cure 81) at <span class="m">106 kcal / 3.6 g</span> — an <b>8.4× fat</b> swing on one pick. Brand-specific rows in a generic corpus are a known hazard: they win on fuzzy string overlap and carry values no generic query should inherit.' }
+};
+
+/* ---- composition rows: name, source, per-range queries, finding ---- */
+const ROWS = {
+  'usda_20058_cooked': { nm:'Cơm trắng, hấp, nhà hàng Trung Quốc', src:'usda',
+    q:{ '7d':[['Cơm',8]], '30d':[['Cơm',14]], '90d':[['Cơm',25]], 'all':[['Cơm',30]] },
+    finding:'One row absorbs every mention of rice. <span class="m">Cơm tấm</span> — broken rice, the most common lunch plate in the app — never reaches it: it retrieves nothing and lands in the zero-candidate bucket instead.' },
+  'usda_20134_cooked': { nm:'Mì gạo đã nấu chín', src:'usda',
+    q:{ '7d':[['Bún',2]], '30d':[['Bún',8],['Bánh hủ tiếu',3],['Hủ tiếu',1]], '90d':[['Bún',16],['Bánh hủ tiếu',4],['Hủ tíu',3],['Bún lứt',1],['Hủ tiếu',1]], 'all':[['Bún',20],['Bánh hủ tiếu',4],['Hủ tíu',3],['Bún lứt',1],['Hủ tiếu',1]] },
+    finding:'Five noodle types collapse into one generic cooked-rice-noodle row. <span class="m">Bún</span> and <span class="m">hủ tiếu</span> differ in composition and portion convention, and <span class="m">Bún lứt</span> is brown rice — the substitution erases that silently. Note <span class="m">Hủ tiếu</span> and <span class="m">Hủ tíu</span> are counted as different queries: no normalisation layer exists.' },
+  'fao_vn_2007_9001_raw': { nm:'Trứng gà', src:'fao',
+    q:{ '7d':[['Trứng',3],['Trứng gà',2]], '30d':[['Trứng',5],['Trứng gà',2]], '90d':[['Trứng',11],['Trứng gà',8],['Trứng nhỏ',2],['Egg',1]], 'all':[['Trứng',11],['Trứng gà',11],['Trứng nhỏ',2],['Egg',1],['Trứng gà ta',1]] },
+    finding:'A clean many-to-one: five spellings of chicken egg, one of them English, resolving to the correct FAO row. This is what an alias layer is supposed to produce — and it happens here without one.' },
+  'usda_11253_raw': { nm:'Rau xà lách, lá xanh, sống', src:'usda',
+    q:{ '7d':[['Rau',1],['Rau sống',1]], '30d':[['Rau sống',2],['Rau',1],['Rau xà lách',1],['Xà lách',1]], '90d':[['Rau',6],['Rau sống',5],['Xà lách',3],['Rau salad',1],['Rau xà lách',1]], 'all':[['Rau sống',8],['Rau',7],['Xà lách',3],['Rau salad',1],['Rau xà lách',1]] },
+    finding:'The bare category term <span class="m">Rau</span> ("vegetables") resolves to green-leaf lettuce 7 times. That is a stage-1 decomposition defect surfacing as a stage-2 success: nothing downstream can tell that the user did not eat lettuce.' },
+  'fao_vn_2007_7017_raw': { nm:'Thịt lợn nạc', src:'fao',
+    q:{ '30d':[['Thịt heo',5],['Thịt heo băm',2],['Thịt heo quay',1],['Thịt lợn',1],['Thịt nạc',1]], '90d':[['Thịt heo',7],['Thịt nạc',4],['Thịt heo băm',2],['Thịt',2],['Thịt heo quay',1],['Thịt lợn',1],['Thịt lợn xay',1]], 'all':[['Thịt heo',9],['Thịt nạc',4],['Thịt heo băm',2],['Thịt',2],['Thịt heo quay',1],['Thịt lợn',1],['Thịt lợn xay',1]] },
+    finding:'Seven queries collapse into lean pork, including <span class="m">Thịt heo quay</span> (roast pork belly) and the bare word <span class="m">Thịt</span> ("meat"). Roast pork belly against a lean-pork row understates fat by roughly 4×.' },
+  'fao_vn_2007_1012_raw': { nm:'Bánh mỳ', src:'fao',
+    q:{ '7d':[['Bánh mì',6]], '30d':[['Bánh mì',16]], '90d':[['Bánh mì',17]], 'all':[['Bánh mì',17]] },
+    finding:'Note the spelling: the corpus row is <span class="m">Bánh mỳ</span> and the query is <span class="m">Bánh mì</span>. The fuzzy arm bridges it, which is the intended behaviour — and it is the same mechanism that reaches amaranth for <span class="m">Cơm</span>. Both the value and the defect come from one component.' },
+  'fao_vn_2007_8051_raw': { nm:'Tôm biển', src:'fao',
+    q:{ '7d':[['Tôm',1]], '30d':[['Tôm',13]], '90d':[['Tôm',16]], 'all':[['Tôm',16]] },
+    finding:'<span class="m">Tôm</span> resolves to sea shrimp 16 times and fails to resolve 5 times. Same query, same corpus, two outcomes — pool composition varies per request, so zero-candidate is not a fixed property of a name.' },
+  'usda_4044_raw': { nm:'Dầu, đậu nành, salad hoặc nấu ăn', src:'usda',
+    q:{ '7d':[['Dầu ăn',7]], '30d':[['Dầu ăn',10]], '90d':[['Dầu ăn',13],['Oil',1]], 'all':[['Dầu ăn',13],['Oil',1]] },
+    finding:'One of <b>three</b> soybean-oil rows that <span class="m">Dầu ăn</span> splits across (with <span class="m">usda_4034</span> and <span class="m">usda_4669</span>). The same query lands on a different row depending on the request. Given the historical guard bug that zeroed fat on vegetable rows, oil deserves a standing invariant on the fat that actually reaches the meal.' },
+  'usda_4034_raw': { nm:'Dầu ăn, dầu đậu nành, dầu trộn salad hoặc dầu nấu ăn, (đã hydro hóa một phần)', src:'usda',
+    q:{ '7d':[['Dầu ăn',8]], '30d':[['Dầu ăn',8]], '90d':[['Dầu ăn',8]], 'all':[['Dầu ăn',8]] },
+    finding:'The partially-hydrogenated variant. All 8 hits fall inside the last 7 days, which is why this row tops the 7d table and is absent from the all-time top 12 — the strongest single argument on this page for a range control: a recent behaviour change is invisible in the lifetime aggregate.' },
+  'usda_4669_raw': { nm:'Dầu thực vật, dầu đậu nành, dầu tinh luyện', src:'usda',
+    q:{ '7d':[['Dầu ăn',4]], '30d':[['Dầu ăn',6]], '90d':[['Dầu ăn',7]], 'all':[['Dầu ăn',7]] },
+    finding:'The third soybean-oil row. Across the corpus <span class="m">Dầu ăn</span> resolves to 4044 (14), 4034 (8) and 4669 (7) — 29 hits over three rows with the same 884 kcal. Harmless for energy, but it proves selection is non-deterministic for an identical query.' },
+  'fao_vn_2007_10001_raw': { nm:'Sữa bò tươi', src:'fao',
+    q:{ '7d':[['Sữa',1],['Sữa đà lạt milk',1],['Sữa tươi',1]], '30d':[['Sữa',5],['Sữa tươi',2],['Sữa đà lạt milk',1],['Sữa tươi nguyên chất',1]], '90d':[['Sữa',7],['Sữa tươi',2],['Sữa đà lạt milk',1],['Sữa nguyên chất',1],['Sữa tươi nguyên chất',1]], 'all':[['Sữa',7],['Sữa nguyên chất',2],['Sữa tươi',2],['Sữa tươi nguyên chất',2],['Sữa đà lạt milk',1]] },
+    finding:'Whole cow milk absorbs every milk variant including a brand name. Skim and low-fat are not distinguished anywhere in the pool, so fat on milk is effectively a constant regardless of what the user drank.' },
+  'fao_vn_2007_13017_raw': { nm:'Nước mắm cá', src:'fao',
+    q:{ '7d':[['Nước mắm',2],['Nước mắm tỏi',1]], '30d':[['Nước mắm',3],['Nước mắm tỏi',1]], '90d':[['Nước mắm',10],['Nước mắm tỏi',1]], 'all':[['Nước mắm',10],['Nước mắm tỏi',1]] },
+    finding:'The row selected here is the 5.1 g-protein variant. Two sibling rows scoring an identical <span class="m">1.001</span> carry 32.8 and 5.2 g — a 6.4× protein spread decided entirely by the model, with no score separating them.' },
+  'usda_1140_raw': { nm:'Trứng chim cút, nguyên quả, tươi, sống', src:'usda',
+    q:{ '90d':[['Trứng cút',5],['Quailed eggs',1]], 'all':[['Trứng cút',10],['Quailed eggs',1]] },
+    finding:'<span class="m">Trứng cút</span> splits across this USDA row (10 hits) and the FAO row <span class="m">fao_vn_2007_9007</span> (9 hits) — near-even, for one unambiguous ingredient. Source preference is unstable, and the two rows do not carry the same nutrients.' },
+  'fao_vn_2007_9007_raw': { nm:'Trứng chim cút', src:'fao',
+    q:{ '7d':[['Trứng cút',2]], '30d':[['Trứng cút',7]], '90d':[['Trứng cút',9]], 'all':[['Trứng cút',9]] },
+    finding:'The FAO half of the <span class="m">Trứng cút</span> split. Over 30 days it outranks the USDA row 7 to ~1; over all time they are level at 9 vs 10. A tie this even across two sources is a retrieval-stability problem, not a data problem.' },
+  'fao_vn_2007_12014_raw': { nm:'Đường kính', src:'fao',
+    q:{ '7d':[['Đường',2]], '30d':[['Đường',3]], '90d':[['Đường',10]], 'all':[['Đường',10]] },
+    finding:'Granulated sugar. <span class="m">Đường</span> also appears in the zero-candidate bucket, so the same one-word query sometimes retrieves this row and sometimes retrieves nothing at all.' },
+  'usda_7010_raw': { nm:'Xúc xích Bologna, thịt lợn', src:'usda',
+    q:{ '7d':[['Chả lụa',4],['Chả',1]], '30d':[['Chả lụa',4],['Chả',1]], '90d':[['Chả lụa',4],['Chả',1]], 'all':[['Chả lụa',4],['Chả',1]] },
+    finding:'Vietnamese pork roll mapped to American Bologna — the closest row that exists, and the reason it beat a meatless bread row only because the model overturned rank 1. All 5 hits are inside the last 7 days.' },
+  'fao_vn_2007_6005_raw': { nm:'Bơ thực vật', src:'fao',
+    q:{ '7d':[['Bơ',4]], '30d':[['Bơ',4]], '90d':[['Bơ',4]], 'all':[['Bơ',4]] },
+    finding:'<span class="m">Bơ</span> is ambiguous in Vietnamese: it means both <b>butter</b> and <b>avocado</b>. It resolves to <b>margarine</b> — a third thing. Nothing in the pipeline records that a disambiguation was needed, so this reads as a clean match in every aggregate on this page.' },
+  'fao_vn_2007_4027_raw': { nm:'Dưa chuột', src:'fao',
+    q:{ '7d':[['Dưa leo',4]], '30d':[['Dưa leo',5]], '90d':[['Dưa leo',7]], 'all':[['Dưa leo',9]] },
+    finding:'A correct regional-synonym bridge: <span class="m">Dưa leo</span> (southern) → <span class="m">Dưa chuột</span> (northern), same vegetable. The vector arm earns its place here — this is not something fuzzy string overlap would find.' },
+  'usda_35143_raw': { nm:'Bánh Tortilla, bao gồm loại thường và loại dùng làm nhân bánh mì kẹp thịt cừu (Navajo).', src:'usda',
+    q:{ '7d':[['Bánh tráng',4]], '30d':[['Bánh tráng',5]], '90d':[['Bánh tráng',5]], 'all':[['Bánh tráng',5]] },
+    finding:'Vietnamese rice paper resolved to a Navajo tortilla. There is no rice-paper row in the corpus, so this acceptance is a coverage gap that the unresolved panel will never show.' },
+  'usda_1211_raw': { nm:'Sữa nguyên kem, 3,25% béo, không bổ sung vitamin A và D', src:'usda',
+    q:{ '7d':[['Sữa tươi không đường',2],['Pure milk',1]], '30d':[['Sữa tươi không đường',2],['Milk',1],['Pure milk',1],['Sữa tươi',1],['Sữa tươi nguyên chất',1]], '90d':[['Sữa tươi',2],['Sữa tươi không đường',2],['Milk',1],['Pure milk',1],['Sữa tươi nguyên chất',1]], 'all':[['Sữa tươi',2],['Sữa tươi không đường',2],['Milk',1],['Pure milk',1],['Sữa tươi nguyên chất',1]] },
+    finding:'A second whole-milk row competing with <span class="m">fao_vn_2007_10001</span> for the same queries, including two English ones. Milk is split across at least three rows spanning <span class="m">61 → 74 kcal</span>.' },
+  'fao_vn_2007_4038_raw': { nm:'Hành lá (hành hoa)', src:'fao',
+    q:{ '30d':[['Hành lá',7]], '90d':[['Hành lá',10]], 'all':[['Hành lá',10]] },
+    finding:'The row the model reaches by overturning rank 1 eight times. It is the correct Vietnamese row — and it carries <span class="m">fat: null</span>, so every one of those corrections drops a macro.' }
+};
+
+const WEEKS = [
+  { w:'05-18', reqs:18, ing:109, acc:83,  pool0:22, choice:73,  ovr:24 },
+  { w:'05-25', reqs:26, ing:105, acc:100, pool0:4,  choice:92,  ovr:23 },
+  { w:'06-01', reqs:31, ing:96,  acc:79,  pool0:16, choice:74,  ovr:26 },
+  { w:'06-08', reqs:null }, { w:'06-15', reqs:null },
+  { w:'06-22', reqs:2,  ing:12,  acc:11,  pool0:0,  choice:10,  ovr:5 },
+  { w:'06-29', reqs:8,  ing:40,  acc:37,  pool0:1,  choice:34,  ovr:14 },
+  { w:'07-06', reqs:null },
+  { w:'07-13', reqs:51, ing:130, acc:109, pool0:5,  choice:98,  ovr:42 },
+  { w:'07-20', reqs:14, ing:55,  acc:47,  pool0:3,  choice:24,  ovr:12 },
+  { w:'07-27', reqs:37, ing:104, acc:97,  pool0:1,  choice:49,  ovr:33 },
+  { w:'08-03', reqs:9,  ing:26,  acc:24,  pool0:2,  choice:19,  ovr:13 },
+  { w:'08-10', reqs:24, ing:67,  acc:61,  pool0:2,  choice:41,  ovr:15 },
+  { w:'08-17', reqs:43, ing:178, acc:170, pool0:6,  choice:130, ovr:62 }
+];
+const TL = {
+  vol: { label:'Meals',            color:INK,   max:60,  axis:[0,20,40,60], f:(w)=>w.reqs,
+         note:'Volume is bursty: three weeks in June and July carry no traffic at all, and the line breaks rather than interpolating across them. Any rate computed over a range that includes those weeks is an average over an uneven denominator.' },
+  acc: { label:'Accepted %',       color:GREEN, max:100, axis:[0,50,100],   f:(w)=>+(w.acc/w.ing*100).toFixed(1),
+         note:'Acceptance is a workflow disposition, not accuracy — it says the model selected a candidate and passed the contract, nothing about whether the row is right. It sits between 76% and 96% with no trend worth reading at these weekly n.' },
+  ovr: { label:'Overturn %',       color:BRICK, max:80,  axis:[0,40,80],    f:(w)=>+(w.ovr/w.choice*100).toFixed(1),
+         note:'The clearest trend on the page: overturn drifts from 33% in the first week to 48% in the last, peaking at 67–68% in the two low-volume weeks of late July. Because the lifetime figure is 41.7% and the 30-day figure is 52.0%, a dashboard without a range control would report a number no recent week has produced.' },
+  gap: { label:'Zero-candidate %', color:AMBER, max:25,  axis:[0,10,20],    f:(w)=>+(w.pool0/w.ing*100).toFixed(1),
+         note:'Retrieval coverage improved sharply and then held: 20.2% of ingredients found no candidate in the first week against 3.4% in the last. The lifetime 6.7% is dominated by that early period and overstates the problem as it stands today.' }
+};
+
+/* ---- REVERSE VIEW: the same overturns aggregated on the DB side.
+   [fcid, name, source, timesDiscardedAtRank1, timesReachedFromRank2or3,
+    queriesWhereDiscarded, queriesWhereReached]  ---- */
+const REV = {
+  '7d': [
+    ["usda_4044_raw","Dầu, đậu nành, salad hoặc nấu ăn","usda",11,1,[["Dầu đậu nành",11]],[["Dầu ăn",1]]],
+    ["usda_4034_raw","Dầu ăn, dầu đậu nành, dầu trộn salad hoặc dầu nấu ăn, (đã hydro hóa một phần)","usda",0,10,[],[["Dầu đậu nành",10]]],
+    ["usda_43131_raw","Bánh mì ăn trưa, không thịt","usda",5,0,[["Chả lụa",5]],[]],
+    ["usda_7010_raw","Xúc xích Bologna, thịt lợn","usda",0,5,[],[["Chả lụa",5]]],
+    ["fao_vn_2007_7016_raw","Thịt lợn mỡ","fao",0,4,[],[["Thịt lợn",4]]],
+    ["usda_10165_raw","Thịt lợn, thịt lợn muối, thịt lợn sống","usda",4,0,[["Thịt lợn",4]],[]],
+    ["usda_35143_raw","Bánh Tortilla, loại thường và loại Navajo","usda",0,4,[],[["Bánh tráng",4]]],
+    ["usda_42200_raw","Papad","usda",4,0,[["Bánh tráng",4]],[]],
+    ["usda_4669_raw","Dầu thực vật, dầu đậu nành, dầu tinh luyện","usda",0,4,[],[["Dầu thực vật",3],["Dầu đậu nành",1]]],
+    ["usda_7054_cooked","Pate, gan ngỗng hun khói, đóng hộp","usda",4,0,[["Pate gan",3],["Pate gan heo",1]],[]],
+    ["usda_8091_cooked","Ngũ cốc, bột ngô trắng, nấu với nước, không muối","usda",4,0,[["Cháo trắng",4]],[]],
+    ["usda_8168_cooked","Ngũ cốc, cháo gạo, nấu với nước, có muối","usda",0,4,[],[["Cháo trắng",4]]],
+    ["fao_vn_2007_13017_raw","Nước mắm cá","fao",0,3,[],[["Nước mắm",3]]],
+    ["usda_1078_raw","Sữa tươi, dạng lỏng, 3,7% béo","usda",3,0,[["Sữa tươi nguyên chất",2],["Sữa tươi",1]],[]]
+  ],
+  '30d': [
+    ["usda_4044_raw","Dầu, đậu nành, salad hoặc nấu ăn","usda",11,1,[["Dầu đậu nành",11]],[["Dầu ăn",1]]],
+    ["usda_4034_raw","Dầu ăn, dầu đậu nành, dầu trộn salad hoặc dầu nấu ăn, (đã hydro hóa một phần)","usda",0,10,[],[["Dầu đậu nành",10]]],
+    ["fao_vn_2007_7016_raw","Thịt lợn mỡ","fao",5,4,[["Thịt lợn",5]],[["Thịt lợn",4]]],
+    ["fao_vn_2007_4038_raw","Hành lá (hành hoa)","fao",0,7,[],[["Hành lá",7]]],
+    ["usda_1078_raw","Sữa tươi, dạng lỏng, 3,7% béo","usda",3,4,[["Sữa tươi nguyên chất",2],["Sữa tươi",1]],[["Sữa bò",2],["Sữa tươi",2]]],
+    ["usda_11291_raw","Hành tây, hành lá (cả ngọn và củ), sống","usda",7,0,[["Hành lá",7]],[]],
+    ["fao_vn_2007_4072_raw","Rau giền cơm","fao",6,0,[["Cơm",6]],[]],
+    ["usda_20058_cooked","Cơm trắng, hấp, nhà hàng Trung Quốc","usda",0,6,[],[["Cơm",6]]],
+    ["usda_4669_raw","Dầu thực vật, dầu đậu nành, dầu tinh luyện","usda",0,6,[],[["Dầu thực vật",5],["Dầu đậu nành",1]]],
+    ["fao_vn_2007_7017_raw","Thịt lợn nạc","fao",0,5,[],[["Thịt lợn",5]]],
+    ["usda_35143_raw","Bánh Tortilla, loại thường và loại Navajo","usda",0,5,[],[["Bánh tráng",5]]],
+    ["usda_42200_raw","Papad","usda",5,0,[["Bánh tráng",5]],[]],
+    ["usda_43131_raw","Bánh mì ăn trưa, không thịt","usda",5,0,[["Chả lụa",5]],[]],
+    ["usda_4513_raw","Dầu thực vật, dầu hạt cọ","usda",5,0,[["Dầu thực vật",5]],[]]
+  ],
+  '90d': [
+    ["usda_4044_raw","Dầu, đậu nành, salad hoặc nấu ăn","usda",12,2,[["Dầu đậu nành",12]],[["Dầu ăn",2]]],
+    ["fao_vn_2007_4072_raw","Rau giền cơm","fao",12,0,[["Cơm",12]],[]],
+    ["usda_20058_cooked","Cơm trắng, hấp, nhà hàng Trung Quốc","usda",0,12,[],[["Cơm",12]]],
+    ["fao_vn_2007_7016_raw","Thịt lợn mỡ","fao",6,4,[["Thịt lợn",6]],[["Thịt lợn",4]]],
+    ["usda_1078_raw","Sữa tươi, dạng lỏng, 3,7% béo","usda",3,7,[["Sữa tươi nguyên chất",2],["Sữa tươi",1]],[["Sữa tươi",4],["Sữa bò",2],["Sữa bò tươi",1]]],
+    ["usda_4034_raw","Dầu ăn, dầu đậu nành, dầu trộn salad hoặc dầu nấu ăn, (đã hydro hóa một phần)","usda",0,10,[],[["Dầu đậu nành",10]]],
+    ["fao_vn_2007_13017_raw","Nước mắm cá","fao",0,8,[],[["Nước mắm",8]]],
+    ["fao_vn_2007_4038_raw","Hành lá (hành hoa)","fao",0,8,[],[["Hành lá",8]]],
+    ["usda_11291_raw","Hành tây, hành lá (cả ngọn và củ), sống","usda",8,0,[["Hành lá",8]],[]],
+    ["usda_43131_raw","Bánh mì ăn trưa, không thịt","usda",8,0,[["Chả lụa",5],["Bánh mì",3]],[]],
+    ["usda_14180_raw","Đồ uống, cà phê, pha, hỗn hợp cho bữa sáng","usda",0,7,[],[["Cà phê đen",7]]],
+    ["usda_4669_raw","Dầu thực vật, dầu đậu nành, dầu tinh luyện","usda",0,7,[],[["Dầu thực vật",5],["Dầu đậu nành",2]]],
+    ["fao_vn_2007_10001_raw","Sữa bò tươi","fao",4,2,[["Sữa bò",2],["Sữa tươi",1],["Sữa bò tươi",1]],[["Sữa tươi",1],["Sữa tươi nguyên kem",1]]],
+    ["fao_vn_2007_13018_raw","Nước mắm cô","fao",6,0,[["Nước mắm",6]],[]]
+  ],
+  'all': [
+    ["usda_20058_cooked","Cơm trắng, hấp, nhà hàng Trung Quốc","usda",2,12,[["Cơm",2]],[["Cơm",12]]],
+    ["usda_4044_raw","Dầu, đậu nành, salad hoặc nấu ăn","usda",12,2,[["Dầu đậu nành",12]],[["Dầu ăn",2]]],
+    ["fao_vn_2007_4072_raw","Rau giền cơm","fao",12,0,[["Cơm",12]],[]],
+    ["usda_1078_raw","Sữa tươi, dạng lỏng, 3,7% béo","usda",3,8,[["Sữa tươi nguyên chất",2],["Sữa tươi",1]],[["Sữa tươi",4],["Sữa bò",2],["Sữa bò tươi nguyên chất",1],["Sữa bò tươi",1]]],
+    ["fao_vn_2007_7016_raw","Thịt lợn mỡ","fao",6,4,[["Thịt lợn",6]],[["Thịt lợn",4]]],
+    ["fao_vn_2007_7017_raw","Thịt lợn nạc","fao",4,6,[["Thịt lợn nạc",4]],[["Thịt lợn",6]]],
+    ["usda_4034_raw","Dầu ăn, dầu đậu nành, dầu trộn salad hoặc dầu nấu ăn, (đã hydro hóa một phần)","usda",0,10,[],[["Dầu đậu nành",10]]],
+    ["fao_vn_2007_10001_raw","Sữa bò tươi","fao",6,2,[["Sữa bò",2],["Sữa bò nguyên chất",1],["Sữa bò tươi nguyên chất",1],["Sữa tươi",1],["Sữa bò tươi",1]],[["Sữa tươi",1],["Sữa tươi nguyên kem",1]]],
+    ["fao_vn_2007_13017_raw","Nước mắm cá","fao",0,8,[],[["Nước mắm",8]]],
+    ["fao_vn_2007_4038_raw","Hành lá (hành hoa)","fao",0,8,[],[["Hành lá",8]]],
+    ["usda_11291_raw","Hành tây, hành lá (cả ngọn và củ), sống","usda",8,0,[["Hành lá",8]],[]],
+    ["usda_13346_raw","Thịt bò, thịt bò muối, thịt ức bò, thịt sống","usda",5,3,[["Nạm bò",3],["Thịt bò",2]],[["Thịt bò",3]]],
+    ["usda_43131_raw","Bánh mì ăn trưa, không thịt","usda",8,0,[["Chả lụa",5],["Bánh mì",3]],[]],
+    ["usda_6170_raw","Soup, stock, beef, home-prepared","usda",1,7,[["Nước dùng bò",1]],[["Nước dùng bò",6],["Nước dùng phở bò",1]]]
+  ]
+};
+
+/* Per-row readings for rows that sit on BOTH sides — written only where the
+   data supports a specific claim; everything else gets a computed line. */
+const REV_FINDING = {
+  'usda_20058_cooked': 'Steamed white rice is <b>discarded 2×</b> and <b>reached 12×</b> — for the same query, <span class="m">Cơm</span>. When the fuzzy arm floats <span class="m">Rau giền cơm</span> to the top this row is the rescue; when it is itself ranked first, the model moves off it. The row is not good or bad; its position in the pool is unstable, and the adjudicator is absorbing that instability.',
+  'fao_vn_2007_7016_raw': '<b>Pork fat, discarded 6× and selected 4×, both from the identical query <span class="m">Thịt lợn</span>.</b> The same model, the same input, the same candidate — opposite decisions. At <span class="m">394 kcal / 37.3 g fat</span> against lean pork’s <span class="m">139 / 7</span>, that inconsistency is a 5× fat coin-flip on one of the most-logged ingredients in the app.',
+  'fao_vn_2007_7017_raw': 'Inverted behaviour. Lean pork is <b>rejected 4×</b> when the query is the specific <span class="m">Thịt lợn nạc</span>, and <b>selected 6×</b> when the query is the vaguer <span class="m">Thịt lợn</span>. The more precise the AI output, the less likely the correct row survives — the opposite of what retrieval should do.',
+  'usda_4044_raw': 'The most-discarded row on the board: ranked #1 twelve times for <span class="m">Dầu đậu nành</span> and thrown away every time, in favour of two other soybean-oil rows with identical <span class="m">884 kcal / 100 g fat</span>. Nothing is gained nutritionally; 12 of the overturns are the ranker and the adjudicator disagreeing about rows that are the same.',
+  'usda_1078_raw': 'Milk at 3.7% fat is <b>discarded 3×</b> and <b>reached 8×</b>. The rejections come from <span class="m">Sữa tươi nguyên chất</span>, the selections from <span class="m">Sữa tươi</span> and <span class="m">Sữa bò</span> — so the same row wins or loses on how the AI phrased the ingredient, not on what the user drank.',
+  'fao_vn_2007_10001_raw': 'The FAO milk row is <b>discarded 6×</b> across five different phrasings and <b>reached only 2×</b>. It loses almost every time it is ranked first, which makes it a candidate for demotion or merge rather than a ranking fix.',
+  'usda_13346_raw': 'Corned beef brisket is <b>rejected 5×</b> (mostly for <span class="m">Nạm bò</span>, flank) and <b>selected 3×</b> for <span class="m">Thịt bò</span>. A cured product standing in for fresh beef in both directions.',
+  'usda_6170_raw': 'Home-prepared beef stock is <b>reached 7×</b> and discarded once. This is the healthy shape: a row the model consistently promotes over powdered-bouillon alternatives. Fixing the ranker to emit it at #1 would remove 7 overturns without changing any output.',
+  'usda_11291_raw': 'The USDA scallion row is ranked #1 eight times for <span class="m">Hành lá</span> and rejected all eight, always for the exact FAO row. A pure ranking defect: one deterministic fix, eight overturns removed.',
+  'fao_vn_2007_4072_raw': 'Amaranth greens, ranked #1 twelve times for the query <span class="m">Cơm</span> and never once selected. <span class="m">word_similarity</span> scores it <span class="m">1.001</span> because the row name contains the query as a contiguous word extent. It has no business in this pool at all.',
+  'usda_43131_raw': 'Meatless luncheon bread, ranked #1 eight times — for <span class="m">Chả lụa</span> (pork roll) and <span class="m">Bánh mì</span> (bread) — and rejected every time. One row is poisoning two unrelated queries.',
+  'usda_42200_raw': 'Indian papad, ranked #1 for Vietnamese rice paper and rejected every time. The correct row does not exist in the corpus, so this is a coverage gap surfacing as a ranking failure.',
+  'usda_4034_raw': 'Partially-hydrogenated soybean oil is <b>never</b> ranked #1 and selected 10 times. It only ever enters the output by overturn — if the ranker emitted it first, those 10 overturns disappear with no change to any meal.'
+};
+
+const BUCKET_META = [
+  { label:'0 candidates', fg:BRICK,  t:'reached stage 3 with an empty pool',
+    note:'Nothing was retrieved, so the model estimated nutrition from its own priors with no composition row behind it. Almost every name here is a Vietnamese prepared dish or staple. This is corpus coverage, not ranking.' },
+  { label:'1 candidate',  fg:AMBER,  t:'had exactly one candidate',
+    note:'The model had no choice, so these are excluded from the overturn denominator. A single-candidate pool means fusion produced one survivor above the acceptance floors; it is not evidence the row is right, only that nothing else cleared the bar.' },
+  { label:'2 candidates', fg:F_GREEN,t:'had two candidates',
+    note:'The rarest outcome and the one where overturn is least likely. Several names here also appear in the 0- and 1-candidate buckets, so pool size is a property of the request, not of the query.' },
+  { label:'3 candidates', fg:GREEN,  t:'received a full pool',
+    note:'The normal path, and where nearly every overturn happens. When the model is given three rows it moves off rank 1 close to half the time — the strongest available signal that the ranker and the adjudicator disagree systematically rather than occasionally.' }
+];
+
+const BUILD = [
+  ['Range control','ToggleGroup · DateRangePicker · Calendar'],
+  ['Stat strip','Card · CardContent'],
+  ['Similarity histogram','ChartContainer · BarChart · ReferenceArea'],
+  ['Adjudication','BarChart layout="vertical" · ChartLegendContent'],
+  ['Overturn drill-down','Table · Badge · Card (detail pane)'],
+  ['Pool size buckets','ToggleGroup · Badge · ScrollArea'],
+  ['Reason pies','ChartContainer · PieChart · Cell'],
+  ['Weekly trend','LineChart connectNulls={false} · ReferenceArea'],
+  ['Corpus usage','Table · Collapsible · Separator']
+];
+
+const CONTRACT = [
+  { title: 'What already works',
+    body: 'GET /metrics/{metric}?from=&to= is implemented and issues a DynamoDB Query with date BETWEEN on the (metric HASH, date RANGE) key. The serving path needs no change for a range control.' },
+  { title: 'What must change in Glue',
+    body: 'Aggregates are currently keyed by the day the pipeline RAN, and each payload holds whole history, so a BETWEEN over them returns snapshots rather than a time slice. Emit one payload per metric per EVENT day and store count vectors only — never precomputed ratios, percentiles or top-N. Every ratio and ranking on this page is then derived after the merge.' },
+  { title: 'The two non-additive figures',
+    body: 'Percentiles cannot be summed: store a per-day fixed-bin duration histogram and interpolate p50/p95 from the merged bins, labelling them as bin-interpolated. Distinct counts cannot be summed either: store the per-day set of composition-row ids (a few dozen a day at this volume) and union it at read time. Anything outside the precomputed set goes to Athena with a WHERE on event_date — curated Parquet stays unpartitioned, so the full-snapshot overwrite keeps its correctness.' }
+];
+
+function arcPath(cx, cy, r, a0, a1) {
+  const p = (a) => [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+  const [x0, y0] = p(a0), [x1, y1] = p(a1);
+  return `M ${cx} ${cy} L ${x0.toFixed(2)} ${y0.toFixed(2)} A ${r} ${r} 0 ${(a1 - a0) > Math.PI ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)} Z`;
+}
+function pie(items) {
+  const live = items.filter((i) => i.n > 0);
+  const total = live.reduce((s, i) => s + i.n, 0) || 1;
+  let a = -Math.PI / 2;
+  return live.map((i) => {
+    const sweep = (i.n / total) * Math.PI * 2;
+    const d = arcPath(75, 75, 70, a, a + sweep - (live.length > 1 ? 0.004 : 0));
+    a += sweep;
+    return { d};
+  });
+}
+const pct = (a, b) => b ? (a / b * 100).toFixed(1) : '0.0';
+
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { range: 'all', ovr: 0, rev: 0, bucket: 0, tl: 'ovr', row: 0 }; }
+
+  renderVals() {
+    const s = this.state;
+    const d = R[s.range];
+    const oi = Math.min(s.ovr, d.ovrGroups.length - 1);
+    const ri = Math.min(s.row, d.topRows.length - 1);
+    const g = d.ovrGroups[oi];
+    const po = POOLS[g[0]];
+    const rowId = d.topRows[ri][0], rowMeta = ROWS[rowId];
+    const revRows = REV[s.range];
+    const vi = Math.min(s.rev, revRows.length - 1);
+    const rv = revRows[vi];
+    const revMax = Math.max(...revRows.map((x) => Math.max(x[3], x[4])), 1);
+    const bothSided = revRows.filter((x) => x[3] > 0 && x[4] > 0).length;
+    const rowQ = (rowMeta.q[s.range] || rowMeta.q['all'] || []);
+    const met = TL[s.tl];
+    const bm = BUCKET_META[s.bucket], bn = d.bucketNames[s.bucket];
+
+    /* similarity histogram */
+    const SIM_LABELS = ['.70', '.75', '.80', '.85', '.90', '.95', '1.000', '>1.000'];
+    const smax = Math.max(...d.sim.bins, 1);
+    const step = smax > 200 ? 100 : smax > 60 ? 50 : 10;
+    const top = Math.ceil(smax / step) * step;
+    const H = 168, Y0 = 178;
+    const grid = [];
+    for (let v = 0; v <= top; v += step) grid.push({ y: (Y0 - v / top * H).toFixed(1), ty: (Y0 - v / top * H + 4).toFixed(1), label: String(v), c: v === 0 ? '#d8d5cb' : '#f0eee7' });
+    const bars = d.sim.bins.map((n, i) => {
+      const h = n / top * H, y = Y0 - h, x = 58 + i * 93;
+      const c = i === 7 ? BRICK : i === 6 ? AMBER : n === 0 ? F_GREY : F_GREEN;
+      return { x, y: y.toFixed(1), h: Math.max(n > 0 ? 1.5 : 0.8, h).toFixed(1), c, n: String(n), cx: x + 39,
+               ly: (y - 7).toFixed(1), lc: i >= 6 ? (i === 7 ? BRICK : '#8a6d1f') : (n === 0 ? SOFT : MUT),
+               lw: i >= 6 ? '600' : '400', label: SIM_LABELS[i], tc: i === 7 ? BRICK : i === 6 ? '#8a6d1f' : SOFT };
+    });
+    const satur = d.sim.bins[6] + d.sim.bins[7];
+    const simFinding = d.sim.bins[7] > 0
+      ? `<b style="color:#8a6d1f;">${satur} of ${d.sim.n} matches (${pct(satur, d.sim.n)}%) score 1.000 or higher, and ${d.sim.bins[7]} of them exceed 1.000</b> — a similarity above its own maximum. <span class="m">word_similarity</span> returns 1.0 for any contiguous word extent and an exact-match bonus pushes it to <span class="m">1.001</span>. Confidence derived from this scale (<span class="m">high ≥ .85</span>) is uncalibrated and is shown nowhere in this dashboard.`
+      : `<b style="color:#8a6d1f;">${d.sim.bins[6]} of ${d.sim.n} matches (${pct(d.sim.bins[6], d.sim.n)}%) score exactly 1.000</b>, and in this range <b>nothing scores above 1.000</b> — the over-maximum band that holds ${R.all.sim.bins[7]} rows across all history is empty here. Widen to 30d to see it return. Everything between <span class="m">.85</span> and <span class="m">1.000</span> is still empty, so the scale remains bimodal and uncalibrated.`;
+
+    /* timeline */
+    const X0 = 78, DX = (1350 - X0) / (WEEKS.length - 1), YT = 18, YB = 138;
+    const yOf = (v) => YB - (v / met.max) * (YB - YT);
+    const pts = [], segs = [];
+    let run = null;
+    WEEKS.forEach((w, i) => {
+      const x = X0 + i * DX;
+      if (w.reqs == null) { if (run) { segs.push(run); run = null; } return; }
+      const v = met.f(w), y = yOf(v), inR = i >= d.firstWeek;
+      if (run && run.inR !== inR) { run.pts.push(`${x.toFixed(1)},${y.toFixed(1)}`); segs.push(run); run = null; }
+      if (!run) run = { pts: [], inR };
+      run.pts.push(`${x.toFixed(1)},${y.toFixed(1)}`);
+      pts.push({ x: x.toFixed(1), y: y.toFixed(1), ly: (y - 11).toFixed(1), v: String(v),
+                 c: inR ? met.color : DIM, lc: inR ? MUT : DIM });
+    });
+    if (run) segs.push(run);
+    const bandX = Math.max(56, X0 + d.firstWeek * DX - DX / 2);
+
+    return {
+      ranges: RKEYS.map((k) => ({ label: R[k].label, cls: k === s.range ? 'rg sel' : 'rg',
+                                  pick: () => this.setState({ range: k, ovr: 0, rev: 0, row: 0 }) })),
+      rng: { from: d.from, to: d.to, days: d.days, meals: String(d.meals), verdicts: String(d.verdicts) },
+
+      stats: [
+        { label:'Meals traced',        value:String(d.meals),          unit:'',  denom:`${d.from} → ${d.to}`,                     fg:INK },
+        { label:'Meals w/ unresolved', value:pct(d.degraded, d.meals), unit:'%', denom:`${d.degraded} / ${d.meals} meals`,        fg:AMBER },
+        { label:'Ingredient verdicts', value:String(d.verdicts),       unit:'',  denom:`across ${d.meals} meals`,                 fg:INK },
+        { label:'Top-1 overturned',    value:pct(d.ovr, d.choice),     unit:'%', denom:`${d.ovr} / ${d.choice} with a choice`,    fg:BRICK },
+        { label:'Zero-candidate',      value:pct(d.pool[0], d.verdicts),unit:'%',denom:`${d.pool[0]} / ${d.verdicts} ingredients`,fg:AMBER },
+        { label:'Matching p95',        value:(d.matchP95/1000).toFixed(1), unit:'s', denom:`p50 ${(d.stages[1][1]/1000).toFixed(1)}s · n=${d.stages[1][3]}`, fg:INK }
+      ],
+
+      sim: { n: String(d.sim.n), grid, bars, finding: simFinding },
+
+      verdicts: [
+        { label:'accepted',  n:String(d.acc), pct:pct(d.acc, d.verdicts)+'%', c:F_GREEN, w:pct(d.acc, d.verdicts)+'%' },
+        { label:'unmatched', n:String(d.unm), pct:pct(d.unm, d.verdicts)+'%', c:F_AMBER, w:Math.max(0.6, d.unm/d.verdicts*100).toFixed(1)+'%' },
+        { label:'rejected',  n:String(d.rej), pct:pct(d.rej, d.verdicts)+'%', c:F_BRICK, w:Math.max(0.6, d.rej/d.verdicts*100).toFixed(1)+'%' },
+        { label:'missing',   n:String(d.mis), pct:pct(d.mis, d.verdicts)+'%', c:F_GREY,  w:Math.max(0.6, d.mis/d.verdicts*100).toFixed(1)+'%' }
+      ],
+      adj: {
+        n: String(d.verdicts), acc: String(d.acc),
+        noChoice: String(d.acc - d.choice), kept: String(d.choice - d.ovr), ovr: String(d.ovr),
+        choice: String(d.choice), ovrPct: pct(d.ovr, d.choice) + '%',
+        wNo: pct(d.acc - d.choice, d.acc) + '%', wKept: pct(d.choice - d.ovr, d.acc) + '%', wOvr: pct(d.ovr, d.acc) + '%',
+        poolNote: d.o2 === 0
+          ? `In this range no two-candidate pool was overturned at all (0 of ${d.a2}); every overturn came from a full pool of three.`
+          : `Rate rises with pool size — the model uses the choice it is given.`
+      },
+      ovrPool: [
+        { label:'pool of 1', pct:'0.0%', frac:`0 / ${d.acc - d.choice}`, w:'0%', c:SOFT },
+        { label:'pool of 2', pct:pct(d.o2, d.a2)+'%', frac:`${d.o2} / ${d.a2}`, w:(d.a2 ? d.o2/d.a2*100*1.5 : 0).toFixed(1)+'%', c:AMBER },
+        { label:'pool of 3', pct:pct(d.o3, d.a3)+'%', frac:`${d.o3} / ${d.a3}`, w:(d.a3 ? d.o3/d.a3*100*1.5 : 0).toFixed(1)+'%', c:BRICK }
+      ],
+
+      ovrHead: { total: String(d.ovr), pairs: String(d.ovrPairs), shown: String(d.ovrGroups.length) },
+      ovrList: d.ovrGroups.map((x, i) => {
+        const p = POOLS[x[0]];
+        const t1 = p ? p.pool[0][0] : '—';
+        return { q: x[0], rank: '#' + x[1], n: String(x[2]),
+                 t1short: t1.length > 34 ? t1.slice(0, 33) + '…' : t1,
+                 cls: i === oi ? 'pick sel' : 'pick', pick: () => this.setState({ ovr: i }) };
+      }),
+      sel: {
+        q: g[0], n: String(g[2]), finding: po.finding,
+        pool: po.pool.map((c, i) => {
+          const win = (i + 1) === g[1], isTop = i === 0;
+          return { tag:'c'+(i+1), nm:c[0], srcarm:c[1]+' · '+c[2], sim:c[3], kcal:c[4], fat:c[5], pro:c[6], carb:c[7],
+                   cls: win ? 'cand win' : (isTop ? 'cand top' : 'cand'),
+                   rfg: win ? GREEN : (isTop ? BRICK : SOFT), nfg: win ? INK : MUT,
+                   simFg: parseFloat(c[3]) >= 1 ? AMBER : MUT, armFg: c[2] === 'fuzzy' ? AMBER : SOFT };
+        })
+      },
+
+      rev: {
+        shown: String(revRows.length),
+        note: `Reading the same ${d.ovr} overturns from the database side instead of the AI side. A bar to the LEFT means the retriever put that row at rank 1 and the model threw it away; a bar to the RIGHT means the model reached past rank 1 to take it. <b>${bothSided} of these ${revRows.length} rows carry bars on both sides</b> — the same composition row is discarded in some requests and rescued in others, in several cases for an identical query. Rows with only a left bar are ranking defects with a deterministic fix; rows with only a right bar are rows the ranker should be emitting first.`,
+        rows: revRows.map((x, i) => ({
+          nm: x[1], dot: (x[3] > 0 && x[4] > 0) ? '◆ ' : '',
+          nfg: (x[3] > 0 && x[4] > 0) ? INK : MUT,
+          rj: String(x[3]), wn: String(x[4]),
+          rjFg: x[3] > 0 ? BRICK : '#cfcabb', wnFg: x[4] > 0 ? GREEN : '#cfcabb',
+          wRej: (x[3] / revMax * 100).toFixed(0) + '%',
+          wWin: (x[4] / revMax * 100).toFixed(0) + '%',
+          cls: i === vi ? 'pick sel' : 'pick', pick: () => this.setState({ rev: i })
+        }))
+      },
+      revSel: {
+        nm: rv[1], id: rv[0], src: rv[2], rj: String(rv[3]), wn: String(rv[4]),
+        rq: rv[5].map((q) => ({ v: q[0], n: String(q[1]) })),
+        wq: rv[6].map((q) => ({ v: q[0], n: String(q[1]) })),
+        finding: REV_FINDING[rv[0]] || (rv[3] > 0 && rv[4] > 0
+          ? `This row sits on <b>both sides</b>: discarded at rank 1 ${rv[3]} time(s) and reached from rank 2/3 ${rv[4]} time(s) in the selected range. Whether it survives depends on the request, not on the row.`
+          : (rv[3] > 0
+            ? `Ranked #1 ${rv[3]} time(s) in this range and rejected every time. A row the retriever promotes and the model never wants — a ranking defect with a deterministic fix.`
+            : `Never ranked #1 in this range, selected ${rv[4]} time(s) by overturn. If the ranker emitted this row first, those overturns disappear with no change to any output.`))
+      },
+
+      buckets: BUCKET_META.map((b, i) => ({
+        label: b.label, n: String(d.pool[i]), pct: pct(d.pool[i], d.verdicts) + '%',
+        w: (d.pool[i] / Math.max(...d.pool) * 100).toFixed(0) + '%', fg: b.fg,
+        cls: i === s.bucket ? 'bk sel' : 'bk', pick: () => this.setState({ bucket: i })
+      })),
+      bk: {
+        title: `${d.pool[s.bucket]} ingredients ${bm.t} — ${bn.dn} distinct names in range`,
+        note: bm.note,
+        names: bn.v.map((v) => ({ v })).concat(bn.dn > bn.v.length ? [{ v: `+ ${bn.dn - bn.v.length} more` }] : [])
+      },
+
+      reasons: {
+        n: String(d.reasons.n),
+        sub: `rejected ${d.rej} · unmatched ${d.unm} · missing ${d.mis}`,
+        finding: `<b style="color:#8a6d1f;">${pct(d.reasons.nul, d.reasons.n)}% of non-resolutions in this range carry no reason.</b> <span class="m">rejectReason</span> is populated on ${d.reasons.n - d.reasons.nul} of ${d.reasons.n} verdicts. The cause pie beside it is derived from pool size, not from the field — it is the only reliable split available today. Populating <span class="m">rejectReason</span> with a closed vocabulary is the single highest-value telemetry fix on this page.`
+      },
+      pies: [
+        { title:'rejectReason as recorded', center:String(d.reasons.nul), centerSub:`null of ${d.reasons.n}`,
+          slices: pie([
+            { label:'no reason recorded (null)', n:d.reasons.nul, c:F_AMBER },
+            { label:'literal "none"', n:d.reasons.none, c:F_GREY },
+            { label:'category mismatch (free text)', n:d.reasons.cat, c:GREEN },
+            { label:'other literal strings', n:d.reasons.other, c:F_BRICK }
+          ]) },
+        { title:'cause derived from pool size', center:String(d.pool[0]), centerSub:'no candidates',
+          slices: pie([
+            { label:'no candidates retrieved — corpus gap', n:d.pool[0], c:F_BRICK },
+            { label:'candidates existed, adjudicator declined', n:d.reasons.n - d.pool[0], c:F_GREEN }
+          ]) }
+      ],
+
+      tlTabs: Object.keys(TL).map((k) => ({ label: TL[k].label, cls: k === s.tl ? 'tg sel' : 'tg', pick: () => this.setState({ tl: k }) })),
+      tl: {
+        bandX: bandX.toFixed(1), bandW: (1370 - bandX).toFixed(1),
+        grid: met.axis.map((v) => ({ y: yOf(v).toFixed(1), ty: (yOf(v) + 4).toFixed(1), label: String(v), c: v === 0 ? '#d8d5cb' : '#f0eee7' })),
+        segs: segs.map((r) => ({ pts: r.pts.join(' '), c: r.inR ? met.color : '#ddd9cd' })),
+        pts,
+        axis: WEEKS.map((w, i) => ({ x: (X0 + i * DX).toFixed(1), label: w.w,
+                                     c: w.reqs == null ? '#cfcabb' : (i >= d.firstWeek ? MUT : '#cfcabb') })),
+        note: met.note + ' Weekly buckets are whole ISO weeks, so a range edge can cut a bucket; the shaded band starts at the first fully-covered week.'
+      },
+
+      stages: d.stages.map((x) => ({
+        name: x[0], p50: x[1].toLocaleString(), p95: x[2].toLocaleString(), n: String(x[3]),
+        fg: x[0] === 'matching' ? BRICK : MUT, bar: x[0] === 'matching' ? F_BRICK : '#1f6feb',
+        w50: (x[1] / Math.max(...d.stages.map((y) => y[2])) * 100).toFixed(1) + '%',
+        w95: (x[2] / Math.max(...d.stages.map((y) => y[2])) * 100).toFixed(1) + '%'
+      })),
+      stageNote: s.range === '7d' || s.range === '30d'
+        ? `Two range-only findings. Matching p95 is <span class="m">${d.stages[1][2].toLocaleString()} ms</span> here against <span class="m">14,870 ms</span> across all history — the long tail is gone. Assembly moved the other way: p50 <span class="m">${d.stages[3][1]} ms</span> against <span class="m">3 ms</span> lifetime, on pure arithmetic that should not have changed. Neither is visible without a range control.`
+        : `Matching owns the tail: p95 <span class="m">${d.stages[1][2].toLocaleString()} ms</span> against a p50 of <span class="m">${d.stages[1][1].toLocaleString()}</span>. Assembly is pure arithmetic at p50 <span class="m">${d.stages[3][1]} ms</span>, so nothing in the end-to-end p95 is assembly. Narrow to 7d and the matching tail disappears while assembly p50 rises 14×.`,
+
+      gapHead: `${d.unmN} unmatched · ${d.unmDistinct} distinct · top ${d.gaps.length}`,
+      gaps: d.gaps.map((x) => ({ name: x[0], n: String(x[1]), pct: (x[1] / d.gaps[0][1] * 100).toFixed(0) + '%' })),
+
+      corpHead: `${d.rowsUsed} of 7,741 rows selected in range · ${pct(d.rowsUsed, 7741)}% of the corpus carries ${d.matches} matches`,
+      corpNote: `Across all history only 304 of 7,741 rows have ever been selected and 171 of those exactly once. The head is short and the tail is thin — retrieval quality is decided by a few hundred rows, so an error in any one of them is systematic rather than isolated. Narrowing the range shrinks the used set faster than it shrinks traffic: ${d.rowsUsed} rows for ${d.matches} matches here.`,
+      corpus: d.topRows.map((r, i) => {
+        const meta = ROWS[r[0]];
+        return { nm: meta.nm, id: r[0], n: String(r[1]), dq: String(r[2]),
+                 w: (r[1] / d.topRows[0][1] * 100).toFixed(0) + '%',
+                 c: r[2] >= 5 ? F_AMBER : F_GREEN, dqFg: r[2] >= 5 ? AMBER : MUT,
+                 cls: i === ri ? 'pick sel' : 'pick', pick: () => this.setState({ row: i }) };
+      }),
+      row: {
+        nm: rowMeta.nm, id: rowId, src: rowMeta.src, n: String(d.topRows[ri][1]), dq: String(d.topRows[ri][2]),
+        finding: rowMeta.finding, queries: rowQ.map((q) => ({ v: q[0], n: String(q[1]) }))
+      },
+
+      build: BUILD.map((b) => ({ panel: b[0], cmp: b[1] })),
+      contract: CONTRACT.map((c) => ({ title: c.title, body: c.body }))
+    };
+  }
+}
+</script>
+</body>
+</html>

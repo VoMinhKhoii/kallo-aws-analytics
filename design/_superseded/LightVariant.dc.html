@@ -1,0 +1,223 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Lora:wght@400&family=Geist+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: #695e4e; }
+    a:hover { color: #5a5043; }
+    .eyebrow {
+      font-size: 10px; line-height: 1.2; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.2em; color: #a8a29e;
+    }
+    .mono { font-family: "Geist Mono", ui-monospace, SFMono-Regular, monospace; }
+    .navitem {
+      display: flex; align-items: center; gap: 11px;
+      height: 38px; padding: 0 12px; border-radius: 8px;
+      font-size: 13px; font-weight: 500; color: #6e6d66;
+    }
+    .navitem.sel { background: #f0eae0; color: #141413; }
+    .subitem {
+      display: flex; align-items: center; gap: 10px;
+      height: 32px; padding: 0 12px; font-size: 13px; color: #6e6d66;
+    }
+    .dash { width: 12px; height: 1px; background: #d8d1c4; flex-shrink: 0; }
+    .card { border: 1px solid #e8e6dc; border-radius: 14px; background: #ffffff; }
+    .num { font-family: "Geist Mono", ui-monospace, monospace; font-size: 40px; line-height: 1; letter-spacing: -0.04em; font-weight: 500; color: #141413; }
+    .unit { font-size: 20px; letter-spacing: -0.01em; color: #6e6d66; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; display: flex; background: #f5f4f0; color: #141413; font-family: 'Be Vietnam Pro', ui-sans-serif, system-ui, sans-serif; font-feature-settings: 'tnum' 1;">
+
+  <!-- Sidebar -->
+  <div style="width: 264px; flex-shrink: 0; display: flex; flex-direction: column; padding: 24px 16px;">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 0 12px 26px;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#695e4e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="3.2"/></svg>
+      <span style="font-size: 17px; font-weight: 600; letter-spacing: -0.015em;">Kallo</span>
+      <span style="padding: 2px 7px; border-radius: 5px; background: #e8e6dc; font-size: 10px; font-weight: 600; color: #6e6d66;">ops</span>
+    </div>
+
+    <p style="margin: 0 0 8px; padding: 0 12px; font-size: 12px; color: #a8a29e;">Monitor</p>
+    <div style="display: flex; flex-direction: column; gap: 2px;">
+      <div class="navitem">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        Overview
+      </div>
+      <div class="navitem sel">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2.5-7 5 14 2.5-7h4"/></svg>
+        Pipeline
+      </div>
+      <div class="navitem">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
+        Retrieval
+      </div>
+      <div class="navitem" style="justify-content: space-between;">
+        <span style="display: flex; align-items: center; gap: 11px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M10 8.5v7l6-3.5z"/></svg>
+          Runs
+        </span>
+        <span style="padding: 1px 7px; border-radius: 999px; background: #f0eae0; font-size: 10px; font-weight: 700; color: #695e4e;">1</span>
+      </div>
+    </div>
+
+    <div style="height: 1px; background: #e8e6dc; margin: 22px 12px;"></div>
+
+    <p style="margin: 0 0 6px; padding: 0 12px; font-size: 12px; color: #a8a29e;">Data</p>
+    <div style="display: flex; flex-direction: column;">
+      <div class="subitem"><span class="dash"></span>Source views</div>
+      <div class="subitem"><span class="dash"></span>Aggregates</div>
+      <div class="subitem"><span class="dash"></span>Athena queries</div>
+    </div>
+
+    <div style="height: 1px; background: #e8e6dc; margin: 22px 12px;"></div>
+
+    <div style="display: flex; align-items: center; justify-content: space-between; padding: 0 12px; margin-bottom: 6px;">
+      <p style="margin: 0; font-size: 12px; color: #a8a29e;">Operations</p>
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#a8a29e" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8.5v7M8.5 12h7"/></svg>
+    </div>
+    <div style="display: flex; flex-direction: column;">
+      <div class="subitem"><span class="dash"></span>Schedule</div>
+      <div class="subitem"><span class="dash"></span>Cost &amp; budget</div>
+      <div class="subitem"><span class="dash"></span>Deployments</div>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <div style="flex: 1; min-width: 0; margin: 12px 12px 12px 0; border: 1px solid #e8e6dc; border-radius: 18px; background: #fcfcfc; overflow: hidden;">
+
+    <div style="display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 20px; height: 66px; padding: 0 28px; border-bottom: 1px solid #e8e6dc;">
+      <div></div>
+      <div style="display: flex; align-items: center; gap: 10px; width: 340px; height: 38px; padding: 0 14px; border: 1px solid #e8e6dc; border-radius: 999px; background: #f5f4f0;">
+        <span class="mono" style="padding: 2px 7px; border-radius: 5px; background: #e8e6dc; font-size: 10px; color: #6e6d66;">Ctrl K</span>
+        <span style="font-size: 13px; color: #a8a29e;">Search runs, views, metrics</span>
+      </div>
+      <div style="display: flex; align-items: center; justify-content: flex-end; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 8px; padding: 6px 12px 6px 10px; border: 1px solid #e8e6dc; border-radius: 999px;">
+          <span style="width: 6px; height: 6px; border-radius: 50%; background: #4f7a3c;"></span>
+          <span style="font-size: 12px; color: #6e6d66;">completed</span>
+          <span class="mono" style="font-size: 11px; color: #a8a29e;">2m</span>
+        </div>
+        <button style="display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border: 1px solid #e8e6dc; border-radius: 8px; background: #ffffff; color: #6e6d66; cursor: pointer;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
+        </button>
+        <button style="display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 15px; border: none; border-radius: 8px; background: #695e4e; color: #fcfcfc; font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3.8v16.4L19.5 12z"/></svg>
+          Run now
+        </button>
+      </div>
+    </div>
+
+    <div style="padding: 28px;">
+
+      <div style="display: flex; align-items: center; gap: 10px; padding: 9px 14px; border: 1px solid #e8e6dc; border-radius: 8px; background: #f5f4f0; margin-bottom: 22px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6e6d66" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.5"/></svg>
+        <span style="font-size: 12px; line-height: 1.5; color: #6e6d66;">Light comparison, same shell and content on the Kallo <span class="mono">:root</span> tokens. The composition bar uses a single-hue ramp because the categorical pigments fail contrast on white — <span class="mono">#e8c55c</span> measures 1.67:1.</span>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 32px; margin-bottom: 24px;">
+        <div>
+          <h1 style="margin: 0; font-family: Lora, Georgia, serif; font-size: 34px; line-height: 1.15; letter-spacing: -0.016em; font-weight: 400;">Pipeline</h1>
+          <p style="margin: 7px 0 0; max-width: 76ch; font-size: 14px; line-height: 1.55; color: #6e6d66;">
+            Retrieval, adjudication and latency for the multi-stage ingredient pipeline. Every figure is the pipeline's own recorded decision — not externally validated accuracy.
+          </p>
+        </div>
+        <div style="display: flex; gap: 2px; padding: 3px; border: 1px solid #e8e6dc; border-radius: 999px; background: #f5f4f0; flex-shrink: 0;">
+          <span style="padding: 6px 14px; border-radius: 999px; color: #6e6d66; font-size: 12px; font-weight: 500;">7d</span>
+          <span style="padding: 6px 14px; border-radius: 999px; color: #6e6d66; font-size: 12px; font-weight: 500;">30d</span>
+          <span style="padding: 6px 14px; border-radius: 999px; background: #695e4e; color: #fcfcfc; font-size: 12px; font-weight: 600;">All time</span>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px;">
+        <div class="card" style="padding: 18px;">
+          <span style="font-size: 12px; color: #6e6d66;">Beta users</span>
+          <div style="margin-top: 11px;"><span class="num">20</span></div>
+          <p style="margin: 9px 0 0; font-size: 11px; color: #a8a29e;">4 waitlist signups pending</p>
+        </div>
+        <div class="card" style="padding: 18px;">
+          <span style="font-size: 12px; color: #6e6d66;">Meals logged</span>
+          <div style="margin-top: 11px;"><span class="num">202</span></div>
+          <p style="margin: 9px 0 0; font-size: 11px; color: #a8a29e;">766 ingredient rows</p>
+        </div>
+        <div class="card" style="padding: 18px;">
+          <span style="font-size: 12px; color: #6e6d66;">Accepted decisions</span>
+          <div style="margin-top: 11px;"><span class="num">88.6<span class="unit">%</span></span></div>
+          <p style="margin: 9px 0 0; font-size: 11px; color: #a8a29e;">of n=906 verdicts</p>
+        </div>
+        <div class="card" style="padding: 18px;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;">
+            <span style="font-size: 12px; color: #6e6d66;">Request error rate</span>
+            <span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 999px; background: #faeeea; font-size: 11px; font-weight: 600; color: #a8453a;">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v5M12 16.5v.5"/><circle cx="12" cy="12" r="9"/></svg>
+              52
+            </span>
+          </div>
+          <div style="margin-top: 11px;"><span class="num">14.9<span class="unit">%</span></span></div>
+          <p style="margin: 9px 0 0; font-size: 11px; color: #a8a29e;">of 348 requests · not runs</p>
+        </div>
+      </div>
+
+      <div class="card" style="padding: 24px; margin-top: 18px;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 32px;">
+          <div>
+            <span class="eyebrow">Adjudication</span>
+            <h2 style="margin: 8px 0 0; font-family: Lora, Georgia, serif; font-size: 20px; line-height: 1.3; font-weight: 400;">Ingredient decision outcomes</h2>
+            <p style="margin: 6px 0 0; max-width: 78ch; font-size: 13px; line-height: 1.55; color: #6e6d66;">Where each ingredient landed after correction. "Top retained" means the adjudicator kept the retriever's rank-1 candidate — not that retrieval bypassed correction.</p>
+          </div>
+          <div style="display: flex; gap: 2px; padding: 3px; border: 1px solid #e8e6dc; border-radius: 999px; background: #f5f4f0; flex-shrink: 0;">
+            <span style="padding: 6px 13px; border-radius: 999px; background: #695e4e; color: #fcfcfc; font-size: 12px; font-weight: 600;">All</span>
+            <span style="padding: 6px 13px; border-radius: 999px; color: #6e6d66; font-size: 12px; font-weight: 500;">v2.5</span>
+            <span style="padding: 6px 13px; border-radius: 999px; color: #6e6d66; font-size: 12px; font-weight: 500;">v3.1</span>
+          </div>
+        </div>
+
+        <div style="margin-top: 24px;">
+          <svg width="1060" height="52" viewBox="0 0 1060 52" role="img" aria-label="541 top retained, 262 alternate selected, 103 unresolved, of 906 verdicts">
+            <rect x="0" y="0" width="632" height="52" rx="6" fill="#695e4e"/>
+            <rect x="636" y="0" width="302" height="52" rx="6" fill="#a1907a"/>
+            <rect x="942" y="0" width="118" height="52" rx="6" fill="#d8d1c4"/>
+          </svg>
+          <div style="display: grid; grid-template-columns: 636px 306px 118px; margin-top: 13px;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 7px;">
+                <span style="width: 9px; height: 9px; border-radius: 2px; background: #695e4e;"></span>
+                <span style="font-size: 13px; font-weight: 500; color: #141413;">Top candidate retained</span>
+              </div>
+              <p class="mono" style="margin: 5px 0 0 16px; font-size: 12px; color: #6e6d66;">541 · 59.7%</p>
+            </div>
+            <div>
+              <div style="display: flex; align-items: center; gap: 7px;">
+                <span style="width: 9px; height: 9px; border-radius: 2px; background: #a1907a;"></span>
+                <span style="font-size: 13px; font-weight: 500; color: #141413;">Alternate selected</span>
+              </div>
+              <p class="mono" style="margin: 5px 0 0 16px; font-size: 12px; color: #6e6d66;">262 · 28.9%</p>
+            </div>
+            <div>
+              <div style="display: flex; align-items: center; gap: 7px;">
+                <span style="width: 9px; height: 9px; border-radius: 2px; background: #d8d1c4;"></span>
+                <span style="font-size: 13px; font-weight: 500; color: #141413;">Unresolved</span>
+              </div>
+              <p class="mono" style="margin: 5px 0 0 16px; font-size: 12px; color: #6e6d66;">103 · 11.4%</p>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; align-items: flex-start; gap: 9px; margin-top: 20px; padding-top: 16px; border-top: 1px solid #e8e6dc;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a8a29e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 1px;"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.5"/></svg>
+          <p style="margin: 0; max-width: 100ch; font-size: 12px; line-height: 1.5; color: #a8a29e;">n=906 verdicts drawn from 260 assembly payloads. "Accepted" reflects the pipeline's final decision, not externally validated accuracy — there is no ground truth or counterfactual in this dataset.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

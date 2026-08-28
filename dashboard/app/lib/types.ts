@@ -15,6 +15,24 @@ export const METRIC_NAMES = [
 
 export type MetricName = (typeof METRIC_NAMES)[number];
 
+/**
+ * Panel order and column span for the dashboard grid, in render order.
+ * app/loading.tsx renders one skeleton per entry instead of keeping its own
+ * hardcoded array, which previously desynced whenever a panel was added.
+ * Keep this in step with the grid in app/components/dashboard.tsx.
+ */
+export const PANEL_LAYOUT = [
+  { key: "engagement", span: "wide" },
+  { key: "meal-volume", span: "half" },
+  { key: "macros", span: "half" },
+  { key: "top-foods", span: "half" },
+  { key: "funnel", span: "half" },
+  { key: "ai-health", span: "wide" },
+  { key: "token-cost", span: "half" },
+  { key: "match-rate", span: "half" },
+  { key: "coverage", span: "wide" },
+] as const;
+
 export type DauWauRow = { date: string; dau: number; wau: number };
 export type RetentionRow = {
   cohort_week: string;
@@ -63,7 +81,8 @@ export type MatchRateRow = {
   date: string;
   matched_count: number;
   unmatched_count: number;
-  total_count: number;
+  ingredient_count: number;
+  unaccounted_count: number;
   match_rate: number;
 };
 export type FunnelPayload = {
@@ -125,4 +144,5 @@ export type RunStatus = {
   completed_at?: string;
   manifest_key?: string;
   glue_job_run_id?: string;
+  failure_reason?: string;
 };

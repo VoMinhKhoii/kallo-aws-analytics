@@ -13,7 +13,7 @@ from urllib.parse import urlparse
 
 MANIFEST_DATE = re.compile(r"(?:^|/)dt=(\d{4}-\d{2}-\d{2})(?:/|$)")
 AGGREGATE_KEY = re.compile(
-    r"^aggregates/dt=(\d{4}-\d{2}-\d{2})/([a-z][a-z0-9_]*)\.json$"
+    r"^aggregates/dt=(\d{4}-\d{2}-\d{2})/run=([^/]+)/([a-z][a-z0-9_]*)\.json$"
 )
 
 
@@ -31,6 +31,11 @@ class DynamoTable(Protocol):
     def put_item(self, **kwargs: Any) -> Mapping[str, Any]: ...
 
     def update_item(self, **kwargs: Any) -> Mapping[str, Any]: ...
+
+
+# Every Glue terminal state that is not a success. A run in any of these will
+# never produce aggregates, so the polling dashboard has to be told.
+FAILED_GLUE_STATES = frozenset({"FAILED", "TIMEOUT", "STOPPED"})
 
 
 class LoaderError(RuntimeError):
@@ -85,8 +90,10 @@ def _split_s3_reference(default_bucket: str, reference: str) -> tuple[str, str]:
     return parsed.netloc, parsed.path.lstrip("/")
 
 
-def _list_keys(s3_client: S3Client, bucket: str, prefix: str) -> list[str]:
-    keys: list[str] = []
+def _list_objects(
+    s3_client: S3Client, bucket: str, prefix: str
+) -> list[Mapping[str, Any]]:
+    objects: list[Mapping[str, Any]] = []
     continuation: str | None = None
     while True:
         arguments: dict[str, Any] = {"Bucket": bucket, "Prefix": prefix}
@@ -95,23 +102,40 @@ def _list_keys(s3_client: S3Client, bucket: str, prefix: str) -> list[str]:
         response = s3_client.list_objects_v2(**arguments)
         for item in response.get("Contents", []):
             if isinstance(item, Mapping) and isinstance(item.get("Key"), str):
-                keys.append(item["Key"])
+                objects.append(item)
         if not response.get("IsTruncated"):
-            return keys
+            return objects
         continuation = response.get("NextContinuationToken")
         if not isinstance(continuation, str) or not continuation:
             raise LoaderError("truncated S3 listing omitted NextContinuationToken")
 
 
+def _list_keys(s3_client: S3Client, bucket: str, prefix: str) -> list[str]:
+    return [str(item["Key"]) for item in _list_objects(s3_client, bucket, prefix)]
+
+
+def _manifest_sort_key(item: Mapping[str, Any]) -> tuple[str, str, str]:
+    key = str(item["Key"])
+    match = MANIFEST_DATE.search(key)
+    date_part = match.group(1) if match else ""
+    # Two runs can share a date, and their run ids are random UUIDs, so the key
+    # alone cannot order them. Fall back to write time, then the key for a
+    # deterministic result when a fake/legacy listing omits LastModified.
+    modified = item.get("LastModified")
+    modified_text = modified.isoformat() if isinstance(modified, datetime) else ""
+    return (date_part, modified_text, key)
+
+
 def latest_manifest_key(s3_client: S3Client, bucket: str) -> str:
-    keys = [
-        key
-        for key in _list_keys(s3_client, bucket, "raw/_manifests/dt=")
-        if key.endswith("/manifest.json") and MANIFEST_DATE.search(key)
+    candidates = [
+        item
+        for item in _list_objects(s3_client, bucket, "raw/_manifests/dt=")
+        if str(item["Key"]).endswith("/manifest.json")
+        and MANIFEST_DATE.search(str(item["Key"]))
     ]
-    if not keys:
+    if not candidates:
         raise LoaderError("no manifest exists under raw/_manifests/")
-    return max(keys, key=lambda key: (MANIFEST_DATE.search(key).group(1), key))  # type: ignore[union-attr]
+    return str(max(candidates, key=_manifest_sort_key)["Key"])
 
 
 def _event_arguments(event: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -219,11 +243,16 @@ def resolve_load_context(
 
 
 def read_aggregate_payloads(
-    s3_client: S3Client, bucket: str, aggregate_date: str
+    s3_client: S3Client, bucket: str, aggregate_date: str, run_id: str
 ) -> dict[str, Any]:
-    """Read and validate every aggregate before any DynamoDB mutation occurs."""
+    """Read and validate this run's aggregates before any DynamoDB mutation.
 
-    prefix = f"aggregates/dt={aggregate_date}/"
+    The prefix is scoped to ``run=<run_id>`` so aggregates left by an earlier
+    run on the same day — possibly a different metric generation — can never be
+    loaded alongside this run's output.
+    """
+
+    prefix = f"aggregates/dt={aggregate_date}/run={run_id}/"
     keys = sorted(
         key for key in _list_keys(s3_client, bucket, prefix) if key.endswith(".json")
     )
@@ -233,9 +262,9 @@ def read_aggregate_payloads(
     payloads: dict[str, Any] = {}
     for key in keys:
         match = AGGREGATE_KEY.fullmatch(key)
-        if not match or match.group(1) != aggregate_date:
+        if not match or match.group(1) != aggregate_date or match.group(2) != run_id:
             raise MalformedAggregateError(f"malformed aggregate object key: {key}")
-        metric = match.group(2)
+        metric = match.group(3)
         try:
             payload = _read_json(s3_client, bucket, key)
         except LoaderError as error:
@@ -307,7 +336,9 @@ def apply_aggregate_payloads(
 def load_aggregates(
     *, table: DynamoTable, s3_client: S3Client, context: LoadContext
 ) -> LoadResult:
-    payloads = read_aggregate_payloads(s3_client, context.bucket, context.date)
+    payloads = read_aggregate_payloads(
+        s3_client, context.bucket, context.date, context.run_id
+    )
     return apply_aggregate_payloads(
         table=table,
         payloads=payloads,
@@ -315,4 +346,44 @@ def load_aggregates(
         run_id=context.run_id,
         manifest_key=context.manifest_key,
         completed_at=context.completed_at,
+    )
+
+
+def glue_event_state(event: Mapping[str, Any]) -> str | None:
+    detail = event.get("detail")
+    detail = detail if isinstance(detail, Mapping) else {}
+    state = detail.get("state")
+    return state if isinstance(state, str) and state else None
+
+
+def event_run_id(
+    event: Mapping[str, Any], glue_client: GlueClient | None = None
+) -> str | None:
+    """Read --run_id from the Glue event, falling back to GetJobRun."""
+
+    run_id = _glue_job_arguments(event, glue_client).get("--run_id")
+    return run_id if isinstance(run_id, str) and run_id else None
+
+
+def mark_run_failed(
+    *,
+    table: DynamoTable,
+    run_id: str,
+    failure_reason: str,
+    updated_at: str,
+) -> None:
+    """Move a polled run to its terminal failed phase."""
+
+    table.update_item(
+        Key={"metric": f"_run#{run_id}", "date": "latest"},
+        UpdateExpression=(
+            "SET #phase = :failed, updated_at = :updated_at, "
+            "failure_reason = :failure_reason"
+        ),
+        ExpressionAttributeNames={"#phase": "phase"},
+        ExpressionAttributeValues={
+            ":failed": "failed",
+            ":updated_at": updated_at,
+            ":failure_reason": failure_reason,
+        },
     )

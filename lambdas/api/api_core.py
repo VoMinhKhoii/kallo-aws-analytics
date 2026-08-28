@@ -222,9 +222,12 @@ def query_metric_range(
 
 
 def get_run_record(table: DynamoTable, run_id: str) -> dict[str, Any] | None:
+    # Strongly consistent: the dashboard polls within a second of POST /runs
+    # writing the item, and an eventually-consistent miss surfaces as a 404 the
+    # UI cannot distinguish from a genuinely unknown run.
     response = table.get_item(
         Key={"metric": f"_run#{run_id}", "date": "latest"},
-        ConsistentRead=False,
+        ConsistentRead=True,
     )
     item = response.get("Item")
     return normalize_dynamo_item(item) if isinstance(item, Mapping) else None

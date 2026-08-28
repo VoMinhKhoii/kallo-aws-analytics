@@ -123,13 +123,18 @@ def test_fixtures_have_three_to_five_rows_and_exact_allowlists() -> None:
         assert all(tuple(row) == config.columns for row in rows)
 
 
-def test_pagination_assembles_jsonl_files_and_advances_watermark() -> None:
+def test_pagination_assembles_jsonl_files_as_a_full_snapshot() -> None:
     config = VIEW_CONFIGS[0]
     rows = fixture_rows(config.name)
 
     def respond(url: str, headers: Mapping[str, str]) -> FakeResponse:
-        assert parse_qs(urlparse(url).query)["select"] == [",".join(config.columns)]
-        assert parse_qs(urlparse(url).query)["order"] == ["created_at.asc"]
+        query = parse_qs(urlparse(url).query)
+        assert query["select"] == [",".join(config.columns)]
+        assert query["order"] == ["created_at.asc"]
+        # Full snapshot: never a cursor filter. A `gt.` filter on a coarse
+        # cursor silently drops same-period rows, so assert it never appears.
+        assert set(query) == {"select", "order"}
+        assert "gt." not in url
         start, end = (int(value) for value in headers["Range"].split("-"))
         return FakeResponse.json(rows[start : end + 1], status=206)
 
@@ -138,6 +143,7 @@ def test_pagination_assembles_jsonl_files_and_advances_watermark() -> None:
     table = FakeTable()
     result = extract_view(
         config=config,
+        run_id="run-7",
         extraction_date="2026-08-10",
         base_url="https://project.supabase.co/",
         analytics_jwt="restricted-jwt",
@@ -145,16 +151,16 @@ def test_pagination_assembles_jsonl_files_and_advances_watermark() -> None:
         bucket="analytics-bucket",
         http_client=http,
         s3_client=s3,
-        table=table,
-        clock=lambda: NOW,
         sleeper=lambda _: None,
         page_size=2,
     )
 
     assert result.rows == len(rows)
+    # run= scopes every object to this run, so a second run on the same day
+    # cannot overwrite or interleave with this one's parts.
     assert result.files == (
-        "raw/v_pipeline_runs/dt=2026-08-10/part-0.jsonl",
-        "raw/v_pipeline_runs/dt=2026-08-10/part-1.jsonl",
+        "raw/v_pipeline_runs/dt=2026-08-10/run=run-7/part-0.jsonl",
+        "raw/v_pipeline_runs/dt=2026-08-10/run=run-7/part-1.jsonl",
     )
     assembled = []
     for key in result.files:
@@ -166,30 +172,14 @@ def test_pagination_assembles_jsonl_files_and_advances_watermark() -> None:
     assert [call["headers"]["Range"] for call in http.calls] == ["0-1", "2-3"]
     assert all(call["headers"]["Range-Unit"] == "items" for call in http.calls)
     assert all(call["headers"]["Accept-Profile"] == "analytics" for call in http.calls)
-    stored_watermark = table.items[("_watermark#v_pipeline_runs", "latest")]
-    assert stored_watermark["watermark"] == rows[-1]["created_at"]
+    assert not any(str(key).startswith("_watermark#") for key, _ in table.items)
 
 
-def test_failed_view_does_not_advance_its_watermark_or_publish_manifest() -> None:
+def test_failed_view_does_not_publish_manifest_or_start_glue() -> None:
     first, failing = VIEW_CONFIGS[:2]
     first_rows = fixture_rows(first.name)[:1]
     failing_rows = fixture_rows(failing.name)[:1]
-    old_first = "2026-08-01T00:00:00Z"
-    old_failing = "2026-08-02T00:00:00Z"
-    table = FakeTable(
-        [
-            {
-                "metric": f"_watermark#{first.name}",
-                "date": "latest",
-                "watermark": old_first,
-            },
-            {
-                "metric": f"_watermark#{failing.name}",
-                "date": "latest",
-                "watermark": old_failing,
-            },
-        ]
-    )
+    table = FakeTable()
     failing_calls = 0
 
     def respond(url: str, headers: Mapping[str, str]) -> FakeResponse:
@@ -226,9 +216,6 @@ def test_failed_view_does_not_advance_its_watermark_or_publish_manifest() -> Non
             page_size=1,
         )
 
-    stored_first = table.items[(f"_watermark#{first.name}", "latest")]
-    assert stored_first["watermark"] == first_rows[-1]["created_at"]
-    assert table.items[(f"_watermark#{failing.name}", "latest")]["watermark"] == old_failing
     assert not any("/_manifests/" in key for _, key in s3.objects)
     assert glue.calls == []
 
@@ -239,8 +226,7 @@ def test_build_manifest_has_locked_shape() -> None:
         views={
             "v_meals": ViewResult(
                 3,
-                ("raw/v_meals/dt=2026-08-10/part-0.jsonl",),
-                "2026-08-10T03:00:00Z",
+                ("raw/v_meals/dt=2026-08-10/run=run-7/part-0.jsonl",),
             )
         },
         started_at=NOW,
@@ -251,7 +237,7 @@ def test_build_manifest_has_locked_shape() -> None:
         "views": {
             "v_meals": {
                 "rows": 3,
-                "files": ["raw/v_meals/dt=2026-08-10/part-0.jsonl"],
+                "files": ["raw/v_meals/dt=2026-08-10/run=run-7/part-0.jsonl"],
             }
         },
         "started_at": "2026-08-10T04:30:00Z",
@@ -288,7 +274,9 @@ def test_on_demand_statuses_and_single_start_job_run() -> None:
         "JobName": "etl-job",
         "Arguments": {
             "--run_id": "manual-run-7",
-            "--manifest_key": "raw/_manifests/dt=2026-08-10/manifest.json",
+            "--manifest_key": (
+                "raw/_manifests/dt=2026-08-10/run=manual-run-7/manifest.json"
+            ),
         },
     }
     statuses = [
@@ -306,37 +294,31 @@ def test_on_demand_statuses_and_single_start_job_run() -> None:
     assert json.loads(manifest_body) == result.manifest
 
 
-def test_full_refresh_never_reads_or_writes_a_watermark() -> None:
-    config = VIEW_CONFIGS[-1]
-    rows = fixture_rows(config.name)
-    table = FakeTable(
-        [
-            {
-                "metric": f"_watermark#{config.name}",
-                "date": "latest",
-                "watermark": "should-be-ignored",
-            }
-        ]
-    )
-    http = FakeHttp(lambda _url, _headers: FakeResponse.json(rows))
-    extract_view(
-        config=config,
-        extraction_date="2026-08-10",
-        base_url="https://project.supabase.co",
-        analytics_jwt="jwt",
-        api_key="api-key",
-        bucket="bucket",
-        http_client=http,
-        s3_client=FakeS3(),
-        table=table,
-        clock=lambda: NOW,
-        sleeper=lambda _: None,
-    )
-    query = parse_qs(urlparse(http.calls[0]["url"]).query)
-    assert "created_at" not in query
-    assert not any(
-        item["metric"] == f"_watermark#{config.name}" for item in table.puts
-    )
+def test_every_view_is_a_full_snapshot_with_no_cursor_filter() -> None:
+    """All views are full-refresh; none may emit a cursor filter.
+
+    A `gt.<watermark>` filter on a coarse cursor silently skips rows that share
+    the watermark's value, so this asserts the filter is absent for every view.
+    """
+
+    for config in VIEW_CONFIGS:
+        rows = fixture_rows(config.name)
+        http = FakeHttp(lambda _url, _headers, _rows=rows: FakeResponse.json(_rows))
+        extract_view(
+            config=config,
+            run_id="run-7",
+            extraction_date="2026-08-10",
+            base_url="https://project.supabase.co",
+            analytics_jwt="jwt",
+            api_key="api-key",
+            bucket="bucket",
+            http_client=http,
+            s3_client=FakeS3(),
+            sleeper=lambda _: None,
+        )
+        query = parse_qs(urlparse(http.calls[0]["url"]).query)
+        assert set(query) == {"select", "order"}, config.name
+        assert query["order"] == [f"{config.order_column}.asc"], config.name
 
 
 def test_page_retries_5xx_with_backoff_but_not_4xx() -> None:

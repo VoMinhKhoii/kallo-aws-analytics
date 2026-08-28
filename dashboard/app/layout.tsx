@@ -1,19 +1,28 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-
-const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
-const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-mono" });
+import { RangeProvider } from "@/components/range-context";
+import { AppSidebar } from "@/components/shell/sidebar";
+import { Topbar } from "@/components/shell/topbar";
 
 export const metadata: Metadata = {
-  title: "Kallo Analytics",
-  description: "Operational analytics for Kallo's meal intelligence pipeline.",
+  title: "Kallo analytics",
+  description: "Analytics plane for the Kallo AI nutrition pipeline",
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${geist.variable} ${geistMono.variable}`}>{children}</body>
+      <body className="antialiased">
+        <RangeProvider>
+          <div className="flex min-h-dvh">
+            <AppSidebar />
+            <div className="flex min-w-0 flex-1 flex-col">
+              <Topbar />
+              <main className="min-w-0 flex-1 px-5 pb-10 lg:px-8">{children}</main>
+            </div>
+          </div>
+        </RangeProvider>
+      </body>
     </html>
   );
 }

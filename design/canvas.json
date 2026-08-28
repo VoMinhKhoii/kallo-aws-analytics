@@ -1,0 +1,78 @@
+{
+  "artboards": [
+    {
+      "file": "AppMetrics.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 1360,
+      "title": "1 · App metrics"
+    },
+    {
+      "file": "Overview.dc.html",
+      "x": 1600,
+      "y": 0,
+      "w": 1440,
+      "h": 1420,
+      "title": "2 · Pipeline overview"
+    },
+    {
+      "file": "Retrieval.dc.html",
+      "x": 3200,
+      "y": 0,
+      "w": 1440,
+      "h": 1760,
+      "title": "3 · Retrieval & matching"
+    },
+    {
+      "file": "Coverage.dc.html",
+      "x": 4800,
+      "y": 0,
+      "w": 1440,
+      "h": 1340,
+      "title": "4 · Coverage & corpus"
+    },
+    {
+      "file": "Trace.dc.html",
+      "x": 6400,
+      "y": 0,
+      "w": 1440,
+      "h": 1560,
+      "title": "5 · Trace viewer"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "structure",
+      "x": 0,
+      "y": -340,
+      "w": 720,
+      "text": "FIVE PAGES behind one persistent header: nav strip, range control and a six-stat KPI strip repeat everywhere, so the range you pick is the range you read.\n\n1 App metrics - adoption funnel, logging concentration, request reliability, meal slot and entry mode. The product, not the AI.\n2 Pipeline overview - adjudication outcomes, weekly trend, stage latency, why things did not resolve, build notes.\n3 Retrieval & matching - similarity distribution, top-1 overturn drill-down by AI output, reverse view by DB row.\n4 Coverage & corpus - candidate pool size and its ingredient names, unresolved names, composition-table usage.\n5 Trace viewer - one meal, span by span; the range reports how many traces the window holds and flags when this trace falls outside it.\n\nEvery figure is REAL, queried from prod on 2026-08-24 at four range cut-offs. Nothing is scaled or interpolated.\n\nNote the two data spans differ: the product has 125 days of history, the bridged AI telemetry only 95, because bridged was added later. Page 1 says 125 days on All; pages 2-4 say 95."
+    },
+    {
+      "id": "findings",
+      "x": 780,
+      "y": -340,
+      "w": 720,
+      "text": "WHAT THE RANGE CONTROL EXPOSES - four things invisible in a lifetime aggregate:\n\n- Request error rate is 14.4% all-time but 1.8% over 7d. The lifetime number is two incidents (34 of 85 failed in the week of 2026-07-13, 10 of 24 in 2026-05-11), not a baseline.\n- Top-1 overturn is 41.7% all-time and 52.0% over 30d - the headline is a number no recent week has produced.\n- Matching p95 fell from 14.9s to 6.1s, while assembly p50 rose 3ms to 42ms on pure arithmetic.\n- The above-maximum similarity defect (81 rows scoring >1.000) has produced nothing in the last 7 days.\n\nHONEST-SCALE CAVEATS carried on page 1: n = 20 accounts, 14 ever active; two users are 77% of all logging; slot_override and portion_factor are 0 / 213 so no user-correction signal exists anywhere; and neither meals nor user_feedback carries pipeline_request_id, so a complaint cannot be joined to a trace."
+    },
+    {
+      "id": "build",
+      "x": 1560,
+      "y": -340,
+      "w": 700,
+      "text": "BUILD. Every panel maps to a shadcn/ui primitive - see the Implementation notes card at the bottom of page 2.\n\ndashboard/ has recharts 2.15.4; shadcn/ui is NOT installed:\nnpx shadcn@latest add chart card table tabs badge toggle-group scroll-area separator calendar\n\nSERVING THE RANGE: GET /metrics/{metric}?from=&to= already issues a DynamoDB Query with date BETWEEN. The blocker is upstream - Glue keys aggregates by the day the pipeline RAN and each payload holds whole history, so a BETWEEN returns snapshots, not a time slice. Fix: one payload per metric per EVENT day, storing count vectors only; derive every ratio and ranking after the merge. Percentiles and distinct counts are the two non-additive cases.\n\nJOIN VALIDITY: candidate pools are stage-2 output joined to the assembly verdict by ingredient index - 827 of 831 joins reproduce the shipped foodCompositionId exactly."
+    },
+    {
+      "id": "palette",
+      "x": 2340,
+      "y": -340,
+      "w": 700,
+      "text": "COLOUR. Absolute, not muted. Series marks now carry the full-saturation ramp:\n#16794a green  ·  #b8860b gold  ·  #b3402f brick  ·  #1f6feb blue  ·  #8a857a neutral\n\nValidated with the dataviz palette checker at light surface, ALL CHECKS PASS: lightness band, chroma floor, CVD separation, normal-vision floor, and contrast vs surface (every mark >= 3:1 on white).\n\nOne caveat the checker flags: across ALL pairs the worst separation is brick vs green at 6.1 deutan - the classic red/green collision, legal only WITH secondary encoding. That holds here: every mark on every chart is accompanied by a direct label and a count, and each legend row prints its own n. No figure on this dashboard is distinguished by hue alone.\n\nTwo deliberate exceptions to full saturation: #cfcabb still marks OUT-OF-RANGE points on the weekly lines (de-emphasis, not a category), and #dde6f9 fills the p50->p95 extent on the stage bars (a range, not a mark - both numbers are printed beside it)."
+    }
+  ],
+  "launch": {
+    "view": "focused",
+    "file": "AppMetrics.dc.html"
+  }
+}

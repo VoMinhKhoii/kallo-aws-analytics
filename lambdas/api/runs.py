@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 from collections.abc import Mapping
+from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
@@ -28,6 +29,24 @@ except ImportError:
         request_method,
         validate_run_id,
     )
+
+
+def _utc_now_text() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def record_run_phase(table: Any, run_id: str, phase: str, **details: str) -> None:
+    """Write the run's status item so a poll immediately after POST resolves."""
+
+    item = {
+        "metric": f"_run#{run_id}",
+        "date": "latest",
+        "run_id": run_id,
+        "phase": phase,
+        "updated_at": _utc_now_text(),
+    }
+    item.update(details)
+    table.put_item(Item=item)
 
 
 def start_run(lambda_client: Any, function_name: str, run_id: str) -> None:
@@ -54,10 +73,18 @@ def handle(
         method = request_method(event)
         raw_run_id = path_parameter(event, "run_id", "id")
         if method == "POST" and raw_run_id is None:
-            if lambda_client is None or not function_name:
+            if lambda_client is None or not function_name or table is None:
                 raise RuntimeError("run start dependencies are not configured")
             run_id = str(run_id_factory())
-            start_run(lambda_client, function_name, run_id)
+            # Claim the run id BEFORE the asynchronous invoke. The extract
+            # Lambda writes its own first status seconds later, so without this
+            # the dashboard's first poll races it and reads a hard 404.
+            record_run_phase(table, run_id, "queued")
+            try:
+                start_run(lambda_client, function_name, run_id)
+            except Exception:
+                record_run_phase(table, run_id, "failed", failure_reason="start_failed")
+                raise
             return json_response(202, {"run_id": run_id})
         if method == "GET" and raw_run_id is not None:
             if table is None:
@@ -79,15 +106,17 @@ def handler(event: Mapping[str, Any] | None, context: Any) -> dict[str, Any]:
     method = request_method(event)
     function_name = os.environ.get("EXTRACT_FUNCTION_NAME")
     table_name = os.environ.get("TABLE_NAME")
+    if not table_name:
+        return error_response(RuntimeError("TABLE_NAME is not set"))
+    table = boto3.resource("dynamodb").Table(table_name)
     if method == "POST":
         if not function_name:
             return error_response(RuntimeError("EXTRACT_FUNCTION_NAME is not set"))
         return handle(
             event,
+            table=table,
             lambda_client=boto3.client("lambda"),
             function_name=function_name,
         )
-    if not table_name:
-        return error_response(RuntimeError("TABLE_NAME is not set"))
-    return handle(event, table=boto3.resource("dynamodb").Table(table_name))
+    return handle(event, table=table)
 

@@ -74,3 +74,27 @@ scripts/lab-down.sh
 ```
 
 The persistent data stack and ECR images are intentionally not deleted by `lab-down.sh`. Check the Vocareum Learner Lab budget before each session; the account has a hard $50 total budget.
+
+## Local end-to-end
+
+The local stack runs the production extractor, transforms, loader, and API
+handlers against the DEV Supabase project without contacting AWS. Export only
+the restricted analytics credentials described in
+[supabase/README.md](../supabase/README.md); never use the JWT signing secret or
+the service-role key.
+
+```bash
+export SUPABASE_URL='https://jqgmcnlfxzzhrvrzpoye.supabase.co'
+export ANALYTICS_READER_JWT='YOUR-MINTED-ANALYTICS-READER-JWT'
+export SUPABASE_API_KEY='YOUR-PUBLISHABLE-OR-LEGACY-ANON-KEY'
+export DASHBOARD_TOKEN='AT-LEAST-20-CHARACTERS'
+
+python3 scripts/local_stack.py --reset --once
+python3 scripts/local_stack.py --serve --port 8000
+```
+
+Local objects and the JSON-backed table default to `.local/s3`. Use `--root`
+to choose another disposable directory. Point the dashboard at the server with
+`MOCK_API=0`, `API_BASE_URL=http://127.0.0.1:8000`, and the same
+`DASHBOARD_TOKEN`. Athena endpoints return HTTP 501 because Athena SQL, real
+Parquet, IAM, EventBridge, and the ECS/ALB path can only be verified on AWS.

@@ -60,7 +60,9 @@ The extract Lambda reads ONLY these views (chunk 2 creates them). Field allowlis
 
 Excluded everywhere: `raw_input`, emails, free-text feedback, exact timestamps where truncation suffices, raw `user_id`. `ingredient_name`/`query_text` are food names (needed for top-foods/coverage panels) — they stay, but any view must filter rows where the app flagged PII (none currently do; keep the note).
 
-Extraction: incremental per-table watermark (`created_at`/`logged_at` cursor) stored in the DynamoDB table under `metric="_watermark#<view>"`; page size 1000 via PostgREST `Range` headers; full-refresh mode flag for small dimension views (`v_food_composition`). After ALL views extracted, write `raw/_manifests/dt=<date>/manifest.json` listing files+row counts, then exactly one `glue.start_job_run(Arguments={"--run_id": ..., "--manifest": ...})`.
+Extraction: **every view is a full snapshot** — no watermarks, no cursors, no cross-run state. Each run pages the complete view (page size 1000 via PostgREST `Range` headers, ordered by `order_column` for deterministic paging) and recomputes every aggregate from the whole dataset. After ALL views extracted, write `raw/_manifests/dt=<date>/manifest.json` listing files+row counts, then exactly one `glue.start_job_run(Arguments={"--run_id": ..., "--manifest": ...})`.
+
+Rationale (decided 2026-08-22): incremental watermarking was removed because it was unsafe at this scale and silently lossy. A `gt.<watermark>` cursor skips every row sharing the watermark's value (fatal on any coarsened timestamp); watermarks committed per-view before the run completed, so a later-view failure stranded earlier rows permanently; and a second same-day run produced an empty delta whose aggregates overwrote the good ones, blanking the dashboard while reporting success. The full relevant dataset is a few MB (~10-20 pages), so a snapshot costs nothing and removes the entire failure class. Reintroduce incremental only if a single view exceeds roughly 100k rows, and only with a composite keyset cursor plus staged watermarks committed after a successful load.
 
 ## Dashboard panels (9, all served from DynamoDB aggregates unless noted)
 

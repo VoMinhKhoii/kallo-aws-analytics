@@ -10,9 +10,19 @@ from typing import Any
 import urllib3
 
 try:  # Lambda ZIPs place both modules at the archive root.
-    from extract_core import TransientHttpError, run_extraction
+    from extract_core import (
+        TransientHttpError,
+        run_extraction,
+        utc_now,
+        write_run_status,
+    )
 except ImportError:  # Tests import this file as ``lambdas.extract.handler``.
-    from .extract_core import TransientHttpError, run_extraction
+    from .extract_core import (
+        TransientHttpError,
+        run_extraction,
+        utc_now,
+        write_run_status,
+    )
 
 
 class Urllib3HttpClient:
@@ -75,6 +85,15 @@ def _load_supabase_credentials(secrets_client: Any, secret_arn: str) -> tuple[st
     return base_url, analytics_jwt, api_key
 
 
+def _on_demand_run_id(event: Mapping[str, Any] | None) -> str | None:
+    """Return the run id only for dashboard-started runs, which are polled."""
+
+    if not isinstance(event, Mapping) or event.get("mode") != "on_demand":
+        return None
+    run_id = event.get("run_id")
+    return run_id if isinstance(run_id, str) and run_id else None
+
+
 def handler(event: Mapping[str, Any] | None, context: Any) -> dict[str, Any]:
     """Extract all source views and hand the completed manifest to Glue."""
 
@@ -89,22 +108,38 @@ def handler(event: Mapping[str, Any] | None, context: Any) -> dict[str, Any]:
     if not bucket:
         raise RuntimeError("required environment variable BUCKET or BUCKET_NAME is not set")
 
-    secrets_client = boto3.client("secretsmanager")
-    base_url, analytics_jwt, api_key = _load_supabase_credentials(
-        secrets_client, secret_arn
-    )
-    result = run_extraction(
-        event=event,
-        base_url=base_url,
-        analytics_jwt=analytics_jwt,
-        api_key=api_key,
-        bucket=bucket,
-        glue_job_name=glue_job_name,
-        http_client=Urllib3HttpClient(urllib3.PoolManager()),
-        s3_client=boto3.client("s3"),
-        table=boto3.resource("dynamodb").Table(table_name),
-        glue_client=boto3.client("glue"),
-    )
+    table = boto3.resource("dynamodb").Table(table_name)
+    try:
+        secrets_client = boto3.client("secretsmanager")
+        base_url, analytics_jwt, api_key = _load_supabase_credentials(
+            secrets_client, secret_arn
+        )
+        result = run_extraction(
+            event=event,
+            base_url=base_url,
+            analytics_jwt=analytics_jwt,
+            api_key=api_key,
+            bucket=bucket,
+            glue_job_name=glue_job_name,
+            http_client=Urllib3HttpClient(urllib3.PoolManager()),
+            s3_client=boto3.client("s3"),
+            table=table,
+            glue_client=boto3.client("glue"),
+        )
+    except Exception as error:
+        # Without this the dashboard polls a run that will never move past
+        # "queued". Record the terminal state, then re-raise so the failure is
+        # still visible in CloudWatch and the Lambda error metric.
+        run_id = _on_demand_run_id(event)
+        if run_id:
+            write_run_status(
+                table,
+                run_id,
+                "failed",
+                utc_now(),
+                failure_reason=type(error).__name__,
+            )
+        raise
     return {
         "run_id": result.run_id,
         "manifest_key": result.manifest_key,

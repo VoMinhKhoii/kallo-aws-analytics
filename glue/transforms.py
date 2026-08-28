@@ -365,20 +365,31 @@ def token_cost_daily(budget_events: Sequence[Row]) -> list[dict[str, Any]]:
 
 
 def match_rate(pipeline_runs: Sequence[Row]) -> list[dict[str, Any]]:
-    groups: dict[str, list[int]] = defaultdict(lambda: [0, 0])
+    """Match rate over every ingredient a run saw, not just the classified ones.
+
+    ``matched_count + unmatched_count`` is NOT the population: some ingredients
+    end up in neither bucket (18 of 1039 in the 2026-08-22 production snapshot),
+    so dividing by the sum silently inflates the rate. ``ingredient_count`` is
+    the run's own count of what it was asked to resolve, and the difference is
+    published as ``unaccounted_count`` rather than being hidden in the ratio.
+    """
+
+    groups: dict[str, list[int]] = defaultdict(lambda: [0, 0, 0])
     for row in pipeline_runs:
         day = _as_date(row.get("created_at"))
         if day:
             group = groups[day.isoformat()]
             group[0] += _integer(row.get("matched_count"))
             group[1] += _integer(row.get("unmatched_count"))
+            group[2] += _integer(row.get("ingredient_count"))
     return [
         {
             "date": day,
             "matched_count": counts[0],
             "unmatched_count": counts[1],
-            "total_count": counts[0] + counts[1],
-            "match_rate": _ratio(counts[0], counts[0] + counts[1]),
+            "ingredient_count": counts[2],
+            "unaccounted_count": counts[2] - counts[0] - counts[1],
+            "match_rate": _ratio(counts[0], counts[2]),
         }
         for day, counts in sorted(groups.items())
     ]

@@ -72,17 +72,33 @@ trusted operator/backend environment.
    secret.
 2. In a temporary directory, install the signer with
    `npm install jsonwebtoken`.
-3. Put the JWT secret in a temporary shell variable, mint a short-lived token,
-   and capture the output. The `role` claim is exact and maps PostgREST to the
+3. Put the JWT secret in a temporary shell variable, mint the token, and capture
+   the output. The `role` claim is exact and maps PostgREST to the
    `analytics_reader` Postgres role:
 
 ```sh
-JWT_SECRET='paste-the-project-jwt-secret-here' node -e "const jwt=require('jsonwebtoken'); console.log(jwt.sign({role:'analytics_reader'}, process.env.JWT_SECRET, {algorithm:'HS256', expiresIn:'24h'}))"
+JWT_SECRET='paste-the-project-jwt-secret-here' node -e "const jwt=require('jsonwebtoken'); console.log(jwt.sign({role:'analytics_reader'}, process.env.JWT_SECRET, {algorithm:'HS256', expiresIn:'120d'}))"
 ```
+
+   **The expiry must outlive the deployment, and `120d` is deliberate.** PostgREST
+   rejects an expired token with `401`, so a short-lived one silently kills the
+   scheduled daily extract the day after deployment: EventBridge still fires, the
+   Lambda still reads the same stored token, and every run fails. That would make
+   the "runs automatically every day" claim false and would fail a live demo.
+   Do not automate rotation by putting `JWT_SECRET` in AWS — that secret can mint
+   a token for any role, including `service_role`. A long-lived *restricted* token
+   is the safer trade; re-mint manually when it expires.
 
 4. Store the resulting JWT in the AWS Secrets Manager secret used by the
    extractor, then clear the shell history/session containing `JWT_SECRET`.
-   Rotate the JWT before it expires. Never commit either value.
+   Never commit either value.
+
+5. Verify the expiry before deploying — this decodes the token locally (no
+   network, no secret) and prints the expiry date:
+
+```sh
+node -e "const [,p]=process.argv[1].split('.');const c=JSON.parse(Buffer.from(p,'base64url'));const d=new Date(c.exp*1000);console.log('role:',c.role,'| expires:',d.toISOString());if(d<new Date('2026-09-12'))throw new Error('token expires before the assessment deadline — re-mint with a longer expiresIn');" 'PASTE_THE_MINTED_JWT_HERE'
+```
 
 The migration grants `analytics_reader` to Supabase's `authenticator` role so
 PostgREST can assume it from the JWT. The role is `NOLOGIN`, so the token cannot
@@ -116,3 +132,13 @@ References: [Supabase database migrations](https://supabase.com/docs/guides/depl
 [custom schemas](https://supabase.com/docs/guides/api/using-custom-schemas),
 [custom roles and JWTs](https://supabase.com/docs/guides/storage/schema/custom-roles),
 and [PostgREST schema selection](https://docs.postgrest.org/en/latest/references/api/schemas.html).
+
+## Dashboard RPC migrations (2026-08-25/28)
+
+The `202608*_analytics_plane_*.sql` files are the dashboard read API: three
+JSONB-exploding views, `summary()`/`weeks()`, eight paginated list functions,
+`trace_detail()`, the eleven `public.analytics_*` SECURITY DEFINER wrappers,
+and the `analytics_reader` grants. They are applied to the DEV Supabase
+project and their canonical copies live in the Kallo repo's
+`supabase/migrations/`; the copies here exist so this repo is self-contained
+for assessment. Byte-for-byte identical to the applied migration history.

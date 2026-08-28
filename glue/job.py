@@ -10,7 +10,6 @@ from typing import Any
 
 import boto3
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import lit
 
 from transforms import compute_aggregates
 
@@ -65,7 +64,6 @@ def main() -> None:
         raise ValueError("--run_id does not match the manifest run_id")
 
     spark = SparkSession.builder.appName("kallo-analytics-etl").getOrCreate()
-    spark.conf.set("spark.sql.sources.partitionOverwriteMode", "dynamic")
     rows_by_view: dict[str, list[dict[str, Any]]] = {}
 
     views = manifest["views"]
@@ -93,16 +91,15 @@ def main() -> None:
             )
         rows_by_view[view_name] = rows
 
+        # curated/ holds the LATEST COMPLETE SNAPSHOT, not one copy per day.
+        # Extraction is a full snapshot, so partitioning by extraction date
+        # would make Athena read the same source row once per snapshot that
+        # ever ran and silently multiply every count. Overwrite instead.
         curated_uri = f"s3://{bucket}/curated/{view_name}/"
-        (
-            frame.withColumn("dt", lit(extraction_date))
-            .write.mode("overwrite")
-            .partitionBy("dt")
-            .parquet(curated_uri)
-        )
+        frame.write.mode("overwrite").parquet(curated_uri)
 
     for metric, payload in compute_aggregates(rows_by_view).items():
-        key = f"aggregates/dt={extraction_date}/{metric}.json"
+        key = f"aggregates/dt={extraction_date}/run={run_id}/{metric}.json"
         s3_client.put_object(
             Bucket=bucket,
             Key=key,

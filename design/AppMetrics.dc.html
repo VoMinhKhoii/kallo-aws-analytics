@@ -1,0 +1,382 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; }
+    .m { font-family: "Geist Mono", ui-monospace, SFMono-Regular, monospace; font-variant-numeric: tabular-nums; }
+    .lbl { font-size: 11px; color: #8d8a82; }
+    .hd { font-size: 10px; font-weight: 600; color: #8d8a82; text-transform: uppercase; letter-spacing: .06em; }
+    .card { border: 1px solid #e8e6dc; border-radius: 8px; background: #fff; }
+    .ph { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 9px 12px; border-bottom: 1px solid #e8e6dc; }
+    .pt { font-size: 12px; font-weight: 600; color: #141413; }
+    .chip { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 9px; border: 1px solid #e8e6dc; border-radius: 4px; background: #fff; font-size: 11px; color: #4a4842; }
+    .chip b { font-weight: 500; color: #141413; }
+    .rg { display: inline-flex; align-items: center; height: 24px; padding: 0 11px; border: 1px solid #e8e6dc; border-left-width: 0; background: #fff; font-size: 11px; color: #6e6d66; cursor: pointer; }
+    .rg:first-child { border-left-width: 1px; border-radius: 4px 0 0 4px; }
+    .rg:last-child { border-radius: 0 4px 4px 0; }
+    .rg.sel { background: #141413; border-color: #141413; color: #fff; }
+    .tick { font-family: "Geist Mono", monospace; font-size: 10px; fill: #a8a29e; }
+    .tr { display: grid; align-items: center; gap: 10px; padding: 0 12px; height: 28px; border-bottom: 1px solid #f4f2ec; font-size: 12px; }
+    .th { display: grid; align-items: center; gap: 10px; padding: 0 12px; height: 24px; background: #faf9f6; border-bottom: 1px solid #e8e6dc; }
+    .pick { cursor: pointer; }
+    .pick:hover { background: #faf9f6; }
+    .pick.sel { background: #f6f4ee; box-shadow: inset 2px 0 0 #141413; }
+    .seg { display: grid; align-items: center; gap: 8px; padding: 7px 12px; border-bottom: 1px solid #f4f2ec; grid-template-columns: 9px 1fr 46px 52px; }
+    .tg { display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border: 1px solid #e8e6dc; border-radius: 4px; background: #fff; font-size: 11px; color: #6e6d66; cursor: pointer; }
+    .tg.sel { background: #141413; border-color: #141413; color: #fff; }
+    .bk { display: block; padding: 8px 10px; border: 1px solid #e8e6dc; border-radius: 6px; cursor: pointer; background: #fff; }
+    .bk.sel { border-color: #141413; box-shadow: inset 0 0 0 1px #141413; }
+    .nm { display: inline-block; padding: 2px 7px; margin: 0 4px 4px 0; border: 1px solid #eeece4; border-radius: 3px; background: #faf9f6; font-size: 11px; color: #4a4842; }
+    .cand { display: grid; grid-template-columns: 26px 1fr 54px 46px 42px 44px 44px 44px; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid #f4f2ec; font-size: 11px; }
+    .cand.win { background: #f4f7f4; box-shadow: inset 2px 0 0 #16794a; }
+    .cand.top { background: #fdf6f4; box-shadow: inset 2px 0 0 #b3402f; }
+    .note { display: flex; gap: 8px; padding: 9px 10px; border: 1px solid #eadfc4; border-left-width: 2px; border-radius: 5px; background: #fbf6ea; }
+    .note p { margin: 0; font-size: 11.5px; line-height: 1.55; color: #4a4842; }
+    .nv { height: 36px; display: inline-flex; align-items: center; padding: 0 13px; font-size: 12px; color: #6e6d66; cursor: pointer; border-bottom: 2px solid transparent; }
+    .nv:hover { color: #141413; }
+    .nv.on { color: #141413; font-weight: 600; border-bottom-color: #141413; }
+    .nv.off { color: #b3402f; cursor: default; }
+    .nv.off:hover { color: #b3402f; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; background: #fcfcfc; color: #141413; font-family: 'Be Vietnam Pro', ui-sans-serif, system-ui, sans-serif; font-size: 13px; padding: 16px 18px 22px;">
+
+  <!-- App nav -->
+  <div style="display:flex;align-items:center;gap:2px;margin:-16px -18px 12px;padding:0 18px;background:#fff;border-bottom:1px solid #e8e6dc;">
+    <span style="font-size:12px;font-weight:600;letter-spacing:-.01em;margin-right:14px;">Kallo analytics</span>
+    <span class="nv on">App metrics</span>
+    <span class="nv">Pipeline overview</span>
+    <span class="nv">Retrieval &amp; matching</span>
+    <span class="nv">Coverage &amp; corpus</span>
+    <span class="nv">Trace viewer</span>
+    <span class="lbl m" style="margin-left:auto;font-size:10px;">AWS analytics plane · RMIT A3</span>
+  </div>
+
+  <!-- Range bar -->
+  <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+    <span style="font-size: 15px; font-weight: 600;">App metrics</span>
+    <span style="display:inline-flex;">
+      <sc-for list="{{ranges}}" as="r" hint-placeholder-count="4">
+        <span class="{{r.cls}}" onClick="{{r.pick}}">{{r.label}}</span>
+      </sc-for>
+    </span>
+    <span class="chip m">{{rng.from}} → {{rng.to}}</span>
+    <span class="lbl m">{{rng.days}} · product telemetry, not the AI pipeline</span>
+    <span style="margin-left: auto; display: flex; gap: 6px; align-items: center;">
+      <span class="chip" style="border-style:dashed;color:#8d8a82;cursor:pointer;">+ filter</span>
+      <span class="lbl m">snapshot 2026-08-24</span>
+    </span>
+  </div>
+
+  <!-- Stat strip -->
+  <div class="card" style="display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); margin-bottom: 12px;">
+    <sc-for list="{{stats}}" as="s" hint-placeholder-count="6">
+      <div style="padding: 11px 13px; border-right: 1px solid #f0eee7;">
+        <p class="lbl" style="margin:0;">{{s.label}}</p>
+        <p class="m" style="margin:6px 0 0; font-size:21px; letter-spacing:-.02em; color:{{s.fg}};">{{s.value}}<span style="font-size:12px;color:#8d8a82;">{{s.unit}}</span></p>
+        <p class="lbl m" style="margin:5px 0 0; font-size:10px;">{{s.denom}}</p>
+      </div>
+    </sc-for>
+  </div>
+
+  <!-- Weekly trend -->
+  <div class="card" style="margin-bottom:12px;">
+    <div class="ph">
+      <span class="pt">Weekly activity — full history, selected range shaded</span>
+      <span style="display:flex;gap:6px;align-items:center;">
+        <sc-for list="{{tlTabs}}" as="t" hint-placeholder-count="5">
+          <span class="{{t.cls}}" onClick="{{t.pick}}">{{t.label}}</span>
+        </sc-for>
+      </span>
+    </div>
+    <div style="padding:12px 12px 8px;">
+      <svg width="1390" height="182" viewBox="0 0 1390 182">
+        <rect x="{{tl.bandX}}" y="10" width="{{tl.bandW}}" height="132" fill="#f6f4ee"></rect>
+        <sc-for list="{{tl.grid}}" as="g" hint-placeholder-count="4">
+          <line x1="56" y1="{{g.y}}" x2="1370" y2="{{g.y}}" stroke="{{g.c}}"></line>
+        </sc-for>
+        <sc-for list="{{tl.grid}}" as="g" hint-placeholder-count="4">
+          <text class="tick" x="50" y="{{g.ty}}" text-anchor="end">{{g.label}}</text>
+        </sc-for>
+        <sc-for list="{{tl.segs}}" as="s" hint-placeholder-count="3">
+          <polyline points="{{s.pts}}" fill="none" stroke="{{s.c}}" stroke-width="2" stroke-linejoin="round"></polyline>
+        </sc-for>
+        <sc-for list="{{tl.pts}}" as="p" hint-placeholder-count="19">
+          <circle cx="{{p.x}}" cy="{{p.y}}" r="4" fill="#fff" stroke="{{p.c}}" stroke-width="2"></circle>
+        </sc-for>
+        <sc-for list="{{tl.pts}}" as="p" hint-placeholder-count="19">
+          <text class="tick" x="{{p.x}}" y="{{p.ly}}" text-anchor="middle" fill="{{p.lc}}">{{p.v}}</text>
+        </sc-for>
+        <sc-for list="{{tl.axis}}" as="a" hint-placeholder-count="19">
+          <text class="tick" x="{{a.x}}" y="172" text-anchor="middle" fill="{{a.c}}">{{a.label}}</text>
+        </sc-for>
+      </svg>
+    </div>
+    <p class="lbl" style="margin:0 12px 12px;line-height:1.5;">{{tl.note}}</p>
+  </div>
+
+  <!-- Adoption funnel + concentration | reliability -->
+  <div style="display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:12px;margin-bottom:12px;">
+    <div class="card">
+      <div class="ph"><span class="pt">Adoption — and how concentrated the logging is</span><span class="lbl m">20 registered accounts all-time</span></div>
+      <div style="padding:11px 12px 0;">
+        <sc-for list="{{funnel}}" as="f" hint-placeholder-count="4">
+          <div style="display:grid;grid-template-columns:190px 1fr 96px;align-items:center;gap:10px;height:28px;">
+            <span style="font-size:12px;color:{{f.fg}};">{{f.label}}</span>
+            <span style="display:block;height:12px;background:#f0eee7;border-radius:2px;">
+              <span style="display:block;height:12px;width:{{f.w}};border-radius:2px;background:{{f.c}};"></span>
+            </span>
+            <span class="m" style="font-size:11px;text-align:right;color:{{f.fg}};">{{f.n}} <span style="color:#a8a29e;">{{f.pct}}</span></span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="padding:12px 12px 0;">
+        <p class="hd" style="margin:0 0 7px;">Meals logged per user — all 14 who ever logged</p>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;align-items:end;height:78px;">
+          <sc-for list="{{conc}}" as="c" hint-placeholder-count="5">
+            <span style="display:flex;flex-direction:column;justify-content:flex-end;height:78px;">
+              <span class="m" style="font-size:10px;text-align:center;color:#6e6d66;margin-bottom:3px;">{{c.n}}</span>
+              <span style="display:block;height:{{c.h}};border-radius:2px 2px 0 0;background:{{c.color}};"></span>
+              <span class="lbl m" style="font-size:9.5px;text-align:center;margin-top:4px;">{{c.label}}</span>
+            </span>
+          </sc-for>
+        </div>
+      </div>
+      <div class="note" style="margin:12px 12px 12px;"><p><b style="color:#8a6d1f;">Two accounts logged 105 and 59 meals — 164 of 213, or 77% of everything in the product.</b> Six of the twenty registered accounts never logged a single meal, and two logged exactly one. Every per-user average on this page is dominated by two people; read totals, not means.</p></div>
+    </div>
+
+    <div class="card">
+      <div class="ph"><span class="pt">Pipeline request reliability</span><span class="lbl m">n={{rel.n}} requests in range · the only honest failure denominator</span></div>
+      <div style="padding:12px 12px 0;">
+        <div style="display:flex;height:10px;border-radius:3px;overflow:hidden;gap:2px;">
+          <sc-for list="{{rel.bars}}" as="b" hint-placeholder-count="3">
+            <span style="width:{{b.w}};background:{{b.c}};"></span>
+          </sc-for>
+        </div>
+      </div>
+      <sc-for list="{{rel.bars}}" as="b" hint-placeholder-count="3">
+        <div class="seg">
+          <span style="width:9px;height:9px;border-radius:2px;background:{{b.c}};"></span>
+          <span style="font-size:12px;color:#141413;">{{b.label}}</span>
+          <span class="m" style="font-size:11px;text-align:right;color:#6e6d66;">{{b.n}}</span>
+          <span class="m" style="font-size:11px;text-align:right;color:#141413;">{{b.pct}}</span>
+        </div>
+      </sc-for>
+      <div style="padding:12px 12px 0;">
+        <p class="hd" style="margin:0 0 7px;">Error rate by week — where the failures actually were</p>
+        <div style="display:grid;grid-template-columns:repeat(18,1fr);gap:2px;align-items:end;height:64px;">
+          <sc-for list="{{rel.weeks}}" as="w" hint-placeholder-count="18">
+            <span style="display:block;height:{{w.h}};border-radius:1px;background:{{w.c}};" title="{{w.t}}"></span>
+          </sc-for>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:4px;">
+          <span class="lbl m" style="font-size:9.5px;">04-20</span>
+          <span class="lbl m" style="font-size:9.5px;">07-13 · 34 of 85</span>
+          <span class="lbl m" style="font-size:9.5px;">08-24</span>
+        </div>
+      </div>
+      <div class="note" style="margin:12px 12px 12px;"><p>{{rel.finding}}</p></div>
+    </div>
+  </div>
+
+  <!-- Slots + modes + caveat -->
+  <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.05fr);gap:12px;margin-bottom:12px;">
+    <div class="card">
+      <div class="ph"><span class="pt">Meal slot</span><span class="lbl m">n={{slotN}} meals</span></div>
+      <sc-for list="{{slots}}" as="s" hint-placeholder-count="4">
+        <div class="tr" style="grid-template-columns:76px 1fr 66px;">
+          <span style="font-size:12px;">{{s.label}}</span>
+          <span style="display:block;height:8px;background:#f0eee7;border-radius:2px;">
+            <span style="display:block;height:8px;width:{{s.w}};border-radius:2px;background:{{s.c}};"></span>
+          </span>
+          <span class="m" style="font-size:11px;text-align:right;color:#6e6d66;">{{s.n}} <span style="color:#a8a29e;">{{s.pct}}</span></span>
+        </div>
+      </sc-for>
+      <p class="lbl" style="margin:9px 12px 12px;line-height:1.5;">Breakfast is over half of everything logged. <span class="m">slot_override</span> — the column that would record a user correcting the model's slot guess — is populated <b>0 times in 213 meals</b>, so this distribution is entirely the model's, never a user's.</p>
+    </div>
+
+    <div class="card">
+      <div class="ph"><span class="pt">Entry mode</span><span class="lbl m">n={{slotN}} meals</span></div>
+      <sc-for list="{{modes}}" as="s" hint-placeholder-count="2">
+        <div class="tr" style="grid-template-columns:76px 1fr 66px;">
+          <span style="font-size:12px;">{{s.label}}</span>
+          <span style="display:block;height:8px;background:#f0eee7;border-radius:2px;">
+            <span style="display:block;height:8px;width:{{s.w}};border-radius:2px;background:{{s.c}};"></span>
+          </span>
+          <span class="m" style="font-size:11px;text-align:right;color:#6e6d66;">{{s.n}} <span style="color:#a8a29e;">{{s.pct}}</span></span>
+        </div>
+      </sc-for>
+      <p class="lbl" style="margin:9px 12px 12px;line-height:1.5;">The cheat-slider path is 3% of logging. <span class="m">portion_factor</span>, its correction column, is also <b>0 / 213</b>. Taken with <span class="m">slot_override</span>, the product currently captures <b>no user-correction signal of any kind</b> — which is exactly why nothing in this dashboard can measure accuracy, only disposition.</p>
+    </div>
+
+    <div class="card" style="background:#faf9f6;">
+      <div class="ph" style="border-bottom:1px solid #eeece4;"><span class="pt">Reading this page honestly</span><span class="lbl m">beta scale</span></div>
+      <div style="padding:11px 12px 12px;">
+        <sc-for list="{{caveats}}" as="c" hint-placeholder-count="4">
+          <div style="display:grid;grid-template-columns:14px 1fr;gap:8px;padding:4px 0;">
+            <span class="m" style="font-size:11px;color:#b3402f;">→</span>
+            <span style="font-size:11.5px;line-height:1.5;color:#4a4842;">{{c.v}}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+const GREEN='#16794a', AMBER='#b8860b', BRICK='#b3402f', INK='#141413', MUT='#6e6d66', SOFT='#a8a29e', DIM='#cfcabb';
+const F_GREEN='#16794a', F_AMBER='#b8860b', F_BRICK='#b3402f', F_GREY='#8a857a';
+
+/* Queried from prod 2026-08-24 at four range cut-offs. */
+const R = {
+  '7d':  { label:'7d',  from:'2026-08-17', to:'2026-08-24', days:'7 days',   firstWeek:17,
+           newUsers:3,  active:6,  meals:42,  items:166, reqs:55,  ok:54,  err:1,  pend:0, waitlist:6,
+           slots:[['breakfast',19],['lunch',11],['snack',7],['dinner',5]], modes:[['precise',39],['cheat',3]] },
+  '30d': { label:'30d', from:'2026-07-25', to:'2026-08-24', days:'30 days',  firstWeek:14,
+           newUsers:6,  active:7,  meals:77,  items:254, reqs:133, ok:129, err:4,  pend:0, waitlist:9,
+           slots:[['breakfast',43],['lunch',13],['dinner',12],['snack',9]], modes:[['precise',73],['cheat',4]] },
+  '90d': { label:'90d', from:'2026-05-26', to:'2026-08-24', days:'90 days',  firstWeek:6,
+           newUsers:16, active:12, meals:172, items:568, reqs:295, ok:254, err:40, pend:1, waitlist:9,
+           slots:[['breakfast',96],['snack',30],['lunch',30],['dinner',16]], modes:[['precise',166],['cheat',6]] },
+  'all': { label:'All', from:'2026-04-22', to:'2026-08-24', days:'125 days', firstWeek:0,
+           newUsers:20, active:14, meals:213, items:810, reqs:360, ok:307, err:52, pend:1, waitlist:9,
+           slots:[['breakfast',108],['snack',43],['lunch',41],['dinner',21]], modes:[['precise',207],['cheat',6]] }
+};
+const RKEYS = ['7d','30d','90d','all'];
+
+/* week, activeUsers, meals, signups, requests, requestErrors  (null = no data) */
+const WEEKS = [
+  ['04-20',1,1,1,5,0],   ['04-27',null,null,null,1,0], ['05-04',3,7,2,7,0],
+  ['05-11',2,9,null,24,10], ['05-18',2,19,1,22,2],     ['05-25',2,17,null,26,0],
+  ['06-01',3,26,2,32,0], ['06-08',null,null,null,1,0], ['06-15',null,null,null,null,null],
+  ['06-22',1,1,null,2,0], ['06-29',2,8,2,10,2],        ['07-06',1,1,2,1,0],
+  ['07-13',5,38,4,85,34], ['07-20',1,9,1,15,0],        ['07-27',2,16,1,37,0],
+  ['08-03',3,3,1,9,0],   ['08-10',3,16,null,28,3],     ['08-17',6,35,3,47,1],
+  ['08-24',2,7,null,8,0]
+];
+const TL = {
+  meals: { label:'Meals',      color:INK,   max:40,  axis:[0,20,40],  i:2,
+    note:'Logging is bursty and driven by a handful of people. The two biggest weeks — 38 meals in mid-July and 35 in mid-August — are the same two heavy users returning. Three weeks in June carry almost nothing.' },
+  users: { label:'Active users', color:GREEN, max:8, axis:[0,4,8],   i:1,
+    note:'Weekly actives never exceed 6 against 20 registered accounts. The most recent full week is the highest the product has ever reached, which is real but is a difference of two people.' },
+  signups:{ label:'Signups',   color:AMBER, max:5,   axis:[0,2,4],   i:3,
+    note:'Twenty signups over 125 days, arriving in small clusters. Nine waitlist entries sit behind them, all from August.' },
+  reqs:  { label:'Requests',   color:MUT,   max:100, axis:[0,50,100], i:4,
+    note:'Pipeline requests exceed meals because failures, retries and discarded analyses all count here. This is the denominator any reliability figure must use — never pipeline_runs, which records successes only.' },
+  errpct:{ label:'Error %',    color:BRICK, max:50,  axis:[0,25,50],  i:-1,
+    note:'Failures are not spread out — they are two incidents. The week of 2026-07-13 failed 34 of 85 requests (40%), and 2026-05-11 failed 10 of 24 (42%). Outside those two weeks the pipeline has been near-clean, and the last 7 days show 1 error in 55 requests. The lifetime 14.4% describes two bad weeks, not the system as it stands.' }
+};
+
+const CONC = [['1',2],['2–3',4],['4–9',5],['10–29',1],['30+',2]];
+const pct = (a,b) => b ? (a/b*100).toFixed(1) : '0.0';
+
+class Component extends DCLogic {
+  constructor(p){ super(p); this.state = { range:'all', tl:'meals' }; }
+
+  renderVals() {
+    const s = this.state, d = R[s.range], met = TL[s.tl];
+
+    const X0 = 74, DX = (1352 - X0) / (WEEKS.length - 1), YT = 18, YB = 138;
+    const val = (w) => met.i === -1
+      ? (w[4] ? +(w[5] / w[4] * 100).toFixed(1) : null)
+      : (w[met.i] == null ? null : w[met.i]);
+    const yOf = (v) => YB - (v / met.max) * (YB - YT);
+    const pts = [], segs = []; let run = null;
+    WEEKS.forEach((w, i) => {
+      const x = X0 + i * DX, v = val(w);
+      if (v == null) { if (run) { segs.push(run); run = null; } return; }
+      const y = yOf(Math.min(v, met.max)), inR = i >= d.firstWeek;
+      if (run && run.inR !== inR) { run.pts.push(x.toFixed(1)+','+y.toFixed(1)); segs.push(run); run = null; }
+      if (!run) run = { pts: [], inR };
+      run.pts.push(x.toFixed(1)+','+y.toFixed(1));
+      pts.push({ x:x.toFixed(1), y:y.toFixed(1), ly:(y-11).toFixed(1), v:String(v),
+                 c: inR ? met.color : DIM, lc: inR ? MUT : DIM });
+    });
+    if (run) segs.push(run);
+    const bandX = Math.max(56, X0 + d.firstWeek * DX - DX / 2);
+
+    const funnel = [
+      ['Registered an account', 20, INK,   '#1f6feb'],
+      ['Logged at least 1 meal', 14, INK,   F_GREEN],
+      ['Logged 4 or more',       8,  AMBER, F_AMBER],
+      ['Active in selected range', d.active, BRICK, F_BRICK]
+    ];
+    const relErrPct = +pct(d.err, d.reqs);
+    const wkMax = Math.max(...WEEKS.map((w) => w[4] ? w[5]/w[4]*100 : 0), 1);
+
+    return {
+      ranges: RKEYS.map((k) => ({ label:R[k].label, cls: k===s.range?'rg sel':'rg', pick: () => this.setState({ range:k }) })),
+      rng: { from:d.from, to:d.to, days:d.days },
+
+      stats: [
+        { label:'New signups',     value:String(d.newUsers), unit:'',  denom:'of 20 registered all-time',            fg:INK },
+        { label:'Active users',    value:String(d.active),   unit:'',  denom:'of 14 who ever logged a meal',         fg:INK },
+        { label:'Meals logged',    value:String(d.meals),    unit:'',  denom:d.items+' ingredients',                 fg:INK },
+        { label:'Meals / active user', value:(d.meals/d.active).toFixed(1), unit:'', denom:'mean — 2 users are 77%', fg:AMBER },
+        { label:'Pipeline requests', value:String(d.reqs),   unit:'',  denom:d.ok+' success · '+d.pend+' pending',   fg:INK },
+        { label:'Error rate',      value:String(relErrPct),  unit:'%', denom:d.err+' / '+d.reqs+' requests',         fg: relErrPct > 5 ? BRICK : GREEN }
+      ],
+
+      tlTabs: Object.keys(TL).map((k) => ({ label:TL[k].label, cls: k===s.tl?'tg sel':'tg', pick: () => this.setState({ tl:k }) })),
+      tl: {
+        bandX: bandX.toFixed(1), bandW: (1370 - bandX).toFixed(1),
+        grid: met.axis.map((v) => ({ y:yOf(v).toFixed(1), ty:(yOf(v)+4).toFixed(1), label:String(v), c: v===0?'#d8d5cb':'#f0eee7' })),
+        segs: segs.map((r) => ({ pts:r.pts.join(' '), c: r.inR ? met.color : '#ddd9cd' })),
+        pts,
+        axis: WEEKS.map((w, i) => ({ x:(X0+i*DX).toFixed(1), label:w[0],
+                                     c: val(w)==null ? '#cfcabb' : (i>=d.firstWeek ? MUT : '#cfcabb') })),
+        note: met.note + ' Weekly buckets are whole ISO weeks, so a range edge can cut a bucket; the shaded band starts at the first fully-covered week.'
+      },
+
+      funnel: funnel.map((f) => ({ label:f[0], n:String(f[1]), pct:'· '+pct(f[1],20)+'%',
+                                   w:(f[1]/20*100).toFixed(0)+'%', fg:f[2], c:f[3] })),
+      conc: CONC.map((c) => ({ label:c[0], n:String(c[1]), h:(c[1]/5*54+6).toFixed(0)+'px',
+                               color: c[0]==='30+' ? BRICK : F_GREEN })),
+
+      rel: {
+        n: String(d.reqs),
+        bars: [
+          { label:'success', n:String(d.ok),   pct:pct(d.ok,d.reqs)+'%',   c:F_GREEN, w:pct(d.ok,d.reqs)+'%' },
+          { label:'error',   n:String(d.err),  pct:pct(d.err,d.reqs)+'%',  c:F_BRICK, w:Math.max(0.6,d.err/d.reqs*100).toFixed(1)+'%' },
+          { label:'pending', n:String(d.pend), pct:pct(d.pend,d.reqs)+'%', c:F_GREY,  w:Math.max(0.6,d.pend/d.reqs*100).toFixed(1)+'%' }
+        ],
+        weeks: WEEKS.filter((w) => w[4] != null).map((w) => {
+          const e = w[5] / w[4] * 100;
+          return { h: Math.max(2, e/wkMax*58).toFixed(0)+'px',
+                   c: e > 20 ? BRICK : (e > 0 ? F_AMBER : '#dde6f9'),
+                   t: w[0]+': '+w[5]+' of '+w[4] };
+        }),
+        finding: relErrPct > 5
+          ? 'The lifetime <b>'+relErrPct+'%</b> error rate is two incidents, not a baseline: 34 of 85 requests failed in the week of 2026-07-13 and 10 of 24 in 2026-05-11. Narrow to 7d and the rate is <b>1.8%</b> — one failure in 55. Quoting the lifetime figure would misstate the current system by an order of magnitude.'
+          : 'Errors in this range: <b>'+d.err+' of '+d.reqs+'</b>. Widen to All and the rate jumps to 14.4%, because two bad weeks in May and July hold 44 of the 52 lifetime failures. This panel is the reason the range control exists.'
+      },
+
+      slotN: String(d.meals),
+      slots: d.slots.map((x) => ({ label:x[0], n:String(x[1]), pct:'· '+pct(x[1],d.meals)+'%',
+                                   w:(x[1]/d.slots[0][1]*100).toFixed(0)+'%',
+                                   c: x[0]==='breakfast' ? F_AMBER : F_GREEN })),
+      modes: d.modes.map((x) => ({ label:x[0], n:String(x[1]), pct:'· '+pct(x[1],d.meals)+'%',
+                                   w:(x[1]/d.modes[0][1]*100).toFixed(0)+'%',
+                                   c: x[0]==='precise' ? F_GREEN : F_AMBER })),
+
+      caveats: [
+        { v:'<b>n = 20 accounts, 14 of them ever active.</b> Nothing on this page supports a cohort, a retention curve or a significance claim. Percentages are shown with their raw counts for that reason.' },
+        { v:'<b>Two users are 77% of all logging.</b> Any mean is a statement about those two. The distribution beside the funnel is the honest version of "meals per user".' },
+        { v:'<b>No user-correction signal exists.</b> <span class="m">slot_override</span> and <span class="m">portion_factor</span> are 0 / 213, and <span class="m">user_feedback</span> holds one row. There is no ground truth anywhere in the product, so this plane reports disposition and never accuracy.' },
+        { v:'<b>A complaint cannot be joined to a trace.</b> Neither <span class="m">meals</span> nor <span class="m">user_feedback</span> carries <span class="m">pipeline_request_id</span>, so "this meal looks wrong" cannot be resolved to the run that produced it without matching on time and text.' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

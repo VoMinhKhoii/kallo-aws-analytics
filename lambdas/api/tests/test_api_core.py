@@ -20,11 +20,13 @@ def response_body(response):
 
 
 class FakeTable:
-    def __init__(self, *, query_items=None, run_item=None):
+    def __init__(self, *, query_items=None, run_item=None, journal=None):
         self.query_items = list(query_items or [])
         self.run_item = run_item
         self.query_calls = []
         self.get_calls = []
+        self.puts = []
+        self.journal = journal if journal is not None else []
 
     def query(self, **kwargs):
         self.query_calls.append(kwargs)
@@ -34,14 +36,22 @@ class FakeTable:
         self.get_calls.append(kwargs)
         return {"Item": self.run_item} if self.run_item is not None else {}
 
+    def put_item(self, **kwargs):
+        self.puts.append(kwargs["Item"])
+        self.journal.append("put_item")
+        return {}
+
 
 class FakeLambdaClient:
-    def __init__(self):
+    def __init__(self, *, journal=None, status_code=202):
         self.calls = []
+        self.status_code = status_code
+        self.journal = journal if journal is not None else []
 
     def invoke(self, **kwargs):
         self.calls.append(kwargs)
-        return {"StatusCode": 202}
+        self.journal.append("invoke")
+        return {"StatusCode": self.status_code}
 
 
 class FakeAthenaClient:
@@ -198,9 +208,12 @@ def test_athena_poll_fetches_first_100_rows_only_after_success():
 
 
 def test_run_start_returns_accepted_id_and_exact_async_payload():
-    client = FakeLambdaClient()
+    order = []
+    table = FakeTable(journal=order)
+    client = FakeLambdaClient(journal=order)
     response = runs.handle(
         {"httpMethod": "POST"},
+        table=table,
         lambda_client=client,
         function_name="extract-function",
         run_id_factory=lambda: "2cbac7f2-cb92-4959-86df-80b9778f33ee",
@@ -217,6 +230,28 @@ def test_run_start_returns_accepted_id_and_exact_async_payload():
         "mode": "on_demand",
         "run_id": "2cbac7f2-cb92-4959-86df-80b9778f33ee",
     }
+    # The status item must exist before the invoke, or the dashboard's first
+    # poll races the extract Lambda and reads a hard 404.
+    assert order == ["put_item", "invoke"]
+    assert table.puts[0]["metric"] == "_run#2cbac7f2-cb92-4959-86df-80b9778f33ee"
+    assert table.puts[0]["phase"] == "queued"
+
+
+def test_run_start_marks_the_run_failed_when_the_invoke_is_rejected():
+    table = FakeTable()
+    client = FakeLambdaClient(status_code=500)
+    response = runs.handle(
+        {"httpMethod": "POST"},
+        table=table,
+        lambda_client=client,
+        function_name="extract-function",
+        run_id_factory=lambda: "run-99",
+    )
+
+    assert response["statusCode"] == 500
+    # A rejected invoke must not leave the run stuck at "queued" forever.
+    assert [put["phase"] for put in table.puts] == ["queued", "failed"]
+    assert table.puts[-1]["failure_reason"] == "start_failed"
 
 
 def test_run_poll_reads_run_status_record_and_returns_record_shape():
@@ -239,6 +274,7 @@ def test_run_poll_reads_run_status_record_and_returns_record_shape():
         "metric": "_run#run-42",
         "date": "latest",
     }
+    assert table.get_calls[0]["ConsistentRead"] is True
 
 
 def test_insight_context_is_compact_and_decodes_aggregate_payloads():

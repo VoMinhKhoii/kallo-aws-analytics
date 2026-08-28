@@ -29,12 +29,7 @@ class ViewConfig:
 
     name: str
     columns: tuple[str, ...]
-    cursor_column: str | None
     order_column: str
-
-    @property
-    def full_refresh(self) -> bool:
-        return self.cursor_column is None
 
 
 VIEW_CONFIGS: tuple[ViewConfig, ...] = (
@@ -55,7 +50,6 @@ VIEW_CONFIGS: tuple[ViewConfig, ...] = (
             "cache_hit_l4",
         ),
         "created_at",
-        "created_at",
     ),
     ViewConfig(
         "v_budget_events",
@@ -72,7 +66,6 @@ VIEW_CONFIGS: tuple[ViewConfig, ...] = (
             "output_tokens",
             "error_category",
         ),
-        "created_at",
         "created_at",
     ),
     ViewConfig(
@@ -91,7 +84,6 @@ VIEW_CONFIGS: tuple[ViewConfig, ...] = (
             "fiber_g",
         ),
         "logged_at",
-        "logged_at",
     ),
     ViewConfig(
         "v_meal_items",
@@ -106,12 +98,10 @@ VIEW_CONFIGS: tuple[ViewConfig, ...] = (
             "created_at",
         ),
         "created_at",
-        "created_at",
     ),
     ViewConfig(
         "v_unmatched_ingredients",
         ("id", "query_text", "created_at"),
-        "created_at",
         "created_at",
     ),
     ViewConfig(
@@ -124,7 +114,6 @@ VIEW_CONFIGS: tuple[ViewConfig, ...] = (
             "goal",
             "preferred_locale",
         ),
-        "created_at",
         "created_at",
     ),
     ViewConfig(
@@ -142,7 +131,6 @@ VIEW_CONFIGS: tuple[ViewConfig, ...] = (
             "fat_g",
             "fiber_g",
         ),
-        None,
         "id",
     ),
 )
@@ -190,7 +178,6 @@ class PostgrestError(RuntimeError):
 class ViewResult:
     rows: int
     files: tuple[str, ...]
-    watermark: str | None
 
 
 @dataclass(frozen=True)
@@ -213,35 +200,6 @@ def format_timestamp(value: datetime) -> str:
     return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
-def read_watermark(table: DynamoTable, view_name: str) -> str | None:
-    response = table.get_item(
-        Key={"metric": f"_watermark#{view_name}", "date": "latest"},
-        ConsistentRead=True,
-    )
-    item = response.get("Item")
-    if not isinstance(item, Mapping):
-        return None
-    value = item.get("watermark")
-    return value if isinstance(value, str) and value else None
-
-
-def write_watermark(
-    table: DynamoTable,
-    config: ViewConfig,
-    watermark: str,
-    updated_at: datetime,
-) -> None:
-    table.put_item(
-        Item={
-            "metric": f"_watermark#{config.name}",
-            "date": "latest",
-            "watermark": watermark,
-            "cursor_column": config.cursor_column,
-            "updated_at": format_timestamp(updated_at),
-        }
-    )
-
-
 def write_run_status(
     table: DynamoTable,
     run_id: str,
@@ -260,17 +218,13 @@ def write_run_status(
     table.put_item(Item=item)
 
 
-def _request_url(
-    base_url: str,
-    config: ViewConfig,
-    watermark: str | None,
-) -> str:
+def _request_url(base_url: str, config: ViewConfig) -> str:
+    # Every view is a full snapshot: no cursor filter, only a stable sort so
+    # Range pagination is deterministic across pages.
     query: list[tuple[str, str]] = [
         ("select", ",".join(config.columns)),
         ("order", f"{config.order_column}.asc"),
     ]
-    if config.cursor_column is not None and watermark is not None:
-        query.append((config.cursor_column, f"gt.{watermark}"))
     path = f"{base_url.rstrip('/')}/rest/v1/{quote(config.name, safe='')}"
     return f"{path}?{urlencode(query)}"
 
@@ -365,6 +319,7 @@ def encode_json_lines(rows: Sequence[Mapping[str, Any]]) -> bytes:
 def extract_view(
     *,
     config: ViewConfig,
+    run_id: str,
     extraction_date: str,
     base_url: str,
     analytics_jwt: str,
@@ -372,20 +327,21 @@ def extract_view(
     bucket: str,
     http_client: HttpClient,
     s3_client: S3Client,
-    table: DynamoTable,
-    clock: Callable[[], datetime] = utc_now,
     sleeper: Callable[[float], None] = time.sleep,
     page_size: int = PAGE_SIZE,
 ) -> ViewResult:
-    """Extract a view and advance its watermark only after every page succeeds."""
+    """Extract one view as a complete snapshot, one JSONL object per page.
 
-    previous_watermark = (
-        None if config.full_refresh else read_watermark(table, config.name)
-    )
-    url = _request_url(base_url, config, previous_watermark)
+    Deliberately takes no DynamoDB table and no clock: a full snapshot keeps no
+    cross-run state, which is what removes the whole class of watermark bugs.
+    Keys carry ``run=<run_id>`` so a second run on the same day writes a set of
+    objects disjoint from the first, and a failed run cannot half-overwrite a
+    good one.
+    """
+
+    url = _request_url(base_url, config)
     files: list[str] = []
     row_count = 0
-    next_watermark = previous_watermark
     page_number = 0
 
     while True:
@@ -402,7 +358,7 @@ def extract_view(
             break
 
         key = (
-            f"raw/{config.name}/dt={extraction_date}/"
+            f"raw/{config.name}/dt={extraction_date}/run={run_id}/"
             f"part-{page_number}.jsonl"
         )
         s3_client.put_object(
@@ -414,36 +370,11 @@ def extract_view(
         files.append(key)
         row_count += len(rows)
 
-        if config.cursor_column is not None:
-            cursor_values = [
-                row.get(config.cursor_column)
-                for row in rows
-                if isinstance(row.get(config.cursor_column), str)
-                and row.get(config.cursor_column)
-            ]
-            if not cursor_values:
-                raise PostgrestError(
-                    f"{config.name} returned no usable {config.cursor_column} cursor"
-                )
-            page_watermark = max(cursor_values)
-            next_watermark = max(
-                value
-                for value in (next_watermark, page_watermark)
-                if value is not None
-            )
-
         page_number += 1
         if len(rows) < page_size:
             break
 
-    if (
-        config.cursor_column is not None
-        and next_watermark is not None
-        and next_watermark != previous_watermark
-    ):
-        write_watermark(table, config, next_watermark, clock())
-
-    return ViewResult(row_count, tuple(files), next_watermark)
+    return ViewResult(row_count, tuple(files))
 
 
 def build_manifest(
@@ -505,6 +436,7 @@ def run_extraction(
     for config in view_configs:
         view_results[config.name] = extract_view(
             config=config,
+            run_id=run_id,
             extraction_date=extraction_date,
             base_url=base_url,
             analytics_jwt=analytics_jwt,
@@ -512,8 +444,6 @@ def run_extraction(
             bucket=bucket,
             http_client=http_client,
             s3_client=s3_client,
-            table=table,
-            clock=clock,
             sleeper=sleeper,
             page_size=page_size,
         )
@@ -525,7 +455,9 @@ def run_extraction(
         started_at=started_at,
         finished_at=finished_at,
     )
-    manifest_key = f"raw/_manifests/dt={extraction_date}/manifest.json"
+    manifest_key = (
+        f"raw/_manifests/dt={extraction_date}/run={run_id}/manifest.json"
+    )
     s3_client.put_object(
         Bucket=bucket,
         Key=manifest_key,

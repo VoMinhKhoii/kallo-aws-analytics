@@ -1,0 +1,560 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: #695e4e; } a:hover { color: #5a5043; }
+    .m { font-family: "Geist Mono", ui-monospace, SFMono-Regular, monospace; font-variant-numeric: tabular-nums; }
+    .lbl { font-size: 11px; color: #8d8a82; letter-spacing: .01em; }
+    .hd { font-size: 11px; font-weight: 600; color: #8d8a82; text-transform: uppercase; letter-spacing: .06em; }
+    .chip { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border: 1px solid #e8e6dc; border-radius: 4px; background: #fff; font-size: 11px; color: #4a4842; }
+    .chip b { font-weight: 500; color: #141413; }
+    .x { color: #a8a29e; cursor: pointer; }
+    .btn { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 9px; border: 1px solid #e8e6dc; border-radius: 5px; background: #fff; font-family: inherit; font-size: 12px; color: #4a4842; cursor: pointer; }
+    .btn:hover { border-color: #cfcabb; }
+    .span { display: grid; grid-template-columns: 13px 150px 1fr 62px; align-items: center; gap: 8px; height: 30px; padding: 0 10px; cursor: pointer; border-left: 2px solid transparent; }
+    .span:hover { background: #faf9f6; }
+    .span.sel { background: #f2efe7; border-left-color: #695e4e; }
+    .kv { display: grid; grid-template-columns: 116px 1fr; gap: 8px; padding: 4px 0; font-size: 12px; }
+    .cand { display: grid; grid-template-columns: 22px 1fr 54px 44px 46px 50px 56px; align-items: center; gap: 8px; height: 28px; padding: 0 8px; font-size: 12px; border-radius: 4px; }
+    .cand.win { background: #f0f5f0; }
+    pre { margin: 0; font-family: "Geist Mono", monospace; font-size: 11px; line-height: 1.55; color: #3d3d3a; white-space: pre-wrap; word-break: break-word; }
+    .tab { padding: 4px 9px; border-radius: 4px; font-size: 12px; color: #6e6d66; cursor: pointer; }
+    .tab.sel { background: #f0eae0; color: #141413; font-weight: 500; }
+    .nv { height: 36px; display: inline-flex; align-items: center; padding: 0 13px; font-size: 12px; color: #6e6d66; cursor: pointer; border-bottom: 2px solid transparent; }
+    .nv:hover { color: #141413; }
+    .nv.on { color: #141413; font-weight: 600; border-bottom-color: #141413; }
+    .nv.off { color: #b3402f; cursor: default; }
+    .nv.off:hover { color: #b3402f; }
+    .rg { display: inline-flex; align-items: center; height: 24px; padding: 0 11px; border: 1px solid #e8e6dc; border-left-width: 0; background: #fff; font-size: 11px; color: #6e6d66; cursor: pointer; }
+    .rg:first-child { border-left-width: 1px; border-radius: 4px 0 0 4px; }
+    .rg:last-child { border-radius: 0 4px 4px 0; }
+    .rg.sel { background: #141413; border-color: #141413; color: #fff; }
+    .card { border: 1px solid #e8e6dc; border-radius: 8px; background: #fff; }
+    .ph { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 9px 12px; border-bottom: 1px solid #e8e6dc; }
+    .pt { font-size: 12px; font-weight: 600; color: #141413; }
+    .th { display: grid; align-items: center; gap: 10px; padding: 0 12px; height: 24px; background: #faf9f6; border-bottom: 1px solid #e8e6dc; }
+    .pick { cursor: pointer; }
+    .pick:hover { background: #faf9f6; }
+    .pick.sel { background: #f6f4ee; box-shadow: inset 2px 0 0 #141413; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; background: #fcfcfc; color: #141413; font-family: 'Be Vietnam Pro', ui-sans-serif, system-ui, sans-serif; font-size: 13px;">
+
+
+  <!-- App nav -->
+  <div style="display:flex;align-items:center;gap:2px;padding:0 18px;background:#fff;border-bottom:1px solid #e8e6dc;">
+    <span style="font-size:12px;font-weight:600;letter-spacing:-.01em;margin-right:14px;">Kallo analytics</span>
+    <span class="nv">App metrics</span>
+    <span class="nv">Pipeline overview</span>
+    <span class="nv">Retrieval &amp; matching</span>
+    <span class="nv">Coverage &amp; corpus</span>
+    <span class="nv on">Trace viewer</span>
+    <span class="lbl m" style="margin-left:auto;font-size:10px;">AWS analytics plane · RMIT A3</span>
+  </div>
+
+  <!-- Range strip -->
+  <div style="display:flex;align-items:center;gap:10px;padding:9px 18px;background:#fff;border-bottom:1px solid #e8e6dc;">
+    <span style="display:inline-flex;">
+      <sc-for list="{{ranges}}" as="r" hint-placeholder-count="4">
+        <span class="{{r.cls}}" onClick="{{r.pick}}">{{r.label}}</span>
+      </sc-for>
+    </span>
+    <span class="chip m">{{rng.from}} → {{rng.to}}</span>
+    <span class="lbl m">{{rng.traces}} traces in range · {{rng.requests}} requests</span>
+    <span class="chip" style="border-color:{{rng.bc}};background:{{rng.bg}};color:{{rng.fg}};">{{rng.status}}</span>
+    <span style="margin-left:auto;" class="lbl">Entry point is the range-filtered request table — specified, not built. This page opens one trace directly.</span>
+  </div>
+
+
+  <!-- Request table — the entry point -->
+  <div style="padding:12px 18px 0;">
+    <div class="card">
+      <div class="ph">
+        <span class="pt">Requests in range — the entry point to this page</span>
+        <span class="lbl m">{{reqs.shown}} of {{rng.traces}} traces in window · newest first</span>
+      </div>
+      <div class="th" style="grid-template-columns:78px 96px 1fr 74px 42px 118px 30px;">
+        <span class="hd">request</span><span class="hd">logged</span><span class="hd">meal items (stage 1)</span>
+        <span class="hd" style="text-align:right;">duration</span><span class="hd" style="text-align:right;">ing</span>
+        <span class="hd">outcome</span><span class="hd"></span>
+      </div>
+      <sc-for list="{{reqs.rows}}" as="r" hint-placeholder-count="11">
+        <div class="{{r.cls}}" style="display:grid;grid-template-columns:78px 96px 1fr 74px 42px 118px 30px;align-items:center;gap:10px;padding:0 12px;height:27px;border-bottom:1px solid #f4f2ec;font-size:12px;cursor:pointer;">
+          <span class="m" style="font-size:10.5px;color:{{r.idFg}};">{{r.id}}</span>
+          <span class="m" style="font-size:10.5px;color:#8d8a82;">{{r.ts}}</span>
+          <span style="min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:{{r.nfg}};">{{r.items}}</span>
+          <span class="m" style="font-size:11px;text-align:right;color:{{r.msFg}};">{{r.ms}}</span>
+          <span class="m" style="font-size:11px;text-align:right;color:#6e6d66;">{{r.n}}</span>
+          <span style="display:flex;gap:2px;align-items:center;height:9px;">
+            <sc-for list="{{r.seg}}" as="g" hint-placeholder-count="3">
+              <span style="display:block;height:9px;width:{{g.w}};border-radius:1px;background:{{g.c}};"></span>
+            </sc-for>
+            <span class="m" style="font-size:10px;color:#8d8a82;margin-left:5px;">{{r.mix}}</span>
+          </span>
+          <span class="m" style="font-size:10px;text-align:right;color:{{r.openFg}};">{{r.open}}</span>
+        </div>
+      </sc-for>
+      <p class="lbl" style="margin:9px 12px 12px;line-height:1.5;">{{reqs.note}}</p>
+    </div>
+  </div>
+
+  <!-- Header -->
+  <div style="padding: 14px 18px; border-bottom: 1px solid #e8e6dc; background: #fff;">
+    <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 9px;">
+      <span class="lbl">Traces</span><span class="lbl">/</span>
+      <span class="m" style="font-size: 11px; color: #6e6d66;">87380062-f4b5-4953-97ef-46d935f82d71</span>
+      <span style="margin-left: auto; display: flex; gap: 6px;">
+        <button class="btn">Replay</button><button class="btn">Dry-run</button><button class="btn">Copy JSON</button>
+      </span>
+    </div>
+    <div style="display: flex; align-items: baseline; gap: 12px;">
+      <span style="font-size: 17px; font-weight: 600;">cơm tấm</span>
+      <span class="lbl">raw_input · 8 chars</span>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px;">
+      <span class="chip" style="border-color:#bcd6c2; background:#f0f5f0;"><span style="width:5px;height:5px;border-radius:50%;background:#16794a;"></span>success</span>
+      <span class="chip">total <b class="m">11,515 ms</b></span>
+      <span class="chip">tokens <b class="m">6,412</b></span>
+      <span class="chip">cost <b class="m">$0.00047</b></span>
+      <span class="chip">ingredients <b class="m">6</b></span>
+      <span class="chip" style="border-color:#e6cf9a; background:#fbf6ea;">accepted <b class="m">2/6</b></span>
+      <span class="chip" style="border-color:#e6cf9a; background:#fbf6ea;">unmatched <b class="m">3</b></span>
+      <span class="chip" style="border-color:#e6cf9a; background:#fbf6ea;">rejected <b class="m">1</b></span>
+      <span class="chip">model <b class="m">gemini-3.1-flash-lite</b></span>
+      <span class="chip">build <b class="m">a4f1c9</b></span>
+      <span class="chip">2026-07-14 09:22Z</span>
+    </div>
+  </div>
+
+  <!-- Finding banner -->
+  <div style="display: flex; gap: 9px; padding: 10px 18px; background: #fbf6ea; border-bottom: 1px solid #eadfc4;">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8a6d1f" stroke-width="2.2" stroke-linecap="round" style="flex-shrink:0;margin-top:1px;"><path d="M12 8.5v4.5M12 16.5v.5"/><circle cx="12" cy="12" r="9"/></svg>
+    <p style="margin: 0; font-size: 12px; line-height: 1.5; color: #4a4842;">
+      <b style="color:#8a6d1f;">Staple resolved with no DB anchor.</b>
+      <span class="m">Cơm tấm</span> returned <b>0 candidates</b>, so carbohydrate came from the model's own range (<span class="m">50–60 g</span> on <span class="m">200 g</span>) rather than a composition row. Matches the known rice-plate under-estimation cluster.
+    </p>
+  </div>
+
+  <div style="display: grid; grid-template-columns: minmax(0, 1fr) 560px; min-height: 720px;">
+
+    <!-- LEFT: waterfall -->
+    <div style="border-right: 1px solid #e8e6dc;">
+      <div style="display: grid; grid-template-columns: 13px 150px 1fr 62px; gap: 8px; padding: 0 10px; height: 30px; align-items: center; border-bottom: 1px solid #e8e6dc; background: #faf9f6;">
+        <span></span><span class="hd">Span</span>
+        <span style="display:flex;justify-content:space-between;"><span class="hd">0 ms</span><span class="hd">11,515 ms</span></span>
+        <span class="hd" style="text-align:right;">Dur</span>
+      </div>
+
+      <sc-for list="{{spans}}" as="s" hint-placeholder-count="6">
+        <div class="{{s.cls}}" onClick="{{s.pick}}" style="border-bottom: 1px solid #f2f0ea;">
+          <span style="display:grid;place-items:center;"><span style="width:6px;height:6px;border-radius:50%;background:{{s.dot}};"></span></span>
+          <span style="display:flex;align-items:center;gap:6px;padding-left:{{s.indent}};min-width:0;">
+            <span style="font-size:12px;font-weight:{{s.weight}};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{s.name}}</span>
+          </span>
+          <span style="position:relative;height:12px;background:#f5f4f0;border-radius:2px;">
+            <span style="position:absolute;left:{{s.left}};width:{{s.width}};height:12px;border-radius:2px;background:{{s.bar}};"></span>
+          </span>
+          <span class="m" style="font-size:11px;color:#6e6d66;text-align:right;">{{s.dur}}</span>
+        </div>
+      </sc-for>
+
+      <!-- Ingredient outcome table -->
+      <div style="padding: 16px 14px 0;">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px;">
+          <span class="hd">Ingredient outcomes</span>
+          <span class="lbl m">n=6</span>
+        </div>
+        <div style="border:1px solid #e8e6dc;border-radius:6px;overflow:hidden;background:#fff;">
+          <div style="display:grid;grid-template-columns:150px 1fr 52px 60px 74px 58px;gap:8px;padding:0 10px;height:28px;align-items:center;background:#faf9f6;border-bottom:1px solid #e8e6dc;">
+            <span class="hd">Ingredient</span><span class="hd">Resolved to</span><span class="hd" style="text-align:right;">Pool</span><span class="hd" style="text-align:right;">Picked</span><span class="hd" style="text-align:right;">Gross g</span><span class="hd" style="text-align:right;">Verdict</span>
+          </div>
+          <sc-for list="{{rows}}" as="r" hint-placeholder-count="6">
+            <div style="display:grid;grid-template-columns:150px 1fr 52px 60px 74px 58px;gap:8px;padding:0 10px;height:32px;align-items:center;border-bottom:1px solid #f2f0ea;">
+              <span style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{r.name}}</span>
+              <span style="font-size:12px;color:{{r.tfg}};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{r.target}}</span>
+              <span class="m" style="font-size:11px;color:{{r.poolFg}};text-align:right;">{{r.pool}}</span>
+              <span class="m" style="font-size:11px;color:{{r.pickFg}};text-align:right;">{{r.pick}}</span>
+              <span class="m" style="font-size:11px;color:#6e6d66;text-align:right;">{{r.gross}}</span>
+              <span class="m" style="font-size:11px;color:{{r.vfg}};text-align:right;">{{r.verdict}}</span>
+            </div>
+          </sc-for>
+        </div>
+        <p class="lbl" style="margin:8px 0 0;">Pool = candidates retrieval emitted. Picked = index the model selected; <span class="m">c1</span> is the retriever's top rank.</p>
+      </div>
+    </div>
+
+    <!-- RIGHT: span detail -->
+    <div style="background: #fff;">
+      <div style="display:flex;align-items:center;gap:4px;padding:8px 14px;border-bottom:1px solid #e8e6dc;">
+        <sc-for list="{{tabs}}" as="t" hint-placeholder-count="3">
+          <span class="{{t.cls}}" onClick="{{t.pick}}">{{t.label}}</span>
+        </sc-for>
+        <span class="m lbl" style="margin-left:auto;">{{sel.name}}</span>
+      </div>
+
+      <div style="padding: 14px;">
+
+        <!-- STRUCTURED -->
+        <sc-if value="{{isStructured}}" hint-placeholder-val="{{true}}">
+          <div>
+            <sc-if value="{{sel.hasCandidates}}" hint-placeholder-val="{{true}}">
+              <div style="margin-bottom:16px;">
+                <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:7px;">
+                  <span class="hd">Candidate pool · Sườn heo nướng</span>
+                  <span class="lbl m">k=3</span>
+                </div>
+                <div style="display:grid;grid-template-columns:22px 1fr 54px 44px 46px 50px 56px;gap:8px;padding:0 8px;height:24px;align-items:center;">
+                  <span class="hd">#</span><span class="hd">Row</span><span class="hd" style="text-align:right;">Sim</span><span class="hd" style="text-align:right;">Src</span><span class="hd" style="text-align:right;">Arm</span><span class="hd" style="text-align:right;">Fat</span><span class="hd" style="text-align:right;">kcal</span>
+                </div>
+                <sc-for list="{{sel.candidates}}" as="c" hint-placeholder-count="3">
+                  <div class="{{c.cls}}">
+                    <span class="m" style="font-size:11px;color:{{c.rfg}};">{{c.rank}}</span>
+                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:{{c.nfg}};">{{c.name}}</span>
+                    <span class="m" style="font-size:11px;color:{{c.simFg}};text-align:right;">{{c.sim}}</span>
+                    <span class="m" style="font-size:11px;color:#8d8a82;text-align:right;">{{c.src}}</span>
+                    <span class="m" style="font-size:11px;color:{{c.armFg}};text-align:right;">{{c.arm}}</span>
+                    <span class="m" style="font-size:11px;color:#6e6d66;text-align:right;">{{c.fat}}</span>
+                    <span class="m" style="font-size:11px;color:#6e6d66;text-align:right;">{{c.kcal}}</span>
+                  </div>
+                </sc-for>
+                <div style="display:flex;gap:8px;margin-top:10px;padding:9px 10px;border:1px solid #eadfc4;border-left-width:2px;border-radius:5px;background:#fbf6ea;">
+                  <p style="margin:0;font-size:12px;line-height:1.5;color:#4a4842;">
+                    Model took <span class="m">c3</span> over the retriever's <span class="m">c1</span>. c3 scores <span class="m">1.000</span> on the fuzzy arm — a saturated <span class="m">word_similarity</span>, not a better match — and is a different cut: fat <span class="m">15.7</span> vs <span class="m">30.9 g/100g</span>. The pick swings this ingredient's fat by <b>2×</b>.
+                  </p>
+                </div>
+              </div>
+            </sc-if>
+
+            <div>
+              <span class="hd">Model emission</span>
+              <div style="margin-top:7px;border:1px solid #e8e6dc;border-radius:6px;padding:10px 12px;">
+                <sc-for list="{{sel.kv}}" as="k" hint-placeholder-count="6">
+                  <div class="kv" style="border-bottom:1px solid #f5f4f0;">
+                    <span class="lbl">{{k.k}}</span>
+                    <span class="m" style="font-size:12px;color:{{k.fg}};">{{k.v}}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <sc-if value="{{sel.hasRefuse}}" hint-placeholder-val="{{true}}">
+              <div style="margin-top:16px;">
+                <span class="hd">Mass basis</span>
+                <div style="margin-top:7px;display:flex;align-items:center;gap:0;">
+                  <div style="flex:1;padding:9px 11px;border:1px solid #e8e6dc;border-radius:6px 0 0 6px;background:#fff;">
+                    <p class="lbl" style="margin:0;">gross</p><p class="m" style="margin:3px 0 0;font-size:15px;">120 g</p>
+                  </div>
+                  <div style="padding:0 9px;color:#a8a29e;">−40%</div>
+                  <div style="flex:1;padding:9px 11px;border:1px solid #e8e6dc;border-radius:0 6px 6px 0;background:#faf9f6;">
+                    <p class="lbl" style="margin:0;">edible</p><p class="m" style="margin:3px 0 0;font-size:15px;">72 g</p>
+                  </div>
+                </div>
+                <p class="lbl" style="margin:8px 0 0;">Model proposed <span class="m">30%</span>; server applied <span class="m">40%</span> from <span class="m">model_cut_band</span> (cutClass <span class="m">rib</span>). The override is the server's, not the model's.</p>
+              </div>
+            </sc-if>
+          </div>
+        </sc-if>
+
+        <!-- RAW -->
+        <sc-if value="{{isRaw}}" hint-placeholder-val="{{false}}">
+          <div style="border:1px solid #e8e6dc;border-radius:6px;background:#faf9f6;padding:12px;max-height:600px;overflow:auto;">
+            <pre>{{sel.raw}}</pre>
+          </div>
+        </sc-if>
+
+        <!-- LLM IO -->
+        <sc-if value="{{isLlm}}" hint-placeholder-val="{{false}}">
+          <div>
+            <div style="display:flex;gap:6px;margin-bottom:10px;">
+              <span class="chip">in <b class="m">4,102</b></span><span class="chip">out <b class="m">318</b></span>
+              <span class="chip">cached <b class="m">0</b></span><span class="chip">attempt <b class="m">1</b></span>
+              <span class="chip">latency <b class="m">4,083 ms</b></span>
+            </div>
+            <p class="lbl" style="margin:0 0 6px;">response_raw</p>
+            <div style="border:1px solid #e8e6dc;border-radius:6px;background:#faf9f6;padding:12px;max-height:340px;overflow:auto;">
+              <pre>{{sel.raw}}</pre>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:10px;padding:9px 10px;border:1px solid #e8e6dc;border-radius:5px;background:#faf9f6;">
+              <p class="lbl" style="margin:0;line-height:1.5;">
+                Prompt text is not retained — <span class="m">prompt_rendered</span> is excluded from the extract (6.2 MB, near-duplicate template). Build <span class="m">a4f1c9</span> identifies which prompt produced this.
+              </p>
+            </div>
+          </div>
+        </sc-if>
+
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{}'>
+const GREEN='#16794a', AMBER='#b8860b', BRICK='#b3402f', INK='#141413', MUT='#6e6d66', SOFT='#a8a29e';
+
+const TOTAL = 11515;
+const SPANS = [
+  { key:'req',   name:'analyze-meal',    start:0,     dur:11515, depth:0, ok:true, bar:'#cfcabb' },
+  { key:'dec',   name:'decomposition',   start:120,   dur:1964,  depth:1, ok:true, bar:'#695e4e' },
+  { key:'mat',   name:'matching',        start:2100,  dur:5398,  depth:1, ok:true, bar:'#695e4e' },
+  { key:'nut',   name:'nutrition',       start:7510,  dur:4083,  depth:1, ok:true, bar:'#695e4e' },
+  { key:'llm',   name:'llm · call 2',    start:7520,  dur:4060,  depth:2, ok:true, bar:'#a99a80' },
+  { key:'asm',   name:'assembly',        start:11600, dur:3,     depth:1, ok:true, bar:'#695e4e' }
+];
+
+const RAW = {
+  dec: `{
+  "isFood": true,
+  "mealSlot": null,
+  "mealItems": [
+    {
+      "name": "cơm tấm",
+      "cookingMethod": "nấu",
+      "ingredients": [
+        { "rawName": "cơm tấm",     "canonicalName": "Cơm tấm" },
+        { "rawName": "sườn nướng",  "canonicalName": "Sườn heo nướng" },
+        { "rawName": "chả trứng",   "canonicalName": "Chả trứng" },
+        { "rawName": "bì heo",      "canonicalName": "Bì heo" },
+        { "rawName": "nước mắm",    "canonicalName": "Nước mắm" },
+        { "rawName": "dầu ăn",      "canonicalName": "Dầu đậu nành" }
+      ]
+    }
+  ]
+}`,
+  mat: `[
+  { "ingredientIndex": 0, "candidates": [] },
+  { "ingredientIndex": 1, "candidates": [
+      { "info": { "foodCompositionId": "usda_10940_cooked",
+                  "matchedName": "Sườn heo tươi, phần nạc và mỡ tách riêng, đã nấu chín, nướng",
+                  "similarity": 0.821303858621596, "matchType": "vector",
+                  "confidence": "medium", "source": "usda", "state": "cooked",
+                  "foodGroupEn": "Pork Products" },
+        "nutrition": { "caloriesKcal": 361, "proteinG": 20.89,
+                       "carbohydrateG": 0, "fatG": 30.86 },
+        "inediblePct": null },
+      { "info": { "foodCompositionId": "usda_10193_cooked",
+                  "similarity": 0.814043422055686, "matchType": "vector",
+                  "confidence": "medium", "source": "usda", "state": "cooked" },
+        "nutrition": { "caloriesKcal": 292, "proteinG": 23.01, "fatG": 21.51 } },
+      { "info": { "foodCompositionId": "usda_10991_cooked",
+                  "matchedName": "Thịt lợn tươi, thăn, sườn kiểu đồng quê, phần nạc
+                                  và mỡ tách rời, không xương, đã nấu chín, nướng.",
+                  "similarity": 1, "matchType": "fuzzy",
+                  "confidence": "high", "source": "usda", "state": "cooked" },
+        "nutrition": { "caloriesKcal": null, "proteinG": 26.28, "fatG": 15.73 } }
+  ]}
+]`,
+  nut: `{
+  "mode": "single",
+  "grounded": { "mealItems": [ { "ingredients": [
+    { "ingredientName": "Cơm tấm", "grossG": 200, "refusePct": 0,
+      "caloriesKcal": { "low": 240, "mid": 260, "high": 280 },
+      "proteinG":     { "low": 4,   "mid": 5,   "high": 6 },
+      "carbohydrateG":{ "low": 50,  "mid": 55,  "high": 60 },
+      "fatG":         { "low": 0.5, "mid": 1,   "high": 1.5 } },
+
+    { "ingredientName": "Sườn nướng", "selectedCandidateId": "c3",
+      "grossG": 120, "refusePct": 30,
+      "caloriesKcal": { "low": 250, "mid": 280, "high": 320 },
+      "proteinG":     { "low": 18,  "mid": 22,  "high": 25 },
+      "carbohydrateG":{ "low": 0,   "mid": 0,   "high": 0 },
+      "fatG":         { "low": 15,  "mid": 20,  "high": 25 } },
+
+    { "ingredientName": "Chả trứng", "selectedCandidateId": "none",
+      "grossG": 60, "refusePct": 0,
+      "fatG": { "low": 6, "mid": 8, "high": 10 } },
+
+    { "ingredientName": "Dầu ăn", "selectedCandidateId": "c2",
+      "grossG": 5, "refusePct": 0,
+      "fatG": { "low": 4.5, "mid": 5, "high": 5.5 } }
+  ] } ] }
+}`,
+  asm: `[
+  { "mealItemIdx": 0, "ingredientIdx": 0,
+    "verdict": "unmatched", "selectedCandidateIdx": null, "rejectReason": null,
+    "refuse": { "grossG": 200, "edibleG": 200, "appliedRefusePct": 0,
+                "appliedRefuseSource": "model_unknown_form",
+                "massBasis": "gross_as_served", "cutClass": null,
+                "degenerateZero": false } },
+
+  { "mealItemIdx": 0, "ingredientIdx": 1,
+    "verdict": "accepted", "selectedCandidateIdx": 2, "rejectReason": null,
+    "refuse": { "grossG": 120, "edibleG": 72,
+                "modelRefusePct": 30, "appliedRefusePct": 40,
+                "appliedRefuseSource": "model_cut_band", "cutClass": "rib",
+                "candidateDbRefusePct": null } },
+
+  { "mealItemIdx": 0, "ingredientIdx": 2,
+    "verdict": "rejected", "selectedCandidateIdx": null, "rejectReason": null },
+
+  { "mealItemIdx": 0, "ingredientIdx": 3,
+    "verdict": "unmatched", "selectedCandidateIdx": null, "rejectReason": null }
+]`,
+  llm: `{"mealItems":[{"ingredients":[{"ingredientName":"Cơm tấm","grossG":200,
+"refusePct":0,"caloriesKcal":{"low":240,"mid":260,"high":280},"proteinG":
+{"low":4,"mid":5,"high":6},"carbohydrateG":{"low":50,"mid":55,"high":60},
+"fatG":{"low":0.5,"mid":1,"high":1.5}},{"ingredientName":"Sườn nướng",
+"selectedCandidateId":"c3","grossG":120,"refusePct":30,...}]}]}`
+};
+RAW.req = RAW.asm;
+
+const KV = {
+  dec: [['isFood','true',INK],['mealSlot','null',SOFT],['meal items','1',INK],['ingredients','6',INK],['cookingMethod','nấu',INK],['duration','1,964 ms',MUT]],
+  mat: [['ingredients in','6',INK],['pools emitted','6',INK],['zero-candidate','1  (Cơm tấm)',BRICK],['k','3',INK],['arms','vector + fuzzy → RRF',INK],['duration','5,398 ms',MUT]],
+  nut: [['mode','single',INK],['selectedCandidateId','c3',INK],['grossG','120',INK],['refusePct','30',INK],['fatG','15 / 20 / 25',INK],['carbohydrateG','0 / 0 / 0',SOFT],['duration','4,083 ms',MUT]],
+  asm: [['verdict','accepted',GREEN],['selectedCandidateIdx','2',AMBER],['rejectReason','null',SOFT],['appliedRefusePct','40  (model said 30)',AMBER],['massBasis','gross_as_served',INK],['duration','3 ms',MUT]],
+  llm: [['model','gemini-3.1-flash-lite',INK],['input tokens','4,102',INK],['output tokens','318',INK],['attempt','1',INK],['latency','4,083 ms',MUT]],
+  req: [['status','success',GREEN],['total','11,515 ms',INK],['ingredients','6',INK],['accepted','2',INK],['unmatched','3',AMBER],['rejected','1',AMBER]]
+};
+
+const CANDS = [
+  { rank:'c1', name:'Sườn heo tươi, nạc và mỡ tách riêng, nướng', sim:'0.8213', src:'usda', arm:'vector', fat:'30.9', kcal:'361', win:false },
+  { rank:'c2', name:'Sườn heo tươi, nạc và mỡ tách riêng, nướng', sim:'0.8140', src:'usda', arm:'vector', fat:'21.5', kcal:'292', win:false },
+  { rank:'c3', name:'Thịt lợn, thăn, sườn kiểu đồng quê, không xương, nướng', sim:'1.0000', src:'usda', arm:'fuzzy', fat:'15.7', kcal:'—', win:true }
+];
+
+const ROWS = [
+  ['Cơm tấm','no candidates',BRICK,'0',BRICK,'—',SOFT,'200','unmatched',AMBER],
+  ['Sườn heo nướng','Thịt lợn, thăn, sườn đồng quê',INK,'3',MUT,'c3',AMBER,'120','accepted',GREEN],
+  ['Chả trứng','model rejected all',BRICK,'2',MUT,'none',BRICK,'60','rejected',BRICK],
+  ['Bì heo','no candidates',BRICK,'0',BRICK,'—',SOFT,'30','unmatched',AMBER],
+  ['Nước mắm','Nước mắm',INK,'3',MUT,'c1',MUT,'15','accepted',GREEN],
+  ['Dầu đậu nành','Dầu đậu nành',INK,'3',MUT,'c2',AMBER,'5','accepted',GREEN]
+];
+
+
+const TRACE_DATE = '2026-07-14';
+const RANGES = {
+  '7d':  { label:'7d',  from:'2026-08-17', to:'2026-08-24', traces:51,  requests:55 },
+  '30d': { label:'30d', from:'2026-07-25', to:'2026-08-24', traces:125, requests:133 },
+  '90d': { label:'90d', from:'2026-05-26', to:'2026-08-24', traces:247, requests:295 },
+  'all': { label:'All', from:'2026-05-21', to:'2026-08-24', traces:271, requests:360 }
+};
+const RKEYS = ['7d','30d','90d','all'];
+
+
+/* Real requests, newest first. ts is the assembly-stage timestamp.
+   [id, iso, hh:mm, mealItems, durationMs, ingredients, accepted, unmatched, rejected] */
+const REQS = [
+  ['aec65158','2026-08-24','14:48','mì khô',11304,5,5,0,0],
+  ['35d81804','2026-08-24','13:37','cơm tấm sườn chả',14148,4,3,1,0],
+  ['67cb21da','2026-08-24','13:06','cơm trắng · cá hộp · rau luộc',12421,3,2,0,1],
+  ['cf99fd15','2026-08-24','13:04','cháo lòng',7468,3,3,0,0],
+  ['07337a9e','2026-08-24','13:03','cháo lòng',10332,4,4,0,0],
+  ['f58f69de','2026-08-24','13:02','cháo lòng',11426,2,2,0,0],
+  ['7274ea58','2026-08-24','08:16','cơm tấm · đùi góc tư nướng · nước mắm · đồ chua',11652,5,4,1,0],
+  ['e8987042','2026-08-24','03:51','whey protein smoothie',13981,4,4,0,0],
+  ['24d5885b','2026-08-23','08:13','lẩu cà chua',9444,6,5,1,0],
+  ['9265241a','2026-08-23','08:11','bún · đậu chiên · chả giò chay',14683,5,5,0,0],
+  ['a8f30b0b','2026-08-22','22:00','cơm · thịt kho',9137,5,5,0,0],
+  ['87380062','2026-07-14','09:22','cơm tấm',11515,6,2,3,1]
+];
+
+class Component extends DCLogic {
+  constructor(p){ super(p); this.state = { sel: 'mat', tab: 'structured', range: '90d' }; }
+
+  renderVals() {
+    const s = this.state;
+    const sel = SPANS.find(x => x.key === s.sel) || SPANS[0];
+
+    const rg = RANGES[s.range];
+    const inWindow = REQS.filter((r) => r[1] >= rg.from);
+    const slowest = Math.max(...inWindow.map((r) => r[4]), 1);
+    const inRange = TRACE_DATE >= rg.from;
+
+    return {
+      ranges: RKEYS.map((k) => ({
+        label: RANGES[k].label,
+        cls: k === s.range ? 'rg sel' : 'rg',
+        pick: () => this.setState({ range: k })
+      })),
+      rng: {
+        from: rg.from, to: rg.to,
+        traces: String(rg.traces), requests: String(rg.requests),
+        status: inRange ? 'this trace is in range' : 'this trace (2026-07-14) is OUTSIDE the range',
+        bc: inRange ? '#bcd6c2' : '#e6cf9a',
+        bg: inRange ? '#f0f5f0' : '#fbf6ea',
+        fg: inRange ? '#16794a' : '#8a6d1f'
+      },
+      reqs: {
+        shown: String(inWindow.length),
+        note: inWindow.some((r) => r[0] === '87380062')
+          ? 'Every row opens its own trace in the deployed dashboard; this mockup caches span detail for <span class="m">87380062</span> only, marked open. The outcome bar is accepted / unmatched / rejected for that request — <span class="m">67cb21da</span> is the one rejection in the window, and <span class="m">87380062</span> resolved only 2 of 6.'
+          : 'The open trace is not in this window — widen to 90d to see it listed. Rows are ordered newest first; the outcome bar is accepted / unmatched / rejected. Note that no row here can be reached from a user complaint: <span class="m">meals</span> and <span class="m">user_feedback</span> carry no <span class="m">pipeline_request_id</span>.',
+        rows: inWindow.map((r) => {
+          const [id, iso, hhmm, items, ms, n, acc, unm, rej] = r;
+          const open = id === '87380062';
+          const seg = [[acc, GREEN], [unm, AMBER], [rej, BRICK]]
+            .filter((x) => x[0] > 0)
+            .map((x) => ({ w: (x[0] / n * 74).toFixed(0) + 'px', c: x[1] }));
+          return {
+            id, ts: iso.slice(5) + ' ' + hhmm, items,
+            ms: ms.toLocaleString(), n: String(n),
+            mix: acc + '/' + n,
+            seg,
+            cls: open ? 'pick sel' : 'pick',
+            idFg: open ? INK : MUT,
+            nfg: open ? INK : MUT,
+            msFg: ms > 13000 ? AMBER : MUT,
+            open: open ? 'open' : '',
+            openFg: GREEN
+          };
+        })
+      },
+      spans: SPANS.map(x => ({
+        name: x.name,
+        cls: x.key === s.sel ? 'span sel' : 'span',
+        dot: x.ok ? GREEN : BRICK,
+        indent: (x.depth * 12) + 'px',
+        weight: x.depth === 0 ? '600' : '400',
+        left: ((x.start / TOTAL) * 100).toFixed(1) + '%',
+        width: Math.max(0.6, (x.dur / TOTAL) * 100).toFixed(1) + '%',
+        bar: x.bar,
+        dur: x.dur.toLocaleString(),
+        pick: () => this.setState({ sel: x.key })
+      })),
+      tabs: [
+        { key: 'structured', label: 'Structured' },
+        { key: 'raw', label: 'Raw JSON' },
+        { key: 'llm', label: 'LLM I/O' }
+      ].map(t => ({
+        label: t.label,
+        cls: s.tab === t.key ? 'tab sel' : 'tab',
+        pick: () => this.setState({ tab: t.key })
+      })),
+      isStructured: s.tab === 'structured',
+      isRaw: s.tab === 'raw',
+      isLlm: s.tab === 'llm',
+      sel: {
+        name: sel.name,
+        raw: RAW[sel.key] || RAW.req,
+        kv: (KV[sel.key] || KV.req).map(k => ({ k: k[0], v: k[1], fg: k[2] })),
+        hasCandidates: sel.key === 'mat',
+        hasRefuse: sel.key === 'asm' || sel.key === 'nut',
+        candidates: CANDS.map(c => ({
+          rank: c.rank, name: c.name, sim: c.sim, src: c.src, arm: c.arm, fat: c.fat, kcal: c.kcal,
+          cls: c.win ? 'cand win' : 'cand',
+          rfg: c.win ? GREEN : SOFT,
+          nfg: c.win ? INK : MUT,
+          simFg: c.sim === '1.0000' ? AMBER : MUT,
+          armFg: c.arm === 'fuzzy' ? AMBER : MUT
+        }))
+      },
+      rows: ROWS.map(r => ({
+        name: r[0], target: r[1], tfg: r[2], pool: r[3], poolFg: r[4],
+        pick: r[5], pickFg: r[6], gross: r[7], verdict: r[8], vfg: r[9]
+      }))
+    };
+  }
+}
+</script>
+</body>
+</html>

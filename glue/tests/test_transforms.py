@@ -15,6 +15,7 @@ from transforms import (  # noqa: E402
     AGGREGATE_NAMES,
     compute_aggregates,
     implausible_foods,
+    match_rate,
 )
 
 
@@ -195,21 +196,24 @@ def test_fixture_golden_ai_and_matching_aggregates() -> None:
             "date": "2026-08-08",
             "matched_count": 3,
             "unmatched_count": 0,
-            "total_count": 3,
+            "ingredient_count": 3,
+            "unaccounted_count": 0,
             "match_rate": 1.0,
         },
         {
             "date": "2026-08-09",
             "matched_count": 4,
             "unmatched_count": 1,
-            "total_count": 5,
+            "ingredient_count": 5,
+            "unaccounted_count": 0,
             "match_rate": 0.8,
         },
         {
             "date": "2026-08-10",
             "matched_count": 2,
             "unmatched_count": 0,
-            "total_count": 2,
+            "ingredient_count": 2,
+            "unaccounted_count": 0,
             "match_rate": 1.0,
         },
     ]
@@ -278,4 +282,33 @@ def test_implausible_foods_apply_only_the_three_spec_rules() -> None:
     assert anomalies["staple"]["reasons"] == ["carb_staple_zero_carbohydrate"]
     assert anomalies["mismatch"]["reasons"] == [
         "macro_calorie_mismatch_over_40_percent"
+    ]
+
+
+def test_match_rate_denominator_counts_every_ingredient_the_run_saw() -> None:
+    """A run can report ingredients that are neither matched nor unmatched.
+
+    Production's 2026-08-22 snapshot had 918 matched + 103 unmatched against an
+    ingredient_count of 1039. Dividing by the sum reports 89.9%; dividing by the
+    population reports 88.4%. The 18-ingredient gap must stay visible.
+    """
+
+    rows = [
+        {
+            "created_at": "2026-08-10T03:00:00Z",
+            "matched_count": 918,
+            "unmatched_count": 103,
+            "ingredient_count": 1039,
+        }
+    ]
+
+    assert match_rate(rows) == [
+        {
+            "date": "2026-08-10",
+            "matched_count": 918,
+            "unmatched_count": 103,
+            "ingredient_count": 1039,
+            "unaccounted_count": 18,
+            "match_rate": 0.883542,
+        }
     ]
