@@ -29,15 +29,38 @@ export PUBLIC_SUBNET_TWO='subnet-REPLACE_ME'
 
 ## Deploy order
 
+**Prerequisite:** the probe stack creates no S3 bucket, but it needs one that
+already exists — for the trivial Glue script (`ProbeGlueScriptS3Uri`) and for
+Athena results (`PROBE_ATHENA_RESULTS_S3_URI`). Create it once per lab account
+before Session 0; the data stack creates its own bucket separately.
+
+```sh
+aws s3 mb "s3://kallo-lab-scratch-$(aws sts get-caller-identity --query Account --output text)" --region us-east-1
+```
+
+
 Create the probe first and manually invoke its Lambda, start its Glue job, and run `SELECT 1` in its Athena workgroup. Delete the probe after Session 0. Create the persistent data stack next, then create the disposable presentation stack only for work sessions or demonstrations.
 
 ### 1. Create and test the probe stack
+
+Prefer the script — it discovers the VPC and subnets, runs both passes, pushes
+the probe image, and waits for ALB target health:
+
+```sh
+scripts/session-zero-probe.sh --glue-script-s3-uri "$PROBE_GLUE_SCRIPT_S3_URI"
+```
+
+To drive CloudFormation by hand instead, `VpcId`, `PublicSubnetIdOne`, and
+`PublicSubnetIdTwo` are required and have no defaults, so they must be supplied:
 
 ```sh
 aws cloudformation create-stack \
   --stack-name kallo-probe \
   --template-body file://infra/probe-stack.yaml \
   --parameters \
+    ParameterKey=VpcId,ParameterValue="$DEFAULT_VPC_ID" \
+    ParameterKey=PublicSubnetIdOne,ParameterValue="$PUBLIC_SUBNET_ONE" \
+    ParameterKey=PublicSubnetIdTwo,ParameterValue="$PUBLIC_SUBNET_TWO" \
     ParameterKey=ProbeGlueScriptS3Uri,ParameterValue="$PROBE_GLUE_SCRIPT_S3_URI" \
     ParameterKey=ProbeSecretValue,ParameterValue='session-zero-placeholder' \
   --region us-east-1
