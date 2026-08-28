@@ -22,6 +22,13 @@ Parameters:
     Type: String
     Description: S3 URI of a trivial uploaded PySpark script used for the probe run.
     AllowedPattern: '^s3://[a-z0-9][a-z0-9.-]*/.+$'
+  ProbeAthenaResultsS3Uri:
+    Type: String
+    Description: >-
+      S3 prefix Athena writes query results to. The workgroup enforces its own
+      configuration, so a client-supplied output location is ignored: without
+      this the probe query fails with "No output location provided".
+    AllowedPattern: '^s3://[a-z0-9][a-z0-9.-]*/.*$'
   ProbeSecretValue:
     Type: String
     NoEcho: true
@@ -118,6 +125,8 @@ Resources:
         BytesScannedCutoffPerQuery: 1073741824
         EnforceWorkGroupConfiguration: true
         PublishCloudWatchMetricsEnabled: true
+        ResultConfiguration:
+          OutputLocation: !Ref ProbeAthenaResultsS3Uri
 
   # Proves the operator's federated session credentials can create and write to
   # ECR. LabRole is read-only there, so a role-based push would fail silently

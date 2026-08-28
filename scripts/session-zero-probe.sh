@@ -7,10 +7,12 @@ set -euo pipefail
 REGION="us-east-1"
 STACK_NAME="kallo-probe"
 GLUE_SCRIPT_S3_URI=""
+ATHENA_RESULTS_S3_URI=""
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/session-zero-probe.sh --glue-script-s3-uri s3://BUCKET/KEY [options]
+Usage: scripts/session-zero-probe.sh --glue-script-s3-uri s3://BUCKET/KEY \
+                                    --athena-results-s3-uri s3://BUCKET/PREFIX/ [options]
 
 Pass 1 creates the secret, Lambda, disabled schedule, Glue job, Athena workgroup,
 and an ECR repository. The script then builds and pushes a trivial linux/amd64
@@ -18,7 +20,8 @@ image with the current federated session credentials, and pass 2 adds the ALB an
 Fargate tier and waits for the target to report healthy.
 
 Options:
-  --glue-script-s3-uri URI   S3 URI of a trivial uploaded PySpark script (required)
+  --glue-script-s3-uri URI      S3 URI of a trivial uploaded PySpark script (required)
+  --athena-results-s3-uri URI   S3 prefix for Athena query results (required)
   --stack-name NAME          Probe stack name (default: kallo-probe)
   --region REGION            Region (default: us-east-1)
   -h, --help                 Show this help
@@ -30,6 +33,7 @@ USAGE
 while (($#)); do
   case "$1" in
     --glue-script-s3-uri) GLUE_SCRIPT_S3_URI="${2:?--glue-script-s3-uri requires a value}"; shift 2 ;;
+    --athena-results-s3-uri) ATHENA_RESULTS_S3_URI="${2:?--athena-results-s3-uri requires a value}"; shift 2 ;;
     --stack-name) STACK_NAME="${2:?--stack-name requires a value}"; shift 2 ;;
     --region) REGION="${2:?--region requires a value}"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
@@ -39,6 +43,12 @@ done
 
 if [[ -z "$GLUE_SCRIPT_S3_URI" ]]; then
   echo "Error: --glue-script-s3-uri is required" >&2
+  usage >&2
+  exit 2
+fi
+
+if [[ -z "$ATHENA_RESULTS_S3_URI" ]]; then
+  echo "Error: --athena-results-s3-uri is required" >&2
   usage >&2
   exit 2
 fi
@@ -91,6 +101,7 @@ deploy() {
       PublicSubnetIdOne="$PUBLIC_SUBNET_ONE" \
       PublicSubnetIdTwo="$PUBLIC_SUBNET_TWO" \
       ProbeGlueScriptS3Uri="$GLUE_SCRIPT_S3_URI" \
+      ProbeAthenaResultsS3Uri="$ATHENA_RESULTS_S3_URI" \
       ProbeImageUri="$1" \
     --no-fail-on-empty-changeset \
     --region "$REGION"

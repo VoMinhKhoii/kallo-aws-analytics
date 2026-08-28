@@ -4,7 +4,8 @@ All commands assume AWS Academy credentials are active, the current directory is
 
 ## Parameters and prerequisites
 
-- `ProbeGlueScriptS3Uri`: S3 URI of a trivial uploaded PySpark script, such as one containing only `print("probe ok")`.
+- `ProbeGlueScriptS3Uri`: S3 URI of a trivial uploaded PySpark script; `infra/probe-glue/probe.py` is the one this repo ships.
+- `ProbeAthenaResultsS3Uri`: S3 prefix Athena writes results to. Required: the workgroup sets `EnforceWorkGroupConfiguration`, so a client-supplied output location is ignored and a workgroup without one fails every query.
 - `GlueScriptS3Uri`: S3 URI of the real analytics PySpark entrypoint. The script object must exist before the data stack is created.
 - `SupabaseUrl`, `SupabaseKey`, `GeminiApiKey`, and `DashboardBearerToken`: deployment secrets. Supply real values from shell variables; do not store them in this repository. The bearer token must contain 20–128 characters.
 - `ImageUri`: full ECR image URI, including its tag or digest, for a `linux/amd64` dashboard image.
@@ -47,7 +48,9 @@ Prefer the script — it discovers the VPC and subnets, runs both passes, pushes
 the probe image, and waits for ALB target health:
 
 ```sh
-scripts/session-zero-probe.sh --glue-script-s3-uri "$PROBE_GLUE_SCRIPT_S3_URI"
+scripts/session-zero-probe.sh \
+  --glue-script-s3-uri "$PROBE_GLUE_SCRIPT_S3_URI" \
+  --athena-results-s3-uri "$PROBE_ATHENA_RESULTS_S3_URI"
 ```
 
 To drive CloudFormation by hand instead, `VpcId`, `PublicSubnetIdOne`, and
@@ -62,6 +65,7 @@ aws cloudformation create-stack \
     ParameterKey=PublicSubnetIdOne,ParameterValue="$PUBLIC_SUBNET_ONE" \
     ParameterKey=PublicSubnetIdTwo,ParameterValue="$PUBLIC_SUBNET_TWO" \
     ParameterKey=ProbeGlueScriptS3Uri,ParameterValue="$PROBE_GLUE_SCRIPT_S3_URI" \
+    ParameterKey=ProbeAthenaResultsS3Uri,ParameterValue="$PROBE_ATHENA_RESULTS_S3_URI" \
     ParameterKey=ProbeSecretValue,ParameterValue='session-zero-placeholder' \
   --region us-east-1
 
@@ -81,7 +85,6 @@ aws glue start-job-run \
 aws athena start-query-execution \
   --query-string 'SELECT 1' \
   --work-group "$(aws cloudformation describe-stacks --stack-name kallo-probe --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`ProbeAthenaWorkGroupName`].OutputValue' --output text)" \
-  --result-configuration "OutputLocation=$PROBE_ATHENA_RESULTS_S3_URI" \
   --region us-east-1
 ```
 
