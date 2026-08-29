@@ -14,6 +14,7 @@ Choose an existing S3 bucket for deployment scripts, then export the template's 
 export GLUE_SCRIPT_S3_URI='s3://YOUR-EXISTING-BUCKET/glue/job.py'
 export SUPABASE_URL='https://YOUR-PROJECT.supabase.co'
 export SUPABASE_KEY='YOUR-RESTRICTED-ANALYTICS-KEY'
+export SUPABASE_API_KEY='YOUR-PUBLISHABLE-OR-LEGACY-ANON-KEY'
 export GEMINI_API_KEY='YOUR-GEMINI-KEY'
 export DASHBOARD_BEARER_TOKEN='AT-LEAST-20-CHARACTERS'
 scripts/deploy-data-stack.sh

@@ -20,6 +20,11 @@ Parameters:
     NoEcho: true
     Default: replace-with-restricted-supabase-key
     Description: Restricted analytics key stored in Secrets Manager; override this placeholder.
+  SupabaseApiKey:
+    Type: String
+    NoEcho: true
+    Default: replace-with-supabase-publishable-key
+    Description: Supabase publishable or legacy anon gateway key used only for the apikey header.
   GeminiApiKey:
     Type: String
     NoEcho: true
@@ -266,11 +271,12 @@ Resources:
   SupabaseCreds:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Description: Restricted Supabase analytics URL and key.
+      Description: Supabase URL, restricted analytics JWT, and public gateway API key.
       SecretString: !Sub
-        - '{"url":"${SecretUrl}","key":"${SecretKey}"}'
+        - '{"url":"${SecretUrl}","analytics_jwt":"${AnalyticsJwt}","api_key":"${ApiKey}"}'
         - SecretUrl: !Ref SupabaseUrl
-          SecretKey: !Ref SupabaseKey
+          AnalyticsJwt: !Ref SupabaseKey
+          ApiKey: !Ref SupabaseApiKey
       Tags:
         - Key: Project
           Value: kallo-analytics

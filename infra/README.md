@@ -7,7 +7,7 @@ All commands assume AWS Academy credentials are active, the current directory is
 - `ProbeGlueScriptS3Uri`: S3 URI of a trivial uploaded PySpark script; `infra/probe-glue/probe.py` is the one this repo ships.
 - `ProbeAthenaResultsS3Uri`: S3 prefix Athena writes results to. Required: the workgroup sets `EnforceWorkGroupConfiguration`, so a client-supplied output location is ignored and a workgroup without one fails every query.
 - `GlueScriptS3Uri`: S3 URI of the real analytics PySpark entrypoint. The script object must exist before the data stack is created.
-- `SupabaseUrl`, `SupabaseKey`, `GeminiApiKey`, and `DashboardBearerToken`: deployment secrets. Supply real values from shell variables; do not store them in this repository. The bearer token must contain 20–128 characters.
+- `SupabaseUrl`, `SupabaseKey`, `SupabaseApiKey`, `GeminiApiKey`, and `DashboardBearerToken`: deployment values. `SupabaseKey` is the restricted analytics JWT; `SupabaseApiKey` is the publishable or legacy anon gateway key. Supply real values from shell variables; do not store them in this repository. The bearer token must contain 20–128 characters.
 - `ImageUri`: full ECR image URI, including its tag or digest, for a `linux/amd64` dashboard image.
 - `VpcId`, `PublicSubnetIdOne`, and `PublicSubnetIdTwo`: the default VPC and two public subnets in different Availability Zones.
 - `DataStackName`: exactly the deployed data stack name. The presentation stack uses it to import the API URL and dashboard-token secret ARN.
@@ -20,6 +20,7 @@ export PROBE_ATHENA_RESULTS_S3_URI='s3://REPLACE_ME/athena-probe/'
 export GLUE_SCRIPT_S3_URI='s3://REPLACE_ME/glue/kallo_etl.py'
 export SUPABASE_URL='https://REPLACE_ME.supabase.co'
 export SUPABASE_KEY='REPLACE_ME'
+export SUPABASE_API_KEY='REPLACE_WITH_PUBLISHABLE_OR_LEGACY_ANON_KEY'
 export GEMINI_API_KEY='REPLACE_ME'
 export DASHBOARD_BEARER_TOKEN='REPLACE_WITH_AT_LEAST_20_CHARACTERS'
 export IMAGE_URI='ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/kallo-dashboard:TAG'
@@ -112,6 +113,7 @@ aws cloudformation create-stack \
     ParameterKey=GlueScriptS3Uri,ParameterValue="$GLUE_SCRIPT_S3_URI" \
     ParameterKey=SupabaseUrl,ParameterValue="$SUPABASE_URL" \
     ParameterKey=SupabaseKey,ParameterValue="$SUPABASE_KEY" \
+    ParameterKey=SupabaseApiKey,ParameterValue="$SUPABASE_API_KEY" \
     ParameterKey=GeminiApiKey,ParameterValue="$GEMINI_API_KEY" \
     ParameterKey=DashboardBearerToken,ParameterValue="$DASHBOARD_BEARER_TOKEN" \
   --region us-east-1

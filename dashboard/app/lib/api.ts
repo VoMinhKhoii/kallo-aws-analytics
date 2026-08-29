@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getMockMetric } from "./mock-data";
+import { unstable_cache } from "next/cache";
 import {
   METRIC_NAMES,
   type CoverageGapRow,
@@ -16,6 +17,7 @@ import {
 } from "./types";
 
 const MOCK_MODE = process.env.MOCK_API === "1";
+const METRIC_REQUEST_SPACING_MS = 500;
 
 function ratio(numerator: number, denominator: number): number {
   return denominator ? Math.round((numerator / denominator) * 1_000_000) / 1_000_000 : 0;
@@ -189,28 +191,33 @@ export async function getDashboardMetrics(from: string, to: string): Promise<{
   data: DashboardMetrics;
   errors: string[];
 }> {
-  const results = await Promise.allSettled(
-    METRIC_NAMES.map(async (metric) => ({
-      metric,
-      response: await getMetric(metric, from, to),
-    })),
-  );
   const data = {} as DashboardMetrics;
   const errors: string[] = [];
 
-  results.forEach((result, index) => {
-    const metric = METRIC_NAMES[index];
-    if (result.status === "fulfilled") {
-      data[metric] = resolveMetric(metric, result.value.response) as never;
-      return;
+  // Learner Lab accounts can have a one-execution Lambda concurrency ceiling.
+  // Serial reads keep the dashboard reliable without raising that account limit.
+  for (const [index, metric] of METRIC_NAMES.entries()) {
+    if (!MOCK_MODE && index > 0) {
+      await new Promise((resolve) => setTimeout(resolve, METRIC_REQUEST_SPACING_MS));
     }
-    errors.push(`${metric}: ${result.reason instanceof Error ? result.reason.message : "request failed"}`);
-    data[metric] = (metric === "onboarding_funnel"
-      ? { total_users: 0, completed_users: 0, completion_share: 0, steps: [] }
-      : []) as never;
-  });
+    try {
+      const response = await getMetric(metric, from, to);
+      data[metric] = resolveMetric(metric, response) as never;
+    } catch (reason) {
+      errors.push(`${metric}: ${reason instanceof Error ? reason.message : "request failed"}`);
+      data[metric] = (metric === "onboarding_funnel"
+        ? { total_users: 0, completed_users: 0, completion_share: 0, steps: [] }
+        : []) as never;
+    }
+  }
   return { data, errors };
 }
+
+export const getCachedDashboardMetrics = unstable_cache(
+  getDashboardMetrics,
+  ["aws-dashboard-metrics"],
+  { revalidate: 300 },
+);
 
 export async function getWeeklyInsight(): Promise<{ summary: string }> {
   if (MOCK_MODE) {

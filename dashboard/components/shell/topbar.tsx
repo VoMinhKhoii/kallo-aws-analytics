@@ -15,7 +15,7 @@ function useHealth(): { state: "checking" | "live" | "down"; detail: string } {
   const [failed, setFailed] = React.useState(false);
   React.useEffect(() => {
     let live = true;
-    fetch("/api/analytics", { method: "POST" })
+    fetch("/api/aws-status")
       .then((r) => r.json())
       .then((j) => live && setH(j))
       .catch(() => live && setFailed(true));
@@ -23,7 +23,7 @@ function useHealth(): { state: "checking" | "live" | "down"; detail: string } {
   }, []);
   if (failed) return { state: "down", detail: "the dashboard server did not respond" };
   if (!h) return { state: "checking", detail: "running a probe query" };
-  if (h.ok) return { state: "live", detail: `dev · ${h.authMode ?? "connected"}` };
+  if (h.ok) return { state: "live", detail: `live · ${h.authMode ?? "connected"}` };
   return { state: "down", detail: h.reason ?? "the probe query failed" };
 }
 

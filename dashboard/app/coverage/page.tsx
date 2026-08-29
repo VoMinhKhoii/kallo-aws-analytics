@@ -1,223 +1,104 @@
-"use client";
-import * as React from "react";
-import { Card, CardHeader, CardTitle, CardDescription, CardAction, CardContent, CardFooter } from "@/components/ui/card";
+import { getCachedDashboardMetrics } from "@/app/lib/api";
+import { BarRow, CHART, Note, PageHeader, StatRow, type Stat } from "@/components/panels/common";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { PageHeader, StatRow, Note, BarRow, type Stat } from "@/components/panels/common";
-import { CHART, BUCKET_META } from "@/lib/metrics";
-import { Loading, Failed } from "@/components/panels/states";
-import { Button } from "@/components/ui/button";
-import { useRange } from "@/components/range-context";
-import { useSummary, usePoolNames, useUnresolved, useCorpusRows, useCorpusQueries } from "@/lib/analytics-hooks";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
-const pct = (a: number, b: number) => (b ? ((a / b) * 100).toFixed(1) : "0.0");
-const num = (n: number) => n.toLocaleString("en-US");
-import { cn } from "@/lib/utils";
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
-export default function CoveragePage() {
-  const { range } = useRange();
-  const [bucket, setBucket] = React.useState(0);
-  const [row, setRow] = React.useState(0);
-  React.useEffect(() => { setRow(0); }, [range]);
+const number = (value: number) => value.toLocaleString("en-US");
 
-  const s = useSummary(range);
-  const names = usePoolNames(range, bucket);
-  const unres = useUnresolved(range);
-  const corpus = useCorpusRows(range);
-  const ri = Math.min(row, Math.max(corpus.rows.length - 1, 0));
-  const sel = corpus.rows[ri];
-  const queries = useCorpusQueries(range, sel?.[0]);
+function nutrientLabel(value: string) {
+  return value.replace("_kcal", "").replace("_g", "").replaceAll("_", " ");
+}
 
-  const bm = BUCKET_META[bucket];
-  const bucketColors = [CHART[3], CHART[2], CHART[1], CHART[1]];
-
-  if (s.error) return <><PageHeader title="Coverage & corpus" sub="Composition table" /><Failed error={s.error} code={s.code} /></>;
-  if (!s.data) return <><PageHeader title="Coverage & corpus" sub="Composition table" /><Loading /></>;
-  const d = s.data.ai;
-  const CORPUS_SIZE = d.corpusSize;
+export default async function CoveragePage() {
+  const to = new Date().toISOString().slice(0, 10);
+  const { data, errors } = await getCachedDashboardMetrics("2000-01-01", to);
+  const foodSelections = data.top_foods.reduce((sum, row) => sum + row.count, 0);
+  const gapOccurrences = data.coverage_gaps.reduce((sum, row) => sum + row.count, 0);
+  const flaggedReasons = data.implausible_foods.reduce((sum, row) => sum + row.reasons.length, 0);
+  const macroObservations = data.macro_distributions.reduce((sum, row) => sum + row.count, 0);
+  const latestMatch = data.match_rate.at(-1);
 
   const stats: Stat[] = [
-    { label: "Rows ever selected", value: num(d.rowsUsed), denom: `of ${num(CORPUS_SIZE)} in the corpus` },
-    { label: "Corpus in use", value: pct(d.rowsUsed, CORPUS_SIZE), unit: "%", denom: `carries ${num(d.matches)} matches` },
-    { label: "Zero-candidate", value: num(d.pool[0]), denom: `${pct(d.pool[0], d.verdicts)}% of ${num(d.verdicts)} ingredients` },
-    { label: "Unresolved", value: num(d.unmN), denom: `${d.unmDistinct} distinct names` },
-    { label: "Full pool of 3", value: pct(d.pool[3], d.verdicts), unit: "%", denom: `${num(d.pool[3])} ingredients` },
-    { label: "Single candidate", value: num(d.pool[1]), denom: "no choice — excluded from overturn" },
+    { label: "Ranked foods", value: number(data.top_foods.length), denom: `${number(foodSelections)} selections` },
+    { label: "Gap queries", value: number(data.coverage_gaps.length), denom: `${number(gapOccurrences)} occurrences` },
+    { label: "Macro buckets", value: number(data.macro_distributions.length), denom: `${number(macroObservations)} observations` },
+    { label: "Flagged foods", value: number(data.implausible_foods.length), denom: `${number(flaggedReasons)} quality reasons` },
+    { label: "Latest ingredients", value: number(latestMatch?.ingredient_count ?? 0), denom: latestMatch?.date ?? "no match rows" },
+    { label: "Unaccounted", value: number(latestMatch?.unaccounted_count ?? 0), denom: "latest match audit" },
   ];
+
+  const foodMax = Math.max(data.top_foods[0]?.count ?? 0, 1);
+  const gapMax = Math.max(data.coverage_gaps[0]?.count ?? 0, 1);
+  const macroRows = [...data.macro_distributions].sort((a, b) => b.count - a.count).slice(0, 16);
+  const macroMax = Math.max(macroRows[0]?.count ?? 0, 1);
 
   return (
     <>
-      <PageHeader
-        title="Coverage & corpus"
-        sub={<>What the composition table does and does not contain. {num(d.rowsUsed)} of {num(CORPUS_SIZE)} rows carry every match in this range.</>}
-      />
+      <PageHeader title="Coverage & corpus" sub={`AWS-curated food coverage and plausibility controls · ${to}`} />
       <StatRow stats={stats} />
+      {errors.length > 0 && <div className="mt-3"><Note><b>{errors.length} AWS metric reads failed.</b> {errors.slice(0, 2).join(" · ")}</Note></div>}
 
-      <div className="mt-3 grid gap-3 xl:grid-cols-[1.15fr_1fr]">
+      <div className="mt-3 grid gap-3 xl:grid-cols-2">
         <Card>
           <CardHeader>
-            <div>
-              <CardTitle>Candidate pool size — and which ingredients landed in each bucket</CardTitle>
-              <CardDescription className="mt-1">n={num(d.verdicts)} in range</CardDescription>
-            </div>
+            <div><CardTitle>Corpus demand</CardTitle><CardDescription className="mt-1">Most frequently resolved ingredient names</CardDescription></div>
+            <CardAction><Badge variant="outline">Top {Math.min(data.top_foods.length, 12)}</Badge></CardAction>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {BUCKET_META.map((b, i) => (
-                <button
-                  key={b.label} onClick={() => setBucket(i)}
-                  className={cn("rounded-lg border px-3 py-2.5 text-left transition-colors", i === bucket ? "border-primary ring-primary/20 ring-2" : "hover:bg-muted/40")}
-                >
-                  <p className="text-muted-foreground text-[10px]">{b.label}</p>
-                  <p className="tabular mt-1 text-lg font-semibold" style={{ color: bucketColors[i] }}>
-                    {num(d.pool[i])}
-                    <span className="text-muted-foreground ml-1 text-[10px] font-normal">· {pct(d.pool[i], d.verdicts)}%</span>
-                  </p>
-                  <span className="bg-muted mt-1.5 block h-1 overflow-hidden rounded-full">
-                    <span className="block h-full rounded-full" style={{ width: `${(d.pool[i] / Math.max(...d.pool)) * 100}%`, background: bucketColors[i] }} />
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            <div>
-              <p className="text-muted-foreground mb-2 text-[10px] font-semibold tracking-wide uppercase">
-                {num(d.pool[bucket])} ingredients {bm.t} — {names.total} distinct names in range
-              </p>
-              <ScrollArea className="h-36">
-                <div className="flex flex-wrap gap-1 pr-3">
-                  {names.rows.map((n) => (
-                    <span key={n} className="bg-muted/60 rounded border px-1.5 py-0.5 text-[11px]">{n}</span>
-                  ))}
-                  {names.hasMore && (
-                    <button onClick={names.loadMore}
-                            className="text-muted-foreground hover:text-foreground rounded border border-dashed px-1.5 py-0.5 text-[11px]">
-                      + {names.total - names.rows.length} more
-                    </button>
-                  )}
-                </div>
-              </ScrollArea>
-            </div>
+          <CardContent>
+            {data.top_foods.slice(0, 12).map((row) => (
+              <BarRow key={`${row.rank}-${row.ingredient_name}`} label={row.ingredient_name} n={number(row.count)}
+                w={`${(row.count / foodMax) * 100}%`} color={CHART[1]} />
+            ))}
           </CardContent>
-          <CardFooter>{bm.note}</CardFooter>
         </Card>
 
         <Card>
           <CardHeader>
-            <div>
-              <CardTitle>Unresolved ingredient names</CardTitle>
-              <CardDescription className="mt-1">{d.unmN} unmatched · {d.unmDistinct} distinct · showing {unres.rows.length}</CardDescription>
-            </div>
-            <CardAction><Badge variant="bad">coverage</Badge></CardAction>
+            <div><CardTitle>Coverage backlog</CardTitle><CardDescription className="mt-1">Vietnamese queries requiring corpus attention</CardDescription></div>
+            <CardAction><Badge variant="warn">prioritise</Badge></CardAction>
           </CardHeader>
           <CardContent>
-            {unres.rows.map(([name, n]) => (
-              <BarRow key={name} label={name} n={String(n)} w={`${(n / (unres.rows[0]?.[1] || 1)) * 100}%`} color={CHART[3]} labelWidth="w-36" />
+            {data.coverage_gaps.slice(0, 12).map((row) => (
+              <BarRow key={`${row.rank}-${row.query_text}`} label={row.query_text} n={number(row.count)}
+                w={`${(row.count / gapMax) * 100}%`} color={CHART[3]} />
             ))}
-            {unres.hasMore && (
-              <Button variant="outline" size="sm" className="mt-2 w-full" onClick={unres.loadMore} disabled={unres.loading}>
-                {unres.loading ? "Loading…" : `Load more (${unres.rows.length} of ${unres.total})`}
-              </Button>
-            )}
           </CardContent>
-          <CardFooter>
-            Two distinct failures share this list. <code>Tôm</code> and <code>Rau</code> have rows in the table — they fail because stage 1
-            emitted a bare category term, a decomposition-specificity defect. <code>Bánh cuốn</code>, <code>Bánh canh</code> and{" "}
-            <code>Cơm tấm</code> have no row at all — a corpus-coverage gap. Telling them apart automatically needs a labelled set,
-            which does not exist yet.
-          </CardFooter>
         </Card>
       </div>
 
-      <Card className="mt-3">
-        <CardHeader>
-          <div>
-            <CardTitle>Composition-table usage — which rows absorb the traffic, and what resolves into them</CardTitle>
-            <CardDescription className="mt-1">
-              {num(d.rowsUsed)} of {num(CORPUS_SIZE)} rows selected in range · {pct(d.rowsUsed, CORPUS_SIZE)}% of the corpus carries {num(d.matches)} matches
-            </CardDescription>
-          </div>
-        </CardHeader>
-        <CardContent className="px-0 pb-0">
-          <div className="grid xl:grid-cols-[1fr_360px]">
-            <div className="min-w-0 border-b xl:border-r xl:border-b-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Composition row</TableHead>
-                    <TableHead>id</TableHead>
-                    <TableHead className="w-24">hits</TableHead>
-                    <TableHead className="text-right">n</TableHead>
-                    <TableHead className="text-right">queries</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {corpus.rows.map(([id, nm, , n, dq], i) => (
-                    <TableRow
-                      key={id + i} onClick={() => setRow(i)}
-                      className={cn("cursor-pointer", i === ri && "bg-muted/60 shadow-[inset_2px_0_0_var(--primary)]")}
-                    >
-                      <TableCell className="max-w-[320px] truncate">{nm}</TableCell>
-                      <TableCell className="text-muted-foreground tabular max-w-[130px] truncate text-[11px]">{id}</TableCell>
-                      <TableCell>
-                        <span className="bg-muted block h-1.5 w-20 overflow-hidden rounded-full">
-                          <span className="block h-full rounded-full" style={{ width: `${(n / (corpus.rows[0]?.[3] || 1)) * 100}%`, background: dq >= 5 ? CHART[2] : CHART[1] }} />
-                        </span>
-                      </TableCell>
-                      <TableCell className="tabular text-right">{n}</TableCell>
-                      <TableCell className={cn("tabular text-right", dq >= 5 && "text-[var(--chart-2)]")}>{dq}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              {corpus.hasMore && (
-                <div className="border-t px-3 py-2">
-                  <Button variant="outline" size="sm" className="w-full" onClick={corpus.loadMore} disabled={corpus.loading}>
-                    {corpus.loading ? "Loading…" : `Load more (${corpus.rows.length} of ${corpus.total})`}
-                  </Button>
-                </div>
-              )}
-              <p className="text-muted-foreground px-4 py-3 text-[11px] leading-relaxed">
-                {num(corpus.total)} rows carry all {num(d.matches)} matches in this range, and{" "}
-                {num((corpus.meta?.singletons as number) ?? 0)} of them were selected exactly once. The head is short and the tail is
-                thin — retrieval quality is decided by a few hundred rows, so an error in any one of them is systematic rather than
-                isolated.
-              </p>
-            </div>
+      <div className="mt-3 grid gap-3 xl:grid-cols-[1.15fr_0.85fr]">
+        <Card>
+          <CardHeader>
+            <div><CardTitle>Macro distribution</CardTitle><CardDescription className="mt-1">Largest curated nutrient buckets</CardDescription></div>
+            <CardAction><Badge variant="outline">Parquet → DynamoDB</Badge></CardAction>
+          </CardHeader>
+          <CardContent>
+            {macroRows.map((row, index) => (
+              <BarRow key={`${row.nutrient}-${row.bucket_min}-${row.bucket_max ?? "plus"}`}
+                label={`${nutrientLabel(row.nutrient)} · ${row.bucket_min}–${row.bucket_max ?? "+"}`}
+                n={number(row.count)} w={`${(row.count / macroMax) * 100}%`} color={CHART[(index % 5 + 1) as keyof typeof CHART]} labelWidth="w-52" />
+            ))}
+          </CardContent>
+        </Card>
 
-            <div>
-              <div className="border-b px-4 py-3">
-                <p className="text-muted-foreground text-[11px]">Queries that resolved into</p>
-                <p className="mt-1 text-[13px] leading-snug font-medium">{sel?.[1] ?? "—"}</p>
-                <p className="text-muted-foreground tabular mt-1 text-[10px]">
-                  {sel?.[0]} · {sel?.[2]} · {sel?.[3] ?? 0} hits · {sel?.[4] ?? 0} distinct queries in range
-                </p>
+        <Card>
+          <CardHeader>
+            <div><CardTitle>Quality controls</CardTitle><CardDescription className="mt-1">Examples flagged by macro plausibility rules</CardDescription></div>
+            <CardAction><Badge variant="bad">{number(data.implausible_foods.length)} flags</Badge></CardAction>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {data.implausible_foods.slice(0, 10).map((row, index) => (
+              <div key={`${row.id ?? index}`} className="border-b py-2 last:border-0">
+                <p className="truncate text-sm font-medium">{row.name_en ?? "Unnamed food"}</p>
+                <p className="text-muted-foreground mt-0.5 text-xs">{row.type_en ?? "Unknown category"} · {row.reasons.join(", ")}</p>
               </div>
-              {queries.rows.map(([q, n]) => (
-                <div key={q} className="flex items-center gap-2 border-b px-4 py-1.5 text-[13px]">
-                  <span className="min-w-0 truncate">{q}</span>
-                  <span className="tabular text-muted-foreground ml-auto text-xs">{n}</span>
-                </div>
-              ))}
-              {queries.hasMore && (
-                <div className="px-4 py-2">
-                  <Button variant="outline" size="sm" className="w-full" onClick={queries.loadMore} disabled={queries.loading}>
-                    {queries.loading ? "Loading…" : `Load more (${queries.rows.length} of ${queries.total})`}
-                  </Button>
-                </div>
-              )}
-              <div className="px-4 py-3">
-                <Note>
-                  {(sel?.[4] ?? 0) > 1
-                    ? <><b>{sel?.[4]} distinct queries</b> collapse into this one row. Anything the queries do not share — cooking state, cut, brand — is erased by the substitution.</>
-                    : <>One query resolves here. A single-query row is the clean case: no distinct ingredient is being folded into it.</>}
-                </Note>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
     </>
   );
 }

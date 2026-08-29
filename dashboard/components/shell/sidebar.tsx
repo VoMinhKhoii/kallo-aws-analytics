@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 const PRIMARY = [
   { href: "/", label: "App metrics", icon: Home },
   { href: "/pipeline", label: "Pipeline overview", icon: TrendingUp },
-  { href: "/trace", label: "Trace viewer", icon: FileCode2 },
+  { href: "/trace", label: "AWS path trace", icon: FileCode2 },
 ];
 const DIAGNOSE = [
   { href: "/retrieval", label: "Retrieval & matching", icon: Search },
@@ -71,7 +71,7 @@ export function AppSidebar() {
           <p className="text-muted-foreground text-[11px]">Pipeline</p>
           <button
             disabled
-            title="Triggering a run needs the AWS pipeline stack, which is not deployed yet"
+            title="Run-now is disabled pending failure-state hardening"
             aria-label="New run (unavailable)"
             className="text-muted-foreground/40 grid size-5 cursor-not-allowed place-items-center rounded-md"
           >
@@ -81,7 +81,7 @@ export function AppSidebar() {
         {RUNS.map((i) => (
           <span
             key={i.href}
-            title="Needs the AWS pipeline stack, which is not deployed yet"
+            title="Run-now is disabled pending failure-state hardening"
             className="text-muted-foreground/45 mb-0.5 flex h-9 cursor-not-allowed items-center gap-2.5 rounded-lg px-2.5 text-[13px]"
           >
             <span className="w-4 shrink-0 text-center">—</span>

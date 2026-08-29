@@ -14,6 +14,7 @@ Upload Glue sources, deploy the persistent data stack, then publish every Lambda
 Required environment variables (the template's NoEcho parameters):
   SUPABASE_URL
   SUPABASE_KEY
+  SUPABASE_API_KEY
   GEMINI_API_KEY
   DASHBOARD_BEARER_TOKEN
 
@@ -39,7 +40,7 @@ while (($#)); do
 done
 
 missing=()
-for name in SUPABASE_URL SUPABASE_KEY GEMINI_API_KEY DASHBOARD_BEARER_TOKEN; do
+for name in SUPABASE_URL SUPABASE_KEY SUPABASE_API_KEY GEMINI_API_KEY DASHBOARD_BEARER_TOKEN; do
   if [[ -z "${!name:-}" ]]; then
     missing+=("$name")
   fi
@@ -65,6 +66,7 @@ aws cloudformation deploy \
     GlueTransformsS3Uri="${GLUE_SCRIPT_DIRECTORY}/transforms.py" \
     SupabaseUrl="$SUPABASE_URL" \
     SupabaseKey="$SUPABASE_KEY" \
+    SupabaseApiKey="$SUPABASE_API_KEY" \
     GeminiApiKey="$GEMINI_API_KEY" \
     DashboardBearerToken="$DASHBOARD_BEARER_TOKEN" \
   --no-fail-on-empty-changeset \
