@@ -205,3 +205,29 @@ export type RunStatus = {
   glue_job_run_id?: string;
   failure_reason?: string;
 };
+
+export type CloudRunSystemPoint = {
+  timestamp: string;
+  request_count?: number;
+  error_count?: number;
+  error_rate?: number;
+  p50_ms?: number;
+  p95_ms?: number;
+  p99_ms?: number;
+  startup_p95_ms?: number;
+  cpu_p95?: number;
+  memory_p95?: number;
+  instances?: number;
+};
+
+export type CloudMonitoringResponse = {
+  source: "google-cloud-monitoring";
+  project: string;
+  service: string;
+  location: string;
+  from: string;
+  to: string;
+  alignment_seconds: number;
+  collected_at: string;
+  series: CloudRunSystemPoint[];
+};

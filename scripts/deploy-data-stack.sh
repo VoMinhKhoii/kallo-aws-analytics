@@ -15,7 +15,10 @@ Required environment variables (the template's NoEcho parameters):
   SUPABASE_URL
   SUPABASE_KEY
   SUPABASE_API_KEY
-  GEMINI_API_KEY
+  GOOGLE_SERVICE_ACCOUNT_JSON
+  GOOGLE_CLOUD_PROJECT_ID
+  GOOGLE_CLOUD_RUN_SERVICE
+  GOOGLE_CLOUD_RUN_LOCATION
   DASHBOARD_BEARER_TOKEN
 
 GlueScriptS3Uri must be supplied with GLUE_SCRIPT_S3_URI or --glue-script-s3-uri.
@@ -40,7 +43,7 @@ while (($#)); do
 done
 
 missing=()
-for name in SUPABASE_URL SUPABASE_KEY SUPABASE_API_KEY GEMINI_API_KEY DASHBOARD_BEARER_TOKEN; do
+for name in SUPABASE_URL SUPABASE_KEY SUPABASE_API_KEY GOOGLE_SERVICE_ACCOUNT_JSON GOOGLE_CLOUD_PROJECT_ID GOOGLE_CLOUD_RUN_SERVICE GOOGLE_CLOUD_RUN_LOCATION DASHBOARD_BEARER_TOKEN; do
   if [[ -z "${!name:-}" ]]; then
     missing+=("$name")
   fi
@@ -67,7 +70,10 @@ aws cloudformation deploy \
     SupabaseUrl="$SUPABASE_URL" \
     SupabaseKey="$SUPABASE_KEY" \
     SupabaseApiKey="$SUPABASE_API_KEY" \
-    GeminiApiKey="$GEMINI_API_KEY" \
+    GoogleServiceAccountJson="$GOOGLE_SERVICE_ACCOUNT_JSON" \
+    GoogleCloudProjectId="$GOOGLE_CLOUD_PROJECT_ID" \
+    GoogleCloudRunService="$GOOGLE_CLOUD_RUN_SERVICE" \
+    GoogleCloudRunLocation="$GOOGLE_CLOUD_RUN_LOCATION" \
     DashboardBearerToken="$DASHBOARD_BEARER_TOKEN" \
   --no-fail-on-empty-changeset \
   --region "$REGION"
@@ -124,12 +130,42 @@ package_and_update() {
   printf 'Updated Lambda: %s\n' "$function_name"
 }
 
+package_with_requirements_and_update() {
+  local output_key="$1"
+  local entrypoint="$2"
+  local requirements="$3"
+  shift 3
+  local package_dir="$BUILD_DIR/${output_key}"
+  local zip_path="$BUILD_DIR/${output_key}.zip"
+  local function_name
+
+  mkdir -p "$package_dir"
+  cp "$entrypoint" "$package_dir/index.py"
+  while (($#)); do
+    cp "$1" "$package_dir/"
+    shift
+  done
+  python3 -m pip install --quiet --disable-pip-version-check \
+    --platform manylinux2014_x86_64 --implementation cp --python-version 3.12 \
+    --only-binary=:all: --target "$package_dir" -r "$requirements"
+  (cd "$package_dir" && zip -qr "$zip_path" .)
+
+  function_name="$(stack_output "$output_key")"
+  aws lambda update-function-code \
+    --function-name "$function_name" \
+    --zip-file "fileb://${zip_path}" \
+    --region "$REGION" >/dev/null
+  aws lambda wait function-updated --function-name "$function_name" --region "$REGION"
+  printf 'Updated Lambda: %s\n' "$function_name"
+}
+
 package_and_update ExtractFunctionName lambdas/extract/handler.py lambdas/extract/extract_core.py
 package_and_update LoaderFunctionName lambdas/loader/handler.py lambdas/loader/loader_core.py
 package_and_update ApiMetricsFunctionName lambdas/api/metrics.py lambdas/api/api_core.py
 package_and_update ApiRunsFunctionName lambdas/api/runs.py lambdas/api/api_core.py
-package_and_update ApiAthenaFunctionName lambdas/api/athena.py lambdas/api/api_core.py
-package_and_update ApiInsightFunctionName lambdas/api/insight.py lambdas/api/api_core.py
+package_with_requirements_and_update ApiCloudMonitoringFunctionName \
+  lambdas/api/cloud_monitoring.py lambdas/api/requirements-cloud-monitoring.txt \
+  lambdas/api/api_core.py
 package_and_update AuthorizerFunctionName lambdas/authorizer/handler.py
 
 echo "Data stack deployed and application code updated: $STACK_NAME"

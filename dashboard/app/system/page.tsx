@@ -12,6 +12,7 @@ import {
   ConsolePage,
   formatDuration,
   formatNumber,
+  formatPercent,
   HealthTable,
   latestByDate,
   latestByHour,
@@ -27,10 +28,14 @@ import {
   TableCell,
   TableRow,
   InlineNote,
+  RefreshButton,
+  rangeWindow,
   type ConsoleRange,
 } from "@/components/console/console";
 import { useMetricBundle, type MetricBundleState } from "@/lib/use-metric-bundle";
 import { useSessionRole } from "@/lib/use-auth";
+import { useCloudMonitoring } from "@/lib/use-cloud-monitoring";
+import { TimeSeriesChart } from "@/components/console/time-series-chart";
 
 const SYSTEM_METRICS = ["app_health", "ai_latency", "ai_failure_rate", "token_cost_daily"] as const;
 
@@ -161,64 +166,55 @@ function StatusPanel({ status, error, costs }: { status: { ok: boolean; reason?:
 }
 
 export default function SystemPage() {
-  const [productRange, setProductRange] = React.useState<ConsoleRange>("30d");
-  const [platform, setPlatform] = React.useState("all");
-  const productWindow = React.useMemo(() => {
-    const today = new Date();
-    const to = today.toISOString().slice(0, 10);
-    const fromDate = new Date(`${to}T00:00:00Z`);
-    fromDate.setUTCDate(fromDate.getUTCDate() - Number(productRange.slice(0, -1)) + 1);
-    return { from: fromDate.toISOString().slice(0, 10), to };
-  }, [productRange]);
-  const systemBundle = useMetricBundle(SYSTEM_METRICS, productWindow.from, productWindow.to);
-  const health = (systemBundle.data?.app_health ?? []) as AppHealthRow[];
-  const latency = (systemBundle.data?.ai_latency ?? []) as LatencyRow[];
-  const failures = (systemBundle.data?.ai_failure_rate ?? []) as FailureRow[];
-  const costs = (systemBundle.data?.token_cost_daily ?? []) as TokenCostRow[];
-  const metricErrors = Object.values(systemBundle.errors).filter((error): error is string => Boolean(error));
-  const status = systemBundle.loading
-    ? null
-    : {
-        ok: !systemBundle.error && metricErrors.length === 0,
-        reason: systemBundle.error ?? metricErrors[0],
-        authMode: "aws",
-      };
-  const count = health.length ? health.reduce((total, row) => total + row.count, 0) : undefined;
-  const latestP95 = latestByDate(latency)?.p95_ms;
-  const failureCount = failures.length ? failures.reduce((total, row) => total + row.failure_count, 0) : undefined;
+  const [productRange, setProductRange] = React.useState<ConsoleRange>("7d");
+  const productWindow = React.useMemo(() => rangeWindow(productRange), [productRange]);
+  const monitoring = useCloudMonitoring(productWindow.from, productWindow.to);
+  const source = monitoring.data;
+  const points = (source?.series ?? []).map((point) => ({
+    ...point,
+    date: point.timestamp.slice(0, 16).replace("T", " "),
+  }));
+  const latest = points.at(-1);
+  const requests = points.reduce((sum, point) => sum + (point.request_count ?? 0), 0);
+  const errors = points.reduce((sum, point) => sum + (point.error_count ?? 0), 0);
+  const sourceTag = <SourceTag tone={points.length ? "live" : "neutral"}>Google Monitoring</SourceTag>;
 
   return (
     <ConsolePage>
-      <PageIntro eyebrow="Operate / System" title="System" description="Health buckets, AI-pipeline freshness, cost boundaries, and a guarded manual snapshot control. Health and pipeline metrics use the selected window.">
-        <div className="grid gap-3 sm:justify-items-end">
-          <RangeControl value={productRange} onChange={setProductRange} label="Pipeline window" options={["7d", "30d", "90d"]} />
-          <ScopeControls values={{ platform }} onChange={(name, value) => name === "platform" && setPlatform(value)} supported={{ platform: true, locale: false, mealMode: false }} />
+      <PageIntro eyebrow="System" title="System" description="Normal Cloud Run request latency, traffic, errors, startup, capacity, and resources.">
+        <div className="flex flex-wrap items-center gap-2">
+          <RangeControl value={productRange} onChange={setProductRange} label="Window" options={["24h", "7d", "30d", "90d"]} />
+          <RefreshButton refreshing={monitoring.refreshing} onClick={monitoring.refresh} />
         </div>
       </PageIntro>
 
-      <div className="mt-6 grid gap-3">
+      <div className="mt-3 grid gap-3">
         <MetricRibbon items={[
-          { label: "Health observations", value: formatNumber(count), detail: "selected product window", tone: count == null ? "ink" : "green", loading: systemBundle.loading, error: metricError(systemBundle, "app_health") },
-          { label: "Latest p95", value: formatDuration(latestP95), detail: "selected product window", tone: "blue", loading: systemBundle.loading, error: metricError(systemBundle, "ai_latency") },
-          { label: "Failure observations", value: formatNumber(failureCount), detail: "controlled AI failures", tone: failureCount == null ? "ink" : "amber", loading: systemBundle.loading, error: metricError(systemBundle, "ai_failure_rate") },
-          { label: "Health buckets", value: formatNumber(health.length || undefined), detail: "UTC hour × dimension", loading: systemBundle.loading, error: metricError(systemBundle, "app_health") },
+          { label: "Normal requests", value: formatNumber(requests || undefined), detail: "Cloud Run traffic", tone: "blue", loading: monitoring.loading, error: monitoring.error },
+          { label: "5xx rate", value: formatPercent(requests ? errors / requests : undefined), detail: requests ? `${errors} of ${requests}` : "No requests", tone: errors ? "amber" : "green", loading: monitoring.loading, error: monitoring.error },
+          { label: "Latest request p95", value: formatDuration(latest?.p95_ms), detail: "normal API, not AI model latency", tone: "blue", loading: monitoring.loading, error: monitoring.error },
+          { label: "Latest instances", value: formatNumber(latest?.instances), detail: source ? `${source.service} · ${source.location}` : "Cloud Run service", loading: monitoring.loading, error: monitoring.error },
         ]} />
 
-        <Panel title="Application health buckets" description="Controlled health events grouped by UTC hour, platform, and dimension. Select a platform only for this panel." source={<SourceTag tone={health.length ? "live" : "neutral"}>AWS aggregate</SourceTag>}>
-          <MetricState loading={systemBundle.loading} error={metricError(systemBundle, "app_health")} empty={health.length === 0} emptyMessage="No app-health rows were returned for the selected window. This is an absence state, not an inferred healthy signal.">
-            <HealthTable rows={health.slice().sort((a, b) => b.hour.localeCompare(a.hour)).slice(0, 48)} platform={platform} />
+        <Panel title="Normal API request latency" description="Cloud Run request p50/p95/p99 for all requests reaching the service container. This is separate from AI meal-model latency." source={sourceTag}>
+          <MetricState loading={monitoring.loading} error={monitoring.error} empty={points.length === 0} emptyMessage="Google Cloud Monitoring returned no Cloud Run request-latency points for this window.">
+            <div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={points} series={[{ key: "p50_ms", label: "p50", color: "var(--console-green)" }, { key: "p95_ms", label: "p95", color: "var(--console-blue)" }, { key: "p99_ms", label: "p99", color: "var(--console-brick)" }]} ariaLabel="Normal Cloud Run API request latency" format="duration" /></div>
+            <InlineNote>Cloud Run&apos;s GA request-latency metric excludes container startup. Startup p95 is charted separately below.</InlineNote>
           </MetricState>
         </Panel>
 
-        <div className="grid gap-3 xl:grid-cols-2">
-          <FreshnessPanel health={health} pipeline={{ latency, failures }} />
-          <StatusPanel status={status} error={null} costs={costs} />
-        </div>
+        <Panel title="Request and server-error volume" description="Aligned request totals and HTTP 5xx responses from Cloud Monitoring." source={sourceTag}><MetricState loading={monitoring.loading} error={monitoring.error} empty={points.length === 0} emptyMessage="No Cloud Run request-count points were returned."><div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={points} series={[{ key: "request_count", label: "Requests", color: "var(--console-blue)" }, { key: "error_count", label: "5xx", color: "var(--console-brick)" }]} ariaLabel="Cloud Run request and server error volume" /></div></MetricState></Panel>
+
+        <Panel title="Container startup latency" description="p95 time spent starting a new Cloud Run container instance." source={sourceTag}><MetricState loading={monitoring.loading} error={monitoring.error} empty={points.every((point) => point.startup_p95_ms == null)} emptyMessage="No container starts occurred in this window, so startup latency has no points."><div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={points} series={[{ key: "startup_p95_ms", label: "Startup p95", color: "var(--console-amber)" }]} ariaLabel="Cloud Run container startup p95 latency" format="duration" /></div></MetricState></Panel>
+
+        <Panel title="Container resource utilization" description="p95 CPU and memory utilization across Cloud Run instances." source={sourceTag}><MetricState loading={monitoring.loading} error={monitoring.error} empty={points.every((point) => point.cpu_p95 == null && point.memory_p95 == null)} emptyMessage="No Cloud Run resource-utilization points were returned."><div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={points} series={[{ key: "cpu_p95", label: "CPU p95", color: "var(--console-blue)" }, { key: "memory_p95", label: "Memory p95", color: "var(--console-green)" }]} ariaLabel="Cloud Run CPU and memory p95 utilization" format="percent" /></div></MetricState></Panel>
+
+        <Panel title="Container instances" description="Active and idle Cloud Run instance count after cross-series reduction." source={sourceTag}><MetricState loading={monitoring.loading} error={monitoring.error} empty={points.every((point) => point.instances == null)} emptyMessage="No Cloud Run instance-count points were returned."><div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={points} series={[{ key: "instances", label: "Instances", color: "var(--console-ink)" }]} ariaLabel="Cloud Run container instance count" /></div></MetricState></Panel>
 
         <Panel title="Manual snapshot control" description="Operator action against the existing run endpoint. The server-authoritative 30-minute guard is shared across tabs and devices; endpoint authorization remains authoritative." source={<SourceTag tone="warn">Operator action</SourceTag>}>
           <RunControl />
         </Panel>
-        <InlineNote tone="plain">Locale and meal-mode selectors are intentionally marked “Not segmented” for System. Platform filtering applies only to the health bucket table; other panels retain their source-defined scope.</InlineNote>
+        {source ? <InlineNote tone="plain">Monitoring aligned points every {source.alignment_seconds / 3600}h. Google samples Cloud Run metrics about once per minute and can publish them up to roughly two minutes later.</InlineNote> : null}
       </div>
     </ConsolePage>
   );

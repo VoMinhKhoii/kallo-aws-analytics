@@ -25,11 +25,23 @@ Parameters:
     NoEcho: true
     Default: replace-with-supabase-publishable-key
     Description: Supabase publishable or legacy anon gateway key used only for the apikey header.
-  GeminiApiKey:
+  GoogleServiceAccountJson:
     Type: String
     NoEcho: true
-    Default: replace-with-gemini-api-key
-    Description: Gemini API key stored in Secrets Manager; override this placeholder.
+    Default: '{"type":"service_account","project_id":"replace-me"}'
+    Description: Read-only Google service-account JSON stored in Secrets Manager.
+  GoogleCloudProjectId:
+    Type: String
+    Default: cal-487315
+    AllowedPattern: '^[A-Za-z0-9._-]{1,128}$'
+  GoogleCloudRunService:
+    Type: String
+    Default: kallo-prod
+    AllowedPattern: '^[A-Za-z0-9._-]{1,128}$'
+  GoogleCloudRunLocation:
+    Type: String
+    Default: asia-southeast1
+    AllowedPattern: '^[A-Za-z0-9._-]{1,128}$'
   DashboardBearerToken:
     Type: String
     NoEcho: true
@@ -39,7 +51,7 @@ Parameters:
     Description: Static bearer token used by the Lambda authorizer and API usage plan.
 
 Resources:
-  # Persistent object store for raw extracts, curated Parquet, and bounded Athena results.
+  # Persistent object store for raw extracts and curated Parquet.
   AnalyticsBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -64,12 +76,6 @@ Resources:
             Status: Enabled
             AbortIncompleteMultipartUpload:
               DaysAfterInitiation: 7
-          - Id: AthenaResultsExpireAfterSevenDays
-            Prefix: athena-results/
-            Status: Enabled
-            ExpirationInDays: 7
-            AbortIncompleteMultipartUpload:
-              DaysAfterInitiation: 1
       Tags:
         - Key: Project
           Value: kallo-analytics
@@ -93,97 +99,12 @@ Resources:
         PointInTimeRecoveryEnabled: false
       SSESpecification:
         SSEEnabled: true
+      TimeToLiveSpecification:
+        AttributeName: expires_at
+        Enabled: true
       Tags:
         - Key: Project
           Value: kallo-analytics
-
-  # Catalog namespace lets Glue and Athena agree on the curated analytics schema.
-  AnalyticsGlueDatabase:
-    Type: AWS::Glue::Database
-    Properties:
-      CatalogId: !Ref AWS::AccountId
-      DatabaseInput:
-        Description: Curated Kallo analytics datasets.
-
-  MealsGlueTable:
-    Type: AWS::Glue::Table
-    Properties:
-      CatalogId: !Ref AWS::AccountId
-      DatabaseName: !Ref AnalyticsGlueDatabase
-      TableInput:
-        Name: v_meals
-        TableType: EXTERNAL_TABLE
-        Parameters:
-          classification: parquet
-        # No dt partition: the Glue job overwrites curated/ with the
-        # latest complete snapshot on every run. A date partition would
-        # keep one full copy per run and multiply every Athena count.
-        StorageDescriptor:
-          Columns:
-            - Name: id
-              Type: string
-            - Name: user_hash
-              Type: string
-            - Name: logged_at
-              Type: string
-            - Name: calories_kcal
-              Type: double
-            - Name: protein_g
-              Type: double
-            - Name: carbohydrate_g
-              Type: double
-            - Name: fat_g
-              Type: double
-          InputFormat: org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat
-          Location: !Sub s3://${AnalyticsBucket}/curated/v_meals/
-          OutputFormat: org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat
-          SerdeInfo:
-            SerializationLibrary: org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe
-
-  PipelineRunsGlueTable:
-    Type: AWS::Glue::Table
-    Properties:
-      CatalogId: !Ref AWS::AccountId
-      DatabaseName: !Ref AnalyticsGlueDatabase
-      TableInput:
-        Name: v_pipeline_runs
-        TableType: EXTERNAL_TABLE
-        Parameters:
-          classification: parquet
-        # No dt partition: the Glue job overwrites curated/ with the
-        # latest complete snapshot on every run. A date partition would
-        # keep one full copy per run and multiply every Athena count.
-        StorageDescriptor:
-          Columns:
-            - Name: id
-              Type: string
-            - Name: created_at
-              Type: string
-            - Name: pipeline_version
-              Type: string
-            - Name: model_call1
-              Type: string
-            - Name: model_call2
-              Type: string
-            - Name: total_ms
-              Type: bigint
-            - Name: ingredient_count
-              Type: bigint
-            - Name: matched_count
-              Type: bigint
-            - Name: unmatched_count
-              Type: bigint
-            - Name: retry_count
-              Type: bigint
-            - Name: escalated
-              Type: boolean
-            - Name: cache_hit_l4
-              Type: boolean
-          InputFormat: org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat
-          Location: !Sub s3://${AnalyticsBucket}/curated/v_pipeline_runs/
-          OutputFormat: org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat
-          SerdeInfo:
-            SerializationLibrary: org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe
 
   # Two-worker ETL job carries every mandatory lab-budget guard from the rubric.
   AnalyticsGlueJob:
@@ -197,7 +118,6 @@ Resources:
       DefaultArguments:
         '--job-language': python
         '--extra-py-files': !Ref GlueTransformsS3Uri
-        '--database_name': !Ref AnalyticsGlueDatabase
         '--source_bucket': !Ref AnalyticsBucket
         '--enable-metrics': 'true'
       Description: Converts manifested raw JSON into curated Parquet and aggregates.
@@ -208,23 +128,6 @@ Resources:
       NumberOfWorkers: 2
       Timeout: 10
       WorkerType: G.1X
-
-  # Enforced workgroup prevents a dashboard query from scanning more than one GiB.
-  AnalyticsWorkGroup:
-    Type: AWS::Athena::WorkGroup
-    Properties:
-      Description: Cost-guarded workgroup for fixed dashboard query templates.
-      Name: !Sub ${AWS::StackName}-analytics
-      RecursiveDeleteOption: true
-      State: ENABLED
-      WorkGroupConfiguration:
-        BytesScannedCutoffPerQuery: 1073741824
-        EnforceWorkGroupConfiguration: true
-        PublishCloudWatchMetricsEnabled: true
-        ResultConfiguration:
-          EncryptionConfiguration:
-            EncryptionOption: SSE_S3
-          OutputLocation: !Sub s3://${AnalyticsBucket}/athena-results/
 
   # Deployment-time placeholders keep credentials out of source control.
   SupabaseCreds:
@@ -240,12 +143,12 @@ Resources:
         - Key: Project
           Value: kallo-analytics
 
-  # Separate Gemini secret limits accidental coupling with source credentials.
-  GeminiKey:
+  # Google credentials are isolated from Supabase and dashboard credentials.
+  GoogleMonitoringCredentials:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Description: Gemini key for the weekly insight Lambda.
-      SecretString: !Ref GeminiApiKey
+      Description: Read-only service account used by the Cloud Monitoring collector.
+      SecretString: !Ref GoogleServiceAccountJson
       Tags:
         - Key: Project
           Value: kallo-analytics
@@ -353,52 +256,31 @@ Resources:
               return {"statusCode": 202, "headers": {"Content-Type": "application/json"},
                       "body": json.dumps({"run_id": "placeholder", "status": "accepted"})}
 
-  # Athena API placeholder reserves the fixed-template asynchronous query routes.
-  ApiAthenaFunction:
+  # Cloud Monitoring API runs independently from the Glue snapshot pipeline.
+  ApiCloudMonitoringFunction:
     Type: AWS::Lambda::Function
     Properties:
-      Description: Placeholder for starting and polling fixed-template Athena queries.
+      Description: Reads Cloud Run operations from Google Cloud Monitoring and caches them in DynamoDB.
       Runtime: python3.12
       Handler: index.handler
       Role: !Sub arn:aws:iam::${AWS::AccountId}:role/LabRole
-      Timeout: 30
-      MemorySize: 256
-      ReservedConcurrentExecutions: 1
-      Environment:
-        Variables:
-          ATHENA_WORKGROUP: !Ref AnalyticsWorkGroup
-          ATHENA_DATABASE: !Ref AnalyticsGlueDatabase
-          ATHENA_OUTPUT: !Sub s3://${AnalyticsBucket}/athena-results/
-      Code:
-        ZipFile: |
-          import json
-
-          def handler(event, context):
-              return {"statusCode": 202, "headers": {"Content-Type": "application/json"},
-                      "body": json.dumps({"query_execution_id": "placeholder"})}
-
-  # Insight API placeholder reserves the weekly-summary integration with Gemini.
-  ApiInsightFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      Description: Placeholder for the DynamoDB-backed Gemini weekly summary.
-      Runtime: python3.12
-      Handler: index.handler
-      Role: !Sub arn:aws:iam::${AWS::AccountId}:role/LabRole
-      Timeout: 120
+      Timeout: 45
       MemorySize: 512
       ReservedConcurrentExecutions: 1
       Environment:
         Variables:
           TABLE_NAME: !Ref AnalyticsTable
-          GEMINI_SECRET_ARN: !Ref GeminiKey
+          GCP_SERVICE_ACCOUNT_SECRET_ARN: !Ref GoogleMonitoringCredentials
+          GCP_PROJECT_ID: !Ref GoogleCloudProjectId
+          GCP_CLOUD_RUN_SERVICE: !Ref GoogleCloudRunService
+          GCP_CLOUD_RUN_LOCATION: !Ref GoogleCloudRunLocation
       Code:
         ZipFile: |
           import json
 
           def handler(event, context):
               return {"statusCode": 200, "headers": {"Content-Type": "application/json"},
-                      "body": json.dumps({"summary": "Insight placeholder"})}
+                      "body": json.dumps({"source": "google-cloud-monitoring", "series": [], "placeholder": True})}
 
   # TOKEN authorizer checks the bearer secret and supplies the API usage identifier.
   AuthorizerFunction:
@@ -443,7 +325,7 @@ Resources:
                   },
               }
 
-  # Regional REST API exposes only the locked metrics, run, Athena, and insight surfaces.
+  # Regional REST API exposes the locked metrics, run, and Cloud Monitoring surfaces.
   DashboardApi:
     Type: AWS::ApiGateway::RestApi
     Properties:
@@ -617,88 +499,33 @@ Resources:
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
 
-  # /athena/query starts one of the fixed, cost-bounded query templates.
-  AthenaResource:
+  # /cloud-monitoring reads normal Cloud Run request and system metrics.
+  CloudMonitoringResource:
     Type: AWS::ApiGateway::Resource
     Properties:
       RestApiId: !Ref DashboardApi
       ParentId: !GetAtt DashboardApi.RootResourceId
-      PathPart: athena
+      PathPart: cloud-monitoring
 
-  AthenaQueryResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref DashboardApi
-      ParentId: !Ref AthenaResource
-      PathPart: query
-
-  AthenaQueryPostMethod:
+  CloudMonitoringGetMethod:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref DashboardApi
-      ResourceId: !Ref AthenaQueryResource
-      HttpMethod: POST
-      AuthorizationType: CUSTOM
-      AuthorizerId: !Ref DashboardAuthorizer
-      ApiKeyRequired: true
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiAthenaFunction.Arn}/invocations
-
-  AthenaQueryOptionsMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref DashboardApi
-      ResourceId: !Ref AthenaQueryResource
-      HttpMethod: OPTIONS
-      AuthorizationType: NONE
-      Integration:
-        Type: MOCK
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-        IntegrationResponses:
-          - StatusCode: '200'
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: "'Authorization,Content-Type'"
-              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
-              method.response.header.Access-Control-Allow-Origin: "'*'"
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: true
-            method.response.header.Access-Control-Allow-Methods: true
-            method.response.header.Access-Control-Allow-Origin: true
-
-  # /athena/query/{id} polls an asynchronous Athena query execution.
-  AthenaQueryIdResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref DashboardApi
-      ParentId: !Ref AthenaQueryResource
-      PathPart: '{id}'
-
-  AthenaQueryIdGetMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref DashboardApi
-      ResourceId: !Ref AthenaQueryIdResource
+      ResourceId: !Ref CloudMonitoringResource
       HttpMethod: GET
       AuthorizationType: CUSTOM
       AuthorizerId: !Ref DashboardAuthorizer
       ApiKeyRequired: true
-      RequestParameters:
-        method.request.path.id: true
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiAthenaFunction.Arn}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiCloudMonitoringFunction.Arn}/invocations
 
-  AthenaQueryIdOptionsMethod:
+  CloudMonitoringOptionsMethod:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref DashboardApi
-      ResourceId: !Ref AthenaQueryIdResource
+      ResourceId: !Ref CloudMonitoringResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
       Integration:
@@ -718,60 +545,6 @@ Resources:
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
 
-  # /insight/weekly isolates the comparatively slow Gemini operation.
-  InsightResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref DashboardApi
-      ParentId: !GetAtt DashboardApi.RootResourceId
-      PathPart: insight
-
-  InsightWeeklyResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref DashboardApi
-      ParentId: !Ref InsightResource
-      PathPart: weekly
-
-  InsightWeeklyPostMethod:
-    # Protected POST proxy connects the weekly summary route to its Lambda.
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref DashboardApi
-      ResourceId: !Ref InsightWeeklyResource
-      HttpMethod: POST
-      AuthorizationType: CUSTOM
-      AuthorizerId: !Ref DashboardAuthorizer
-      ApiKeyRequired: true
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiInsightFunction.Arn}/invocations
-
-  InsightWeeklyOptionsMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref DashboardApi
-      ResourceId: !Ref InsightWeeklyResource
-      HttpMethod: OPTIONS
-      AuthorizationType: NONE
-      Integration:
-        Type: MOCK
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-        IntegrationResponses:
-          - StatusCode: '200'
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: "'Authorization,Content-Type'"
-              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
-              method.response.header.Access-Control-Allow-Origin: "'*'"
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: true
-            method.response.header.Access-Control-Allow-Methods: true
-            method.response.header.Access-Control-Allow-Origin: true
-
   # A distinct deployment and stage make the URL stable for cross-stack export.
   ApiDeploymentV2:
     Type: AWS::ApiGateway::Deployment
@@ -782,12 +555,8 @@ Resources:
       - RunsOptionsMethod
       - RunIdGetMethod
       - RunIdOptionsMethod
-      - AthenaQueryPostMethod
-      - AthenaQueryOptionsMethod
-      - AthenaQueryIdGetMethod
-      - AthenaQueryIdOptionsMethod
-      - InsightWeeklyPostMethod
-      - InsightWeeklyOptionsMethod
+      - CloudMonitoringGetMethod
+      - CloudMonitoringOptionsMethod
     Properties:
       RestApiId: !Ref DashboardApi
       Description: Dashboard API deployment with five-minute TOKEN authorizer caching.
@@ -862,29 +631,13 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${DashboardApi}/*/GET/runs/*
 
-  ApiAthenaPostInvokePermission:
+  ApiCloudMonitoringInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:InvokeFunction
-      FunctionName: !Ref ApiAthenaFunction
+      FunctionName: !Ref ApiCloudMonitoringFunction
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${DashboardApi}/*/POST/athena/query
-
-  ApiAthenaQueryIdGetInvokePermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref ApiAthenaFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${DashboardApi}/*/GET/athena/query/*
-
-  ApiInsightWeeklyInvokePermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref ApiInsightFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${DashboardApi}/*/POST/insight/weekly
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${DashboardApi}/*/GET/cloud-monitoring
 
   AuthorizerInvokePermission:
     # Source-scoped permission lets this REST API invoke its TOKEN authorizer.
@@ -981,7 +734,7 @@ Resources:
 
 Outputs:
   BucketName:
-    Description: S3 bucket holding raw, curated, and Athena result prefixes.
+    Description: S3 bucket holding raw and curated analytics prefixes.
     Value: !Ref AnalyticsBucket
   DynamoTableName:
     Description: Aggregate and watermark DynamoDB table.
@@ -1008,12 +761,9 @@ Outputs:
   ApiRunsFunctionName:
     Description: Function name used to deploy the runs API code.
     Value: !Ref ApiRunsFunction
-  ApiAthenaFunctionName:
-    Description: Function name used to deploy the Athena API code.
-    Value: !Ref ApiAthenaFunction
-  ApiInsightFunctionName:
-    Description: Function name used to deploy the weekly-insight API code.
-    Value: !Ref ApiInsightFunction
+  ApiCloudMonitoringFunctionName:
+    Description: Function name used to deploy the Google Cloud Monitoring API code.
+    Value: !Ref ApiCloudMonitoringFunction
   AuthorizerFunctionName:
     Description: Function name used to deploy the API authorizer code.
     Value: !Ref AuthorizerFunction

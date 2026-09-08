@@ -6,13 +6,12 @@ from collections.abc import Mapping
 from typing import Any
 
 try:
-    import athena
-    import insight
+    import cloud_monitoring
     import metrics
     import runs
     from api_core import ApiError, error_response, json_response, request_method
 except ImportError:
-    from . import athena, insight, metrics, runs
+    from . import cloud_monitoring, metrics, runs
     from .api_core import ApiError, error_response, json_response, request_method
 
 
@@ -27,9 +26,6 @@ def handler(event: Mapping[str, Any] | None, context: Any) -> dict[str, Any]:
         return metrics.handler(event, context)
     if path.startswith("/runs"):
         return runs.handler(event, context)
-    if path.startswith("/athena/query"):
-        return athena.handler(event, context)
-    if path == "/insight/weekly":
-        return insight.handler(event, context)
+    if path == "/cloud-monitoring":
+        return cloud_monitoring.handler(event, context)
     return error_response(ApiError("route not found", 404))
-

@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64
 import json
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Protocol
@@ -26,18 +26,6 @@ AGGREGATE_NAMES: tuple[str, ...] = (
     "corpus_reverse_lookup",
     "ingredient_gaps",
     "ingredient_rank_distribution",
-)
-
-INSIGHT_METRICS: tuple[str, ...] = (
-    "dau_wau",
-    "macro_distributions",
-    "app_health",
-    "ai_latency",
-    "ai_failure_rate",
-    "token_cost_daily",
-    "match_rate",
-    "ingredient_gaps",
-    "implausible_foods",
 )
 
 ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
@@ -282,32 +270,3 @@ def get_run_record(table: DynamoTable, run_id: str) -> dict[str, Any] | None:
     )
     item = response.get("Item")
     return normalize_dynamo_item(item) if isinstance(item, Mapping) else None
-
-
-def build_insight_context(
-    items_by_metric: Mapping[str, Sequence[Mapping[str, Any]]],
-    from_date: str,
-    to_date: str,
-) -> dict[str, Any]:
-    """Build a deterministic, compact Gemini context from aggregate records."""
-
-    metrics: dict[str, list[dict[str, Any]]] = {}
-    for metric in INSIGHT_METRICS:
-        records: list[dict[str, Any]] = []
-        for item in items_by_metric.get(metric, ()):
-            normalized = normalize_dynamo_item(item)
-            record: dict[str, Any] = {"date": normalized.get("date")}
-            record["data"] = normalized.get("payload")
-            records.append(record)
-        metrics[metric] = records
-    return {"period": {"from": from_date, "to": to_date}, "metrics": metrics}
-
-
-def compact_json(value: Any) -> str:
-    return json.dumps(
-        json_compatible(value),
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-        allow_nan=False,
-    )

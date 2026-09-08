@@ -9,6 +9,7 @@ import {
   type MetricPayloadMap,
   type MetricResponse,
   type RunStatus,
+  type CloudMonitoringResponse,
 } from "./types";
 
 const MOCK_MODE = process.env.MOCK_API === "1";
@@ -121,16 +122,6 @@ export const getCachedSelectedMetrics = unstable_cache(
   { revalidate: 300 },
 );
 
-export async function getWeeklyInsight(): Promise<{ summary: string }> {
-  if (MOCK_MODE) {
-    return {
-      summary:
-        "Meal logging grew through the workweek while match quality improved to 93%. Gemini 2.5 Flash remained the main route, with combined estimated token cost averaging about $1.40 per day. P95 latency is still the main watch item, especially on Pro calls. Coverage review should prioritize bún riêu cua and bánh canh cua, the two most frequent unmatched foods in this sample.",
-    };
-  }
-  return apiRequest<{ summary: string }>("/insight/weekly", { method: "POST" });
-}
-
 export async function startRun(): Promise<{ run_id: string }> {
   if (MOCK_MODE) {
     const run_id = `mock-${Date.now()}`;
@@ -148,4 +139,27 @@ export async function getRun(runId: string): Promise<RunStatus> {
     return { run_id: runId, phase, updated_at: new Date().toISOString() };
   }
   return apiRequest<RunStatus>(`/runs/${encodeURIComponent(runId)}`);
+}
+
+export async function getCloudMonitoring(
+  from: string,
+  to: string,
+  refresh = false,
+): Promise<CloudMonitoringResponse> {
+  if (MOCK_MODE) {
+    return {
+      source: "google-cloud-monitoring",
+      project: "mock-project",
+      service: "kallo-prod",
+      location: "asia-southeast1",
+      from,
+      to,
+      alignment_seconds: 3600,
+      collected_at: new Date().toISOString(),
+      series: [],
+    };
+  }
+  return apiRequest<CloudMonitoringResponse>(
+    `/cloud-monitoring?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}${refresh ? "&refresh=1" : ""}`,
+  );
 }
