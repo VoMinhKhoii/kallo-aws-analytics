@@ -144,7 +144,9 @@ Resources:
           Value: kallo-analytics
 
   # Google credentials are isolated from Supabase and dashboard credentials.
-  GoogleMonitoringCredentials:
+  # The logical ID is retained from the removed Gemini summary so Learner Lab
+  # can update the existing secret without a forbidden create-before-delete.
+  GeminiKey:
     Type: AWS::SecretsManager::Secret
     Properties:
       Description: Read-only service account used by the Cloud Monitoring collector.
@@ -257,7 +259,9 @@ Resources:
                       "body": json.dumps({"run_id": "placeholder", "status": "accepted"})}
 
   # Cloud Monitoring API runs independently from the Glue snapshot pipeline.
-  ApiCloudMonitoringFunction:
+  # The logical ID is retained from the removed insight handler so this update
+  # reuses the existing Lambda instead of calling lambda:CreateFunction.
+  ApiInsightFunction:
     Type: AWS::Lambda::Function
     Properties:
       Description: Reads Cloud Run operations from Google Cloud Monitoring and caches them in DynamoDB.
@@ -270,7 +274,7 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME: !Ref AnalyticsTable
-          GCP_SERVICE_ACCOUNT_SECRET_ARN: !Ref GoogleMonitoringCredentials
+          GCP_SERVICE_ACCOUNT_SECRET_ARN: !Ref GeminiKey
           GCP_PROJECT_ID: !Ref GoogleCloudProjectId
           GCP_CLOUD_RUN_SERVICE: !Ref GoogleCloudRunService
           GCP_CLOUD_RUN_LOCATION: !Ref GoogleCloudRunLocation
@@ -519,7 +523,7 @@ Resources:
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiCloudMonitoringFunction.Arn}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiInsightFunction.Arn}/invocations
 
   CloudMonitoringOptionsMethod:
     Type: AWS::ApiGateway::Method
@@ -635,7 +639,7 @@ Resources:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:InvokeFunction
-      FunctionName: !Ref ApiCloudMonitoringFunction
+      FunctionName: !Ref ApiInsightFunction
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${DashboardApi}/*/GET/cloud-monitoring
 
@@ -763,7 +767,7 @@ Outputs:
     Value: !Ref ApiRunsFunction
   ApiCloudMonitoringFunctionName:
     Description: Function name used to deploy the Google Cloud Monitoring API code.
-    Value: !Ref ApiCloudMonitoringFunction
+    Value: !Ref ApiInsightFunction
   AuthorizerFunctionName:
     Description: Function name used to deploy the API authorizer code.
     Value: !Ref AuthorizerFunction
