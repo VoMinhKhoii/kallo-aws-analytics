@@ -141,6 +141,8 @@ The authenticated live checks returned:
 - a following non-refresh request: HTTP 200 with the same `collected_at`, confirming DynamoDB cache reuse;
 - `GET /metrics/ai_latency?from=2026-09-01&to=2026-09-08`: HTTP 200 with the current DynamoDB aggregate snapshot;
 - Monitoring collector reserved concurrency: 1; retained Athena compatibility Lambda reserved concurrency: 0.
+- `POST /runs`: HTTP 202 for run `33a68eec-7b2b-498e-b7fc-c51576a2fc29`; extraction wrote its run-specific manifest, Glue run `jr_c8ba43e8e217a8292eb628aeaa57b361e84007a194f35c968adf03d2c1108f7a` succeeded in 107 seconds, and the API reported the run completed;
+- the reloaded `ai_latency` DynamoDB snapshot contains 80 dated model rows and the 8 September call count advanced to 7, confirming the loader replaced the aggregate after that run.
 
 The Google reader has only `roles/monitoring.viewer`. Python tests, TypeScript, the production Next.js build, CloudFormation linting, shell validation, and draw.io validation are green. The remaining presentation-tier evidence is the separately disposable ECS/ALB deployment; do not imply that it is continuously hosted when it is stopped.
 
