@@ -2,7 +2,7 @@
 """Run the Kallo analytics pipeline locally without an AWS account.
 
 This harness cannot prove IAM or LabRole assumability, real Parquet output,
-Athena SQL correctness, EventBridge wiring, ECR/Fargate/ALB behaviour, or AWS
+EventBridge wiring, ECR/Fargate/ALB behaviour, Google Monitoring IAM, or AWS
 cost. Those require Session 0 against the real AWS Academy Learner Lab.
 
 Production extraction, aggregation, loading, and API handler modules are used
@@ -40,8 +40,8 @@ if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
 from glue.transforms import compute_aggregates  # noqa: E402
-from lambdas.api import athena, insight, metrics, runs  # noqa: E402
-from lambdas.api.api_core import ApiError, json_response  # noqa: E402
+from lambdas.api import metrics, runs  # noqa: E402
+from lambdas.api.api_core import json_response  # noqa: E402
 from lambdas.extract.extract_core import (  # noqa: E402
     run_extraction,
     utc_now,
@@ -327,36 +327,6 @@ class RecordingGlueClient:
         return {"JobRunId": job_run_id}
 
 
-class EnvironmentSecretsClient:
-    """Expose one environment variable through the Secrets Manager protocol."""
-
-    def __init__(self, environment_name: str) -> None:
-        self.environment_name = environment_name
-
-    def get_secret_value(self, *, SecretId: str) -> dict[str, str]:
-        del SecretId
-        value = os.environ.get(self.environment_name)
-        if not value:
-            raise RuntimeError(
-                f"required environment variable {self.environment_name} is not set"
-            )
-        return {"SecretString": value}
-
-
-class UnavailableAthenaClient:
-    """Make every valid local Athena request fail honestly with HTTP 501."""
-
-    _MESSAGE = "Athena runs only on AWS; this local stack cannot execute Athena SQL"
-
-    def start_query_execution(self, **kwargs: Any) -> dict[str, Any]:
-        del kwargs
-        raise ApiError(self._MESSAGE, 501)
-
-    def get_query_execution(self, **kwargs: Any) -> dict[str, Any]:
-        del kwargs
-        raise ApiError(self._MESSAGE, 501)
-
-
 @dataclass(frozen=True)
 class PipelineResult:
     run_id: str
@@ -616,9 +586,6 @@ class LocalApiServer(ThreadingHTTPServer):
         self.table = table
         self.lambda_client = lambda_client
         self.dashboard_token = dashboard_token
-        self.athena_client = UnavailableAthenaClient()
-        self.secrets_client = EnvironmentSecretsClient("GEMINI_API_KEY")
-        self.http_client = urllib3.PoolManager(ca_certs=certifi.where())
 
 
 class LocalRequestHandler(BaseHTTPRequestHandler):
@@ -682,7 +649,6 @@ class LocalRequestHandler(BaseHTTPRequestHandler):
         response: dict[str, Any]
         metric_match = re.fullmatch(r"/metrics/([^/]+)", path)
         run_match = re.fullmatch(r"/runs/([^/]+)", path)
-        query_match = re.fullmatch(r"/athena/query/([^/]+)", path)
         if metric_match:
             response = metrics.handle(
                 self._event(path_parameters={"metric": metric_match.group(1)}),
@@ -700,32 +666,10 @@ class LocalRequestHandler(BaseHTTPRequestHandler):
                 self._event(path_parameters={"run_id": run_match.group(1)}),
                 table=self.server.table,
             )
-        elif path == "/athena/query":
-            response = athena.handle(
-                self._event(),
-                self.server.athena_client,
-                workgroup="local-unavailable",
-                database="local-unavailable",
-                output="s3://local-unavailable/",
-            )
-        elif query_match:
-            response = athena.handle(
-                self._event(
-                    path_parameters={"query_id": query_match.group(1)}
-                ),
-                self.server.athena_client,
-                workgroup="local-unavailable",
-                database="local-unavailable",
-                output="s3://local-unavailable/",
-            )
-        elif path == "/insight/weekly":
-            response = insight.handle(
-                self._event(),
-                table=self.server.table,
-                secrets_client=self.server.secrets_client,
-                http_client=self.server.http_client,
-                secret_arn="local:GEMINI_API_KEY",
-            )
+        elif path == "/cloud-monitoring":
+            response = json_response(501, {
+                "error": "Cloud Monitoring is exercised by the deployed collector, not the local AWS adapter"
+            })
         else:
             response = json_response(404, {"error": "Not found"})
         self._write_response(response)
