@@ -337,12 +337,20 @@ def _histogram(
 
 def macro_distributions(meals: Sequence[Row]) -> list[dict[str, Any]]:
     output: list[dict[str, Any]] = []
-    for nutrient, boundaries in MACRO_BUCKETS.items():
-        values = [
-            _number(row[nutrient]) for row in meals if row.get(nutrient) is not None
-        ]
-        for bucket in _histogram(values, boundaries):
-            output.append({"nutrient": nutrient, **bucket})
+    meals_by_day: dict[str, list[Row]] = defaultdict(list)
+    for row in meals:
+        day = _as_date(row.get("logged_at"))
+        if day is not None:
+            meals_by_day[day.isoformat()].append(row)
+    for day in sorted(meals_by_day):
+        for nutrient, boundaries in MACRO_BUCKETS.items():
+            values = [
+                _number(row[nutrient])
+                for row in meals_by_day[day]
+                if row.get(nutrient) is not None
+            ]
+            for bucket in _histogram(values, boundaries):
+                output.append({"date": day, "nutrient": nutrient, **bucket})
     return output
 
 
@@ -1272,18 +1280,28 @@ def ingredient_demand(
 ) -> list[dict[str, Any]]:
     """Rank bounded ingredient queries by observed decision frequency."""
 
-    counts: Counter[str] = Counter()
+    counts: Counter[tuple[str, str]] = Counter()
     for row in ingredient_decisions:
         query = _ingredient_query(row)
         if query is not None:
-            counts[query] += 1
-    ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))[
-        : max(0, limit)
-    ]
-    return [
-        {"rank": rank, "ingredient_query": query, "count": count}
-        for rank, (query, count) in enumerate(ranked, start=1)
-    ]
+            day = _as_date(row.get("occurred_on"))
+            counts[(day.isoformat() if day else "", query)] += 1
+    output: list[dict[str, Any]] = []
+    for day in sorted({key[0] for key in counts}):
+        ranked = sorted(
+            ((query, count) for (row_day, query), count in counts.items() if row_day == day),
+            key=lambda item: (-item[1], item[0]),
+        )[: max(0, limit)]
+        for rank, (query, count) in enumerate(ranked, start=1):
+            output.append(
+                {
+                    **({"date": day} if day else {}),
+                    "rank": rank,
+                    "ingredient_query": query,
+                    "count": count,
+                }
+            )
+    return output
 
 
 def ingredient_mappings(
@@ -1291,7 +1309,7 @@ def ingredient_mappings(
 ) -> list[dict[str, Any]]:
     """Summarize the most frequent candidate mapping observed for each query."""
 
-    states: dict[str, dict[str, Any]] = {}
+    states: dict[tuple[str, str], dict[str, Any]] = {}
     for row in ingredient_decisions:
         query = _ingredient_query(row)
         if query is None:
@@ -1299,8 +1317,9 @@ def ingredient_mappings(
         candidates = [_ingredient_candidate(row, rank) for rank in range(1, 4)]
         chosen = _ingredient_chosen(row)
         signature = _ingredient_mapping_signature(candidates, chosen)
+        day = _as_date(row.get("occurred_on"))
         state = states.setdefault(
-            query,
+            (day.isoformat() if day else "", query),
             {"decision_count": 0, "accepted_count": 0, "mappings": {}},
         )
         state["decision_count"] += 1
@@ -1313,29 +1332,33 @@ def ingredient_mappings(
         )
         record["count"] += 1
 
-    ranked_queries = sorted(
-        states.items(), key=lambda item: (-item[1]["decision_count"], item[0])
-    )[: max(0, limit)]
     output: list[dict[str, Any]] = []
-    for rank, (query, state) in enumerate(ranked_queries, start=1):
-        representative = sorted(
-            state["mappings"].items(), key=lambda item: (-item[1]["count"], item[0])
-        )[0][1]
-        candidate_rows = [
-            {"rank": candidate_rank, **candidate}
-            for candidate_rank, candidate in enumerate(representative["candidates"], 1)
-            if candidate is not None
-        ]
-        output.append(
-            {
-                "rank": rank,
-                "ingredient_query": query,
-                "decision_count": state["decision_count"],
-                "accepted_count": state["accepted_count"],
-                "candidates": candidate_rows,
-                "chosen": representative["chosen"],
-            }
-        )
+    for day in sorted({key[0] for key in states}):
+        ranked_queries = sorted(
+            ((query, state) for (row_day, query), state in states.items() if row_day == day),
+            key=lambda item: (-item[1]["decision_count"], item[0]),
+        )[: max(0, limit)]
+        for rank, (query, state) in enumerate(ranked_queries, start=1):
+            representative = sorted(
+                state["mappings"].items(),
+                key=lambda item: (-item[1]["count"], item[0]),
+            )[0][1]
+            candidate_rows = [
+                {"rank": candidate_rank, **candidate}
+                for candidate_rank, candidate in enumerate(representative["candidates"], 1)
+                if candidate is not None
+            ]
+            output.append(
+                {
+                    **({"date": day} if day else {}),
+                    "rank": rank,
+                    "ingredient_query": query,
+                    "decision_count": state["decision_count"],
+                    "accepted_count": state["accepted_count"],
+                    "candidates": candidate_rows,
+                    "chosen": representative["chosen"],
+                }
+            )
     return output
 
 
@@ -1346,14 +1369,16 @@ def corpus_reverse_lookup(
 ) -> list[dict[str, Any]]:
     """Rank canonical chosen foods with bounded query examples."""
 
-    groups: dict[tuple[str, str, str], dict[str, Any]] = {}
+    groups: dict[tuple[str, str, str, str], dict[str, Any]] = {}
     for row in ingredient_decisions:
         if _ingredient_verdict(row.get("verdict")) != "accepted":
             continue
         chosen = _ingredient_chosen(row)
         if chosen is None or chosen.get("food_id") is None:
             continue
+        day = _as_date(row.get("occurred_on"))
         key = (
+            day.isoformat() if day else "",
             str(chosen.get("food_id") or ""),
             str(chosen.get("name") or ""),
             str(chosen.get("source") or ""),
@@ -1382,6 +1407,7 @@ def corpus_reverse_lookup(
         )[: max(0, example_limit)]
         output.append(
             {
+                **({"date": _key[0]} if _key[0] else {}),
                 "rank": rank,
                 "food_id": chosen.get("food_id"),
                 "food_name": chosen.get("name"),
@@ -1399,25 +1425,35 @@ def ingredient_gaps(
 ) -> list[dict[str, Any]]:
     """Rank unmatched and rejected queries by their controlled reason bucket."""
 
-    counts: Counter[tuple[str, str, str]] = Counter()
+    counts: Counter[tuple[str, str, str, str]] = Counter()
     for row in ingredient_decisions:
         verdict = _ingredient_verdict(row.get("verdict"))
         query = _ingredient_query(row)
         if verdict not in {"unmatched", "rejected"} or query is None:
             continue
-        counts[(query, verdict, _ingredient_reject_bucket(row, verdict))] += 1
+        day = _as_date(row.get("occurred_on"))
+        counts[
+            (
+                day.isoformat() if day else "",
+                query,
+                verdict,
+                _ingredient_reject_bucket(row, verdict),
+            )
+        ] += 1
     ranked = sorted(
-        counts.items(), key=lambda item: (-item[1], item[0][0], item[0][1], item[0][2])
+        counts.items(),
+        key=lambda item: (-item[1], item[0][0], item[0][1], item[0][2], item[0][3]),
     )[: max(0, limit)]
     return [
         {
+            **({"date": day} if day else {}),
             "rank": rank,
             "ingredient_query": query,
             "verdict": verdict,
             "reject_bucket": bucket,
             "count": count,
         }
-        for rank, ((query, verdict, bucket), count) in enumerate(ranked, start=1)
+        for rank, ((day, query, verdict, bucket), count) in enumerate(ranked, start=1)
     ]
 
 
@@ -1426,7 +1462,7 @@ def ingredient_rank_distribution(
 ) -> list[dict[str, Any]]:
     """Report selected-rank shares within each accepted candidate pool size."""
 
-    counts: dict[int, Counter[int]] = defaultdict(Counter)
+    counts: dict[tuple[str, int], Counter[int]] = defaultdict(Counter)
     for row in ingredient_decisions:
         if _ingredient_verdict(row.get("verdict")) != "accepted":
             continue
@@ -1440,14 +1476,16 @@ def ingredient_rank_distribution(
             or selected_rank > pool_size
         ):
             continue
-        counts[pool_size][selected_rank] += 1
+        day = _as_date(row.get("occurred_on"))
+        counts[(day.isoformat() if day else "", pool_size)][selected_rank] += 1
 
     output: list[dict[str, Any]] = []
-    for pool_size in sorted(counts):
-        total = sum(counts[pool_size].values())
-        for selected_rank, count in sorted(counts[pool_size].items()):
+    for day, pool_size in sorted(counts):
+        total = sum(counts[(day, pool_size)].values())
+        for selected_rank, count in sorted(counts[(day, pool_size)].items()):
             output.append(
                 {
+                    **({"date": day} if day else {}),
                     "pool_size": pool_size,
                     "selected_rank": selected_rank,
                     "count": count,

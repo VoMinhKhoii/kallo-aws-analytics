@@ -58,21 +58,14 @@ def test_fixture_golden_meal_aggregates() -> None:
     non_empty_buckets = [
         row for row in aggregates["macro_distributions"] if row["count"]
     ]
-    assert non_empty_buckets == [
-        {"nutrient": "calories_kcal", "bucket_min": 100, "bucket_max": 200, "count": 1},
-        {"nutrient": "calories_kcal", "bucket_min": 400, "bucket_max": 500, "count": 1},
-        {"nutrient": "calories_kcal", "bucket_min": 500, "bucket_max": 750, "count": 1},
-        {"nutrient": "protein_g", "bucket_min": 0, "bucket_max": 10, "count": 1},
-        {"nutrient": "protein_g", "bucket_min": 20, "bucket_max": 30, "count": 1},
-        {"nutrient": "protein_g", "bucket_min": 30, "bucket_max": 40, "count": 1},
-        {"nutrient": "carbohydrate_g", "bucket_min": 20, "bucket_max": 30, "count": 1},
-        {"nutrient": "carbohydrate_g", "bucket_min": 50, "bucket_max": 75, "count": 1},
-        {"nutrient": "carbohydrate_g", "bucket_min": 75, "bucket_max": 100, "count": 1},
-        {"nutrient": "fat_g", "bucket_min": 5, "bucket_max": 10, "count": 1},
-        {"nutrient": "fat_g", "bucket_min": 10, "bucket_max": 15, "count": 1},
-        {"nutrient": "fat_g", "bucket_min": 20, "bucket_max": 30, "count": 1},
-    ]
-    assert len(aggregates["macro_distributions"]) == 31
+    assert {row["date"] for row in non_empty_buckets} == {
+        "2026-08-08",
+        "2026-08-09",
+        "2026-08-10",
+    }
+    assert len(non_empty_buckets) == 12
+    assert len(aggregates["macro_distributions"]) == 93
+    assert all(row["count"] == 1 for row in non_empty_buckets)
 
 
 def test_fixture_golden_ai_and_matching_aggregates() -> None:
@@ -195,32 +188,35 @@ def test_ingredient_intelligence_metrics_are_wired_and_privacy_safe() -> None:
     aggregates = compute_aggregates(all_fixture_rows())
 
     assert aggregates["ingredient_demand"] == [
-        {"rank": 1, "ingredient_query": "chicken breast", "count": 2},
-        {"rank": 2, "ingredient_query": "mystery herb", "count": 1},
-        {"rank": 3, "ingredient_query": "unknown spice", "count": 1},
+        {"date": "2026-08-08", "rank": 1, "ingredient_query": "unknown spice", "count": 1},
+        {"date": "2026-08-09", "rank": 1, "ingredient_query": "mystery herb", "count": 1},
+        {"date": "2026-08-10", "rank": 1, "ingredient_query": "chicken breast", "count": 2},
     ]
     assert aggregates["ingredient_gaps"] == [
         {
+            "date": "2026-08-08",
             "rank": 1,
-            "ingredient_query": "mystery herb",
-            "verdict": "unmatched",
-            "reject_bucket": "unmatched",
-            "count": 1,
-        },
-        {
-            "rank": 2,
             "ingredient_query": "unknown spice",
             "verdict": "rejected",
             "reject_bucket": "no_candidates",
             "count": 1,
         },
+        {
+            "date": "2026-08-09",
+            "rank": 2,
+            "ingredient_query": "mystery herb",
+            "verdict": "unmatched",
+            "reject_bucket": "unmatched",
+            "count": 1,
+        },
     ]
     assert aggregates["ingredient_rank_distribution"] == [
-        {"pool_size": 1, "selected_rank": 1, "count": 1, "share": 1.0},
-        {"pool_size": 3, "selected_rank": 2, "count": 1, "share": 1.0},
+        {"date": "2026-08-10", "pool_size": 1, "selected_rank": 1, "count": 1, "share": 1.0},
+        {"date": "2026-08-10", "pool_size": 3, "selected_rank": 2, "count": 1, "share": 1.0},
     ]
     assert aggregates["corpus_reverse_lookup"] == [
         {
+            "date": "2026-08-10",
             "rank": 1,
             "food_id": "VNFC-002",
             "food_name": "Chicken breast",
@@ -232,15 +228,18 @@ def test_ingredient_intelligence_metrics_are_wired_and_privacy_safe() -> None:
     ]
 
     mappings = ingredient_mappings(decisions)
-    assert mappings[0]["ingredient_query"] == "chicken breast"
-    assert mappings[0]["decision_count"] == 2
-    assert mappings[0]["chosen"] == {
+    chicken_mapping = next(
+        row for row in mappings if row["ingredient_query"] == "chicken breast"
+    )
+    assert chicken_mapping["date"] == "2026-08-10"
+    assert chicken_mapping["decision_count"] == 2
+    assert chicken_mapping["chosen"] == {
         "food_id": "VNFC-002",
         "name": "Chicken breast",
         "source": "USDA",
         "similarity": 0.94,
     }
-    assert mappings[0]["candidates"]
+    assert chicken_mapping["candidates"]
     assert all(
         key not in {"decision_key", "request_id", "user_hash", "session_hash"}
         for metric in (
