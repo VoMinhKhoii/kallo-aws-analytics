@@ -255,9 +255,8 @@ Resources:
               return {"statusCode": 202, "headers": {"Content-Type": "application/json"},
                       "body": json.dumps({"run_id": "placeholder", "status": "accepted"})}
 
-  # Cloud Monitoring API runs independently from the Glue snapshot pipeline.
-  # The logical ID is retained from the removed insight handler so this update
-  # reuses the existing Lambda instead of calling lambda:CreateFunction.
+  # The existing insight Lambda is repurposed for Cloud Monitoring because
+  # Learner Lab explicitly denies both Lambda create and delete operations.
   ApiInsightFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -282,6 +281,24 @@ Resources:
           def handler(event, context):
               return {"statusCode": 200, "headers": {"Content-Type": "application/json"},
                       "body": json.dumps({"source": "google-cloud-monitoring", "series": [], "placeholder": True})}
+
+  # Learner Lab explicitly denies lambda:DeleteFunction. This legacy logical
+  # resource therefore remains present but permanently throttled and has no
+  # API Gateway routes or service permissions.
+  ApiAthenaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Disabled compatibility resource; Athena is not part of the application.
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !Sub arn:aws:iam::${AWS::AccountId}:role/LabRole
+      Timeout: 3
+      MemorySize: 128
+      ReservedConcurrentExecutions: 0
+      Code:
+        ZipFile: |
+          def handler(event, context):
+              return {"statusCode": 410, "body": "retired"}
 
   # TOKEN authorizer checks the bearer secret and supplies the API usage identifier.
   AuthorizerFunction:
@@ -547,7 +564,7 @@ Resources:
             method.response.header.Access-Control-Allow-Origin: true
 
   # A distinct deployment and stage make the URL stable for cross-stack export.
-  ApiDeploymentV2:
+  ApiDeploymentV3:
     Type: AWS::ApiGateway::Deployment
     DependsOn:
       - MetricsGetMethod
@@ -560,14 +577,14 @@ Resources:
       - CloudMonitoringOptionsMethod
     Properties:
       RestApiId: !Ref DashboardApi
-      Description: Dashboard API deployment with five-minute TOKEN authorizer caching.
+      Description: Dashboard API deployment with Cloud Monitoring and five-minute TOKEN authorizer caching.
 
   ApiStage:
     # Production stage adds low per-second throttles without a billable API cache.
     Type: AWS::ApiGateway::Stage
     Properties:
       RestApiId: !Ref DashboardApi
-      DeploymentId: !Ref ApiDeploymentV2
+      DeploymentId: !Ref ApiDeploymentV3
       StageName: prod
       MethodSettings:
         - ResourcePath: '/*'

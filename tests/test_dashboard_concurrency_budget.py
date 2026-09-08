@@ -32,8 +32,8 @@ def test_static_bearer_authorization_is_cached_for_one_dashboard_window() -> Non
 
     assert "Type: TOKEN" in authorizer
     assert "AuthorizerResultTtlInSeconds: 300" in authorizer
-    assert "ApiDeploymentV2:" in template
-    assert "DeploymentId: !Ref ApiDeploymentV2" in template
+    assert "ApiDeploymentV3:" in template
+    assert "DeploymentId: !Ref ApiDeploymentV3" in template
 
 
 def test_observe_pages_use_their_intended_data_paths() -> None:
