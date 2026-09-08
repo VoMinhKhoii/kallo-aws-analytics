@@ -23,7 +23,7 @@ def test_dashboard_reads_have_two_bounded_execution_lanes() -> None:
         int(line.rsplit(":", 1)[1])
         for line in template.splitlines()
         if "ReservedConcurrentExecutions:" in line
-    ) == 9
+    ) == 8
 
 
 def test_static_bearer_authorization_is_cached_for_one_dashboard_window() -> None:
@@ -36,16 +36,17 @@ def test_static_bearer_authorization_is_cached_for_one_dashboard_window() -> Non
     assert "DeploymentId: !Ref ApiDeploymentV2" in template
 
 
-def test_observe_pages_issue_one_metric_bundle_each() -> None:
+def test_observe_pages_use_their_intended_data_paths() -> None:
     today = (ROOT / "dashboard" / "app" / "page.tsx").read_text(encoding="utf-8")
     system = (ROOT / "dashboard" / "app" / "system" / "page.tsx").read_text(
         encoding="utf-8"
     )
 
     assert today.count("useMetricBundle(") == 1
-    assert system.count("useMetricBundle(") == 1
+    assert system.count("useCloudMonitoring(") == 1
+    assert "useMetricBundle(" not in system
     assert '"app_health"' in today
-    assert '"app_health"' in system
+    assert '"app_health"' not in system
     assert 'fetch("/api/aws-status"' not in system
 
 
