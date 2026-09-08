@@ -23,7 +23,10 @@ const laptop = frame("laptop", "Developer laptop (two git repos)", { dir: "col",
 
 // ZONE 2 — Production (GCP + Supabase) — existing product with a narrow read-only boundary.
 const prod = frame("prod", "Production (GCP + Supabase)", { dir: "col", gap: 16, stroke: "#5A6B7B" }, [
-  icon("cloudrun", "gcp_cloud_run", "GCP Cloud Run (Kallo app)"),
+  grid("gcp_grid", null, "", { cols: 2, gap: 14, pad: 4 }, [
+    icon("cloudrun", "gcp_cloud_run", "Cloud Run (Kallo app)"),
+    icon("gcm", "gcp_cloud_monitoring", "Cloud Monitoring API"),
+  ]),
   frame("supa_box", "Supabase Postgres", { dir: "col", gap: 8, stroke: "#3FCF8E" }, [
     icon("supabase", "supabase", ""),
     box("supa_note", "6 sanitized read-only views\nAI runs · macros · app health · ingredient quality", { w: 260, h: 46, fill: "#E9F9F1", stroke: "#3FCF8E" }),
@@ -34,7 +37,7 @@ const prod = frame("prod", "Production (GCP + Supabase)", { dir: "col", gap: 16,
 // Continuous dashboard host — used for product iteration while AWS presentation stays disposable.
 const vercel = frame("vercel", "Vercel production (continuous dashboard)", { dir: "col", gap: 12, stroke: "#232F3E" }, [
   box("vercel_app", "Next.js operator console\nfounder + reviewer sessions", { w: 230, h: 46, bold: true }),
-  box("vercel_note", "DAU/WAU context · app health · AI pipeline\ningredient/corpus quality", { w: 250, h: 46 }),
+  box("vercel_note", "Time-filtered domain aggregates · AI exact traces\nCloud Run system health", { w: 250, h: 46 }),
   box("vercel_cost", "Continuous host · deployed from assignment repo\nno AWS presentation billing", { w: 250, h: 42 }),
 ]);
 
@@ -50,20 +53,20 @@ const aws = group("aws", "group_aws_cloud_alt", "AWS Academy Learner Lab (us-eas
         icon("s3", "s3", "S3"),
         icon("ddb", "dynamodb", "DynamoDB"),
         icon("glue", "glue", "Glue"),
-        icon("athena", "athena", "Athena"),
+        icon("cloudwatch", "cloudwatch_2", "CloudWatch"),
         icon("lambda", "lambda", "Lambdas"),
         icon("apigw", "api_gateway", "API GW"),
         icon("evb", "eventbridge", "EventBridge"),
         icon("secrets", "secrets_manager", "Secrets"),
       ]),
       box("runtime_contract", "13 operational aggregates\nDAU/WAU · health · AI latency/failures/cost · match/macros/corpus", { w: 380, h: 46, fill: "#FFF4E6", stroke: "#ED7100", bold: true }),
-      box("serving_guardrails", "API guardrails: TOKEN auth cached 300 s · metrics + authorizer concurrency 2 each\nLambda reserved concurrency: 9 / 10 account total", { w: 430, h: 46, fill: "#F7F4EF", stroke: "#8C9BAB" }),
+      box("serving_guardrails", "API guardrails: TOKEN auth cached 300 s · Cloud Monitoring cache 120 s\nLambda reserved concurrency: 8 / 10 account total", { w: 430, h: 46, fill: "#F7F4EF", stroke: "#8C9BAB" }),
     ]),
     frame("pres_stack", "presentation stack (disposable · per work session)", { dir: "row", gap: 20, stroke: "#8C4FFF" }, [
       icon("alb", "application_load_balancer", "ALB"),
       icon("fargate", "fargate", "ECS Fargate"),
       icon("authsecrets", "secrets_manager", "5 login secrets"),
-      box("pres_note", "API Gateway + cached Supabase RPCs\nshared restricted secret · assessment evidence only", { w: 260, h: 46 }),
+      box("pres_note", "API Gateway for AWS + system metrics\nexact-trace RPC direct from Next.js server", { w: 260, h: 46 }),
     ]),
   ]),
 ]);
@@ -87,9 +90,12 @@ d.link("ops", "ecr", "docker push · session creds", { dir: "LR" });
 d.link("cfn", "data_stack", "creates", { dash: true });
 d.link("cfn", "pres_stack", "creates / deletes per session", { dash: true, route: { es: "B", en: "L", kind: "Lvh" } });
 d.link("supa_box", "data_stack", "daily extract · HTTPS, read-only views", { flow: true, dir: "TB" });
-d.link("vercel", "supa_box", "cached read-only RPCs", { dash: true });
+d.link("cloudrun", "gcm", "emits operations", { dash: true });
+d.link("data_stack", "gcm", "Monitoring API read", { dash: true });
+d.link("vercel", "supa_box", "bounded exact-trace RPC", { dash: true });
 d.link("vercel", "data_stack", "API Gateway · server-held bearer", { flow: true });
 d.link("tutor", "vercel", "normal testing URL");
+d.link("tutor", "pres_stack", "assessment URL", { dash: true });
 
 const res = d.validate();
 console.log("VALIDATE:", JSON.stringify({ ok: res.ok, errors: res.errors, warnings: res.warnings, advice: res.audit.advice }));

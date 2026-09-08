@@ -93,8 +93,8 @@ def main() -> None:
 
         # curated/ holds the LATEST COMPLETE SNAPSHOT, not one copy per day.
         # Extraction is a full snapshot, so partitioning by extraction date
-        # would make Athena read the same source row once per snapshot that
-        # ever ran and silently multiply every count. Overwrite instead.
+        # would retain duplicate copies of the same source row across runs.
+        # Overwrite to preserve one latest complete curated snapshot.
         curated_uri = f"s3://{bucket}/curated/{view_name}/"
         frame.write.mode("overwrite").parquet(curated_uri)
 

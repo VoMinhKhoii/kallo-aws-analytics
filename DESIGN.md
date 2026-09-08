@@ -46,9 +46,9 @@ status indicator has a text label, count, pattern, or table equivalent.
 
 - Desktop-first shell: 240px persistent navigation, 56px top utility bar, and
   a content column capped at 1440px.
-- Primary pages are `/`, `/ai`, `/ingredients`, and `/system`. Pipeline,
-  retrieval, coverage, and trace pages remain reachable in a secondary
-  diagnosis section. There is no user-behavior page.
+- Primary pages are `/`, `/ai`, `/ingredients`, and `/system`. The old pipeline,
+  retrieval, and coverage routes redirect into the consolidated pages. Exact
+  trace detail remains reachable from AI. There is no user-behavior page.
 - The first row on each page establishes the page purpose, data window, and
   source state. The next row carries the most decision-relevant comparison or
   distribution. Detail tables follow below.
@@ -60,8 +60,13 @@ status indicator has a text label, count, pattern, or table equivalent.
 
 ## Interaction rules
 
-- Range controls are explicit: Today/24h and 30d defaults are labeled by page,
-  and changing a range updates only the metrics that page requests.
+- Range controls are explicit: Today, 7d, 30d, and 90d are labeled by page,
+  and every chart and summary is recomputed from the chosen window.
+- Time-series charts always occupy the full content width. Related model
+  breakdowns belong in the chart tooltip instead of a second adjacent chart.
+- Pages backed by direct APIs expose a refresh action. Glue-only pages expose
+  the manual snapshot control instead because browser refresh cannot create a
+  newer aggregate.
 - Platform, locale, and meal-mode controls are honest scope controls. If the
   backing aggregate has no dimension, the control is disabled and says that the
   source does not support that cut.
@@ -102,7 +107,7 @@ are bounded before the app will serve protected data.
 Successful login creates a role-only, HMAC-signed session with an eight-hour
 expiry in an `HttpOnly`, `Secure`, `SameSite=Strict` cookie. The cookie carries
 no username, email, or raw identifier. Founder sessions may request a manual
-snapshot or weekly insight; reviewer sessions are read-only. Both middleware
+snapshot; reviewer sessions are read-only. Both middleware
 and route handlers enforce those roles, so hiding a control in the browser is
 not the security boundary. Mutating requests also require a matching `Origin`
 and same-origin URL; this is a lightweight CSRF boundary for the private
@@ -113,7 +118,11 @@ by its trusted proxy. Logout is a same-origin POST that expires the cookie.
 
 - AWS aggregate contracts are requested by page and only for the range needed
   by that page. The complete contract is thirteen operational metrics.
-- Existing cached Supabase RPCs provide corpus, unresolved, request, and trace
-  drilldowns. Raw user/session identifiers and source payloads never render.
+- Google Cloud Monitoring provides normal Cloud Run request latency, request
+  volume, 5xx counts, startup latency, CPU, memory, and instance data on the
+  System page. Its request latency is explicitly separate from AI model call
+  latency.
+- One bounded Supabase RPC provides exact AI-meal trace details. Raw
+  user/session identifiers and source payloads never render.
 - Consent/default-deny absence is an honest no-data state. It is distinct from
   an unavailable API or an invalid configuration.

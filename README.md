@@ -2,7 +2,7 @@
 
 ## Overview
 
-Kallo Analytics Plane is a low-cost analytics and operations layer for `kallo.fit`. It extracts privacy-reduced views from Supabase, lands raw data in Amazon S3, transforms it with AWS Glue, loads dashboard aggregates into DynamoDB, and serves them through API Gateway to a Next.js dashboard on ECS Fargate. Athena supports fixed analytical queries, while Gemini can generate a weekly operational summary.
+Kallo Analytics Plane is a low-cost analytics and operations layer for `kallo.fit`. It extracts privacy-reduced views from Supabase, lands raw data in Amazon S3, transforms it with AWS Glue, loads dashboard aggregates into DynamoDB, and serves them through API Gateway to a Next.js dashboard. Google Cloud Monitoring supplies app-wide Cloud Run request and runtime metrics through a separate cached collector. Exact AI-meal traces use one bounded server-side Supabase RPC and never enter the Glue aggregate path.
 
 The architecture is deliberately shaped by AWS Academy Learner Lab constraints: a USD 50 total budget, `us-east-1` only, the pre-existing `LabRole`, restricted service availability, and tight Glue and Lambda limits. The persistent data stack therefore favors scheduled batch processing and pay-per-request storage, while the costlier ALB and ECS presentation stack is disposable and should run only for development or demonstrations.
 
@@ -14,10 +14,10 @@ flowchart LR
   SB[(Supabase)] --> EX
   EX --> S3R[(S3 raw)] --> GL[Glue] --> S3C[(S3 curated)]
   GL --> LD[Loader Lambda] --> DB[(DynamoDB)]
-  UI[Next.js on ECS / ALB] --> API[API Gateway + Lambdas]
+  GCM[Google Cloud Monitoring] --> CM[Monitoring collector Lambda] --> DB
+  UI[Next.js on Vercel or ECS / ALB] --> API[API Gateway + Lambdas]
   API --> DB
-  API --> AT[Athena] --> S3C
-  API --> GM[Gemini]
+  UI -. exact-trace RPC .-> SB
 ```
 
 ## Directory map
@@ -50,5 +50,7 @@ MOCK_API=1 npm run dev
 ```
 
 For AWS deployment, follow [scripts/README.md](scripts/README.md) and [infra/README.md](infra/README.md).
+
+The continuously hosted Vercel deployment is the permanent submission URL. The ALB + ECS Fargate presentation stack demonstrates the fully implemented AWS container path and is intentionally created only for assessment sessions because an ALB has an hourly baseline cost.
 
 [docs/solution-architecture.md](docs/solution-architecture.md) is the graded report.

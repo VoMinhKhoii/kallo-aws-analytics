@@ -1,3 +1,7 @@
+# Archived handoff — superseded by the Cloud Monitoring architecture
+
+> Historical only. Athena and the generated Gemini summary were removed on 2026-09-08. Use `docs/solution-architecture.md` and `scripts/README.md` for the current contract.
+
 # Codex handoff — Kallo Analytics Plane, local end-to-end verification
 
 You are picking up a partially-finished body of work in `~/Documents/kallo-aws-analytics`.

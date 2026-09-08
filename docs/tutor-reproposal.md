@@ -1,3 +1,7 @@
+# Archived re-proposal — earlier architecture
+
+> Historical correspondence only. It predates the removal of Athena and the generated Gemini summary. The final service map is in `docs/solution-architecture.md`.
+
 # Re-proposal: Kallo Analytics Plane on AWS
 
 **To:** Dr Ginel  

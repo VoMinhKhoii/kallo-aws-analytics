@@ -48,9 +48,9 @@ The tree above is a packaging target, not a statement that screenshots already e
 ### `doc_images/`
 
 - [ ] Include a high-resolution export of the final architecture diagram as `architecture-diagram.png` if the PDF renderer does not render Mermaid reliably.
-- [ ] Include only screenshots captured from a real deployment. Useful evidence, once genuinely obtained, includes the ALB-served dashboard, a successful manual run and completed poll state, S3 prefixes/manifest, a successful Glue run, DynamoDB aggregate items, EventBridge rules, API routes, Athena query after catalogue completion, and the Learner Lab budget view.
+- [ ] Include only screenshots captured from a real deployment. Useful evidence, once genuinely obtained, includes the permanent dashboard URL, the ALB-served dashboard, a successful manual run and completed poll state, S3 prefixes/manifest, a successful Glue run, DynamoDB aggregate items, EventBridge rules, API routes, Cloud Monitoring System charts, and the Learner Lab budget view.
 - [ ] Give screenshots descriptive names and refer to each one from the PDF; remove unused images.
-- [ ] Redact account IDs where required and always redact bearer tokens, Supabase/Gemini keys, secret values, JWTs, raw user identifiers and the analytics pepper.
+- [ ] Redact account IDs where required and always redact bearer tokens, Supabase keys, Google service-account material, secret values, JWTs, raw user identifiers and the analytics pepper.
 - [ ] Do not manufacture screenshots or insert the current live-URL placeholder as if it were deployment evidence.
 
 ### `code/`
@@ -67,20 +67,20 @@ The tree above is a packaging target, not a statement that screenshots already e
 - [ ] Copy all three CloudFormation templates and `infra/README.md` into `deploy/infra/`.
 - [ ] Copy the four deployment/lifecycle scripts and `scripts/README.md` into `deploy/scripts/`.
 - [ ] Preserve executable permissions on `.sh` files if the ZIP tool supports them.
-- [ ] Confirm the templates contain no `AWS::IAM::Role` or `AWS::IAM::Policy`, no NAT Gateway, and the required Glue/Athena/Lambda cost guards.
-- [ ] Before describing the deployment as working, reconcile the ECS/ALB container port with the Docker image's port and add the missing Athena catalogue tables/crawler; include the corrected files, tests and real evidence.
+- [ ] Confirm the templates contain no `AWS::IAM::Role` or `AWS::IAM::Policy`, no NAT Gateway, and the required Glue/Lambda/API cost guards.
+- [ ] Before describing the deployment as working, redeploy with fresh Learner Lab credentials and capture real extract, Glue, load, API, Cloud Monitoring, and ECS/ALB evidence.
 
 ### `data/`
 
 - [ ] Copy `supabase/migrations/0001_analytics_schema.sql` to `data/0001_analytics_schema.sql`.
 - [ ] Ensure the committed placeholder pepper remains a placeholder. Never export the real `analytics.pepper` value.
-- [ ] Do not include a production database dump, raw extracts, Athena results, private aggregate data or any other user-derived dataset.
+- [ ] Do not include a production database dump, raw extracts, private aggregate data, Google credentials, or any other user-derived dataset.
 - [ ] If sample data is explicitly required, use only the repository's synthetic/sanitised JSONL test fixtures and label them as test fixtures, not public or production data.
 
 ## Final pre-submission checks
 
 - [ ] Replace `[repository URL to be inserted before submission]` only after the repository is accessible to the marker.
-- [ ] Replace the live-link placeholder only with the ALB DNS name active for the agreed demonstration period; otherwise retain the honest statement that the DNS is session-specific and rely on real screenshots.
+- [ ] Use the permanent Vercel URL as the living submission link. Present the ALB DNS separately as session-specific AWS deployment evidence.
 - [ ] Run the Python tests and the dashboard production build from a clean checkout.
 - [ ] Validate all CloudFormation templates and compare packaged files with the committed versions.
 - [ ] Open the final ZIP in a new temporary directory and verify the exact top-level folders and PDF.

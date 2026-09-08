@@ -38,7 +38,7 @@ cat <<'EOF'
 
 Remaining-billables checklist:
   [ ] Confirm no presentation ALB, target group, ECS service/task, or presentation log group remains.
-  [ ] The persistent data stack still incurs small S3, DynamoDB, Secrets Manager, API Gateway, and Glue/Athena usage charges.
+  [ ] The persistent data stack still incurs small S3, DynamoDB, Secrets Manager, API Gateway, Lambda, and Glue usage charges.
   [ ] ECR repositories and pushed images remain until explicitly removed.
   [ ] Check the AWS Billing dashboard for unexpected resources or spend.
 

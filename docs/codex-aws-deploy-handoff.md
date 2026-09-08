@@ -1,3 +1,7 @@
+# Archived handoff — superseded by the Cloud Monitoring architecture
+
+> Historical only. Athena and the generated Gemini summary were removed on 2026-09-08. Use `docs/solution-architecture.md` and `scripts/README.md` for the current deployment contract.
+
 # Codex handoff — deploy the Kallo analytics plane to AWS Learner Lab
 
 You are deploying real infrastructure into a live AWS account with a hard budget

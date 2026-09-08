@@ -14,7 +14,7 @@ Analytics/ops dashboard for kallo.fit (live calorie-tracking app; prod = GCP Clo
 - CloudFront, Cognito, Amplify are NOT available. Do not use them.
 - No `AWS::EC2::VPC` creation needed — everything runs outside a VPC except ECS/ALB which use the **default VPC public subnets** (imported as parameters).
 
-## Architecture (locked — do not redesign)
+## Current architecture
 
 ```
 EventBridge (daily) ──▶ Lambda extract ──▶ Supabase REST API (analytics schema, restricted key)
@@ -28,21 +28,22 @@ EventBridge (daily) ──▶ Lambda extract ──▶ Supabase REST API (analyt
                               ▼
                     Lambda loader ──▶ DynamoDB (idempotent upserts, PK=metric, SK=date)
                               
-Dashboard (Next.js on ECS Fargate, public subnet, behind ALB)
-   └▶ API Gateway (Lambda authorizer: static bearer token; usage plan quotas)
-        └▶ Lambda api handlers ──▶ DynamoDB reads
-                                ──▶ Athena StartQueryExecution (fixed templates only, async run-id/poll)
-                                ──▶ Gemini API (weekly insight summary over aggregates)
+Dashboard (Next.js on Vercel permanently; ECS Fargate + ALB for AWS evidence)
+   ├▶ API Gateway (Lambda authorizer: static bearer token; usage plan quotas)
+   │    ├▶ Lambda metric/run handlers ──▶ DynamoDB aggregate reads
+   │    └▶ Lambda monitoring collector ──▶ Google Cloud Monitoring API
+   │                                      └▶ DynamoDB 120-second cache
+   └▶ Supabase bounded RPC (exact AI-meal traces only)
 ```
 
 Two CloudFormation stacks + one probe stack:
-1. `infra/data-stack.yaml` (persistent, pennies/month): S3 bucket (raw/curated/athena-results prefixes, lifecycle: athena-results expire 7 days), DynamoDB table (on-demand), Glue job + Glue Data Catalog database + crawler-or-explicit tables, Athena workgroup (bytes-scanned cutoff 1GB, enforced), Lambdas, API Gateway, EventBridge schedule + Glue-success rule, Secrets Manager secrets (Supabase URL+key, Gemini key, dashboard bearer token — values injected at deploy, never committed).
+1. `infra/data-stack.yaml` (persistent, low-cost): S3 bucket, DynamoDB table (on-demand + TTL), Glue job, six Lambdas, API Gateway, EventBridge schedule + Glue-success rule, and Secrets Manager values for Supabase, the Google Monitoring reader, and the dashboard bearer token.
 2. `infra/presentation-stack.yaml` (disposable, created per work session/demo): ALB + target group + security groups + ECS cluster/service/task definition. Takes image URI + default-VPC/subnet IDs as parameters. Deleting it must leave zero billable residue.
-3. `infra/probe-stack.yaml` (Session-0): minimal proof that LabRole is assumable by Lambda/Glue/ECS/EventBridge/Scheduler, PassRole works from CloudFormation, Secrets Manager readable from Lambda, one Athena query + one 2-worker Glue run completes.
+3. `infra/probe-stack.yaml` (historical Session-0 evidence): proved Learner Lab capabilities before implementation. It is not a current application dependency.
 
 ## Cost guards (mandatory in templates/code)
 
-Glue: `NumberOfWorkers: 2`, `WorkerType: G.1X`, `Timeout: 10` (minutes), `MaxRetries: 0`, `ExecutionProperty.MaxConcurrentRuns: 1`. Athena workgroup: `BytesScannedCutoffPerQuery`, `EnforceWorkGroupConfiguration: true`. Lambda: timeout ≤ 120s (extract may need 300s), memory ≤ 512MB, reserved concurrency ≤ 2 per function. DynamoDB: PAY_PER_REQUEST. No NAT gateways, no VPC endpoints, no Lambda VPC config, ever.
+Glue: `NumberOfWorkers: 2`, `WorkerType: G.1X`, `Timeout: 10` (minutes), `MaxRetries: 0`, `ExecutionProperty.MaxConcurrentRuns: 1`. Lambda: timeout ≤ 120s (extract may need 300s), memory ≤ 512MB, reserved concurrency ≤ 2 per function and 8 total. DynamoDB: PAY_PER_REQUEST with TTL for external-metric cache items. API Gateway: 2 requests/second, burst 5. No NAT gateways, no VPC endpoints, no Lambda VPC config.
 
 ## Source data (Supabase → `analytics` schema sanitized views)
 
@@ -67,8 +68,8 @@ as a controlled operational source without actor/session identifiers or raw
 diagnostic payloads. `v_ingredient_decisions` retains bounded food-domain labels
 and catalogue identifiers because those fields are the object of the quality
 analysis. These operational views enforce a rolling 90-day source cutoff in
-SQL before extraction. Athena results expire after seven days; raw and curated
-S3 retention remains a separate operational policy.
+SQL before extraction. Raw and curated S3 retention remains a separate
+operational policy.
 
 Rationale (decided 2026-08-22): incremental watermarking was removed because it was unsafe at this scale and silently lossy. A `gt.<watermark>` cursor skips every row sharing the watermark's value (fatal on any coarsened timestamp); watermarks committed per-view before the run completed, so a later-view failure stranded earlier rows permanently; and a second same-day run produced an empty delta whose aggregates overwrote the good ones, blanking the dashboard while reporting success. The full relevant dataset is a few MB (~10-20 pages), so a snapshot costs nothing and removes the entire failure class. Reintroduce incremental only if a single view exceeds roughly 100k rows, and only with a composite keyset cursor plus staged watermarks committed after a successful load.
 
@@ -88,7 +89,7 @@ Funnels, retention cohorts, journey transitions, feature adoption, onboarding,
 meal-slot/entry-mode trends, top-food reporting, and pipeline-to-meal conversion
 are deliberately outside the beta assignment scope.
 
-Plus: "Weekly summary" panel calling the Gemini endpoint, and a "Run pipeline now" button → POST /runs → run_id → poll GET /runs/{id}.
+The AI page adds one bounded Supabase RPC for exact trace detail. The System page uses Google Cloud Monitoring for app-wide request latency, traffic, 5xx, startup, CPU, memory, and instance metrics. A "Run pipeline now" button calls `POST /runs`, receives a run ID, and polls `GET /runs/{id}`.
 
 The complete operational contract is recorded in
 `docs/product-analytics-aggregates.md`. Metrics are descriptive and do not

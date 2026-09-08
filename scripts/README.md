@@ -2,25 +2,30 @@
 
 Run these commands from the repository root with active AWS Academy credentials. Every script defaults to `us-east-1`; use another region only if you deliberately need to override that default. Never commit secret values or `.lab-config`.
 
-## 1. Probe stack
+## 1. Legacy probe stack
 
-Follow the probe-stack create, invoke, Glue, Athena, and delete commands in [infra/README.md](../infra/README.md). Complete this Session-0 check before creating persistent resources, and delete `kallo-probe` when the checks pass.
+The probe stack is retained as historical Learner Lab capability evidence. It is not part of the current application architecture; see [infra/README.md](../infra/README.md).
 
 ## 2. Data stack
 
-Choose an existing S3 bucket for deployment scripts, then export the template's four `NoEcho` values:
+Choose an existing S3 bucket for deployment scripts, then export the template's `NoEcho` values and Cloud Run identity:
 
 ```bash
 export GLUE_SCRIPT_S3_URI='s3://YOUR-EXISTING-BUCKET/glue/job.py'
 export SUPABASE_URL='https://YOUR-PROJECT.supabase.co'
 export SUPABASE_KEY='YOUR-RESTRICTED-ANALYTICS-KEY'
 export SUPABASE_API_KEY='YOUR-PUBLISHABLE-OR-LEGACY-ANON-KEY'
-export GEMINI_API_KEY='YOUR-GEMINI-KEY'
+export GOOGLE_SERVICE_ACCOUNT_JSON_FILE='/ABSOLUTE/PATH/gcp-monitoring-reader.json'
+export GOOGLE_CLOUD_PROJECT_ID='YOUR-GCP-PROJECT'
+export GOOGLE_CLOUD_RUN_SERVICE='YOUR-CLOUD-RUN-SERVICE'
+export GOOGLE_CLOUD_RUN_LOCATION='YOUR-CLOUD-RUN-REGION'
 export DASHBOARD_BEARER_TOKEN='AT-LEAST-20-CHARACTERS'
 scripts/deploy-data-stack.sh
 ```
 
-The script uploads `glue/job.py` to `GLUE_SCRIPT_S3_URI`, uploads `glue/transforms.py` beside it, deploys `infra/data-stack.yaml`, and replaces all seven inline Lambda placeholders with the repository implementations.
+The Google service account should have only `roles/monitoring.viewer`; keep its JSON key outside the repository with owner-only permissions. The script also accepts the JSON value through `GOOGLE_SERVICE_ACCOUNT_JSON`.
+
+The script uploads `glue/job.py` to `GLUE_SCRIPT_S3_URI`, uploads `glue/transforms.py` beside it, deploys `infra/data-stack.yaml`, and replaces all six inline Lambda placeholders with the repository implementations.
 
 ## 3. First extract
 
@@ -112,5 +117,6 @@ python3 scripts/local_stack.py --serve --port 8000
 Local objects and the JSON-backed table default to `.local/s3`. Use `--root`
 to choose another disposable directory. Point the dashboard at the server with
 `MOCK_API=0`, `API_BASE_URL=http://127.0.0.1:8000`, and the same
-`DASHBOARD_TOKEN`. Athena endpoints return HTTP 501 because Athena SQL, real
-Parquet, IAM, EventBridge, and the ECS/ALB path can only be verified on AWS.
+`DASHBOARD_TOKEN`. The Cloud Monitoring endpoint returns HTTP 501 because its
+cross-cloud IAM and caching path is verified through the deployed collector;
+real Parquet, IAM, EventBridge, and the ECS/ALB path can only be verified on AWS.
