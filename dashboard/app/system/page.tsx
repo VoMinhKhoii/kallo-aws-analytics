@@ -1,47 +1,27 @@
 "use client";
 
 import * as React from "react";
-import type {
-  AppHealthRow,
-  FailureRow,
-  LatencyRow,
-  RunStatus,
-  TokenCostRow,
-} from "@/app/lib/types";
+import type { RunStatus } from "@/app/lib/types";
 import {
   ConsolePage,
   formatDuration,
   formatNumber,
   formatPercent,
-  HealthTable,
-  latestByDate,
-  latestByHour,
   LoadingLine,
   MetricRibbon,
   MetricState,
   PageIntro,
   Panel,
   RangeControl,
-  ScopeControls,
-  SimpleTable,
   SourceTag,
-  TableCell,
-  TableRow,
   InlineNote,
   RefreshButton,
   rangeWindow,
   type ConsoleRange,
 } from "@/components/console/console";
-import { useMetricBundle, type MetricBundleState } from "@/lib/use-metric-bundle";
 import { useSessionRole } from "@/lib/use-auth";
 import { useCloudMonitoring } from "@/lib/use-cloud-monitoring";
 import { TimeSeriesChart } from "@/components/console/time-series-chart";
-
-const SYSTEM_METRICS = ["app_health", "ai_latency", "ai_failure_rate", "token_cost_daily"] as const;
-
-function metricError(bundle: MetricBundleState, name: string) {
-  return (bundle.errors as Record<string, string | undefined>)[name] ?? bundle.error;
-}
 
 function RunControl() {
   const auth = useSessionRole();
@@ -134,34 +114,6 @@ function RunControl() {
       {status ? <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-[var(--console-rule)] pt-3 text-[11px] text-[var(--console-muted)]"><SourceTag tone={activeRun ? "warn" : status.phase === "completed" ? "live" : "error"}>{status.phase}</SourceTag><span className="font-mono">run {status.run_id.slice(0, 12)}</span>{status.updated_at ? <span>updated {new Date(status.updated_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })} UTC</span> : null}</div> : null}
       {starting ? <LoadingLine label="Contacting the run endpoint" /> : null}
     </div>
-  );
-}
-
-function FreshnessPanel({ health, pipeline }: { health: AppHealthRow[]; pipeline: { latency: LatencyRow[]; failures: FailureRow[] } }) {
-  const latestHealth = latestByHour(health);
-  const latestLatency = latestByDate(pipeline.latency);
-  const latestFailure = latestByDate(pipeline.failures);
-  return (
-    <Panel title="Data freshness" description="Newest observed dates from each configured source; this is freshness, not a claim that all source rows are complete." source={<SourceTag>Source timestamps</SourceTag>}>
-      <SimpleTable columns={["Dataset", "Latest observed", "Read"]} caption="Analytics data freshness">
-        <TableRow><TableCell>App health</TableCell><TableCell muted>{latestHealth?.hour ?? "No data"}</TableCell><TableCell><SourceTag tone={latestHealth ? "live" : "neutral"}>{latestHealth ? "present" : "absent"}</SourceTag></TableCell></TableRow>
-        <TableRow><TableCell>AI latency</TableCell><TableCell muted>{latestLatency?.date ?? "No data"}</TableCell><TableCell><SourceTag tone={latestLatency ? "live" : "neutral"}>{latestLatency ? "present" : "absent"}</SourceTag></TableCell></TableRow>
-        <TableRow><TableCell>AI failures</TableCell><TableCell muted>{latestFailure?.date ?? "No data"}</TableCell><TableCell><SourceTag tone={latestFailure ? "live" : "neutral"}>{latestFailure ? "present" : "absent"}</SourceTag></TableCell></TableRow>
-      </SimpleTable>
-    </Panel>
-  );
-}
-
-function StatusPanel({ status, error, costs }: { status: { ok: boolean; reason?: string; authMode?: string } | null; error: string | null; costs: TokenCostRow[] }) {
-  const knownCost = costs.some((row) => row.pricing_known) ? costs.filter((row) => row.pricing_known).reduce((total, row) => total + row.cost_usd, 0) : undefined;
-  return (
-    <Panel title="AWS status and cost boundary" description="The status probe performs a real AWS metric read. Product token cost is available when priced; account-level AWS billing is not part of this dashboard contract." source={<SourceTag tone={status?.ok ? "live" : status ? "error" : "neutral"}>{status?.ok ? "AWS reachable" : status ? "AWS unavailable" : "Checking"}</SourceTag>}>
-      <div className="grid gap-0 divide-y divide-[var(--console-rule)]">
-        <div className="flex items-start justify-between gap-4 px-4 py-3 sm:px-5"><div><p className="text-xs font-medium text-[var(--console-ink)]">Metric path</p><p className="mt-1 text-[11px] text-[var(--console-muted)]">{error ?? status?.reason ?? (status ? `Authenticated via ${status.authMode ?? "configured path"}` : "Waiting for probe")}</p></div><SourceTag tone={status?.ok ? "live" : status ? "error" : "neutral"}>{status?.ok ? "healthy" : status ? "unavailable" : "pending"}</SourceTag></div>
-        <div className="flex items-start justify-between gap-4 px-4 py-3 sm:px-5"><div><p className="text-xs font-medium text-[var(--console-ink)]">Known-price token estimate</p><p className="mt-1 text-[11px] text-[var(--console-muted)]">Observed model usage in the selected product window</p></div><span className="tabular text-sm font-semibold text-[var(--console-ink)]">{knownCost == null ? "No data" : `$${knownCost.toFixed(4)}`}</span></div>
-        <div className="px-4 py-3 text-xs leading-5 text-[var(--console-muted)] sm:px-5">AWS account billing and infrastructure spend are intentionally not inferred from token usage. Connect an approved billing contract before displaying those values.</div>
-      </div>
-    </Panel>
   );
 }
 

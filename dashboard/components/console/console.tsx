@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 export type ConsoleRange = "24h" | "7d" | "30d" | "90d";
 
 export const RANGE_LABELS: Record<ConsoleRange, string> = {
-  "24h": "24h",
+  "24h": "Today",
   "7d": "7 days",
   "30d": "30 days",
   "90d": "90 days",

@@ -68,9 +68,6 @@ def collect_cloud_run_metrics(
     fetch: Fetcher, collected_at: str,
 ) -> dict[str, Any]:
     alignment = _alignment_seconds(from_date, to_date)
-    end = date.fromisoformat(to_date) + timedelta(days=1)
-    interval_start = f"{from_date}T00:00:00Z"
-    interval_end = f"{end.isoformat()}T00:00:00Z"
     rows: dict[str, dict[str, Any]] = {}
 
     def merge(field: str, response: Mapping[str, Any]) -> None:
@@ -220,12 +217,19 @@ def handler(event: Mapping[str, Any] | None, context: Any) -> dict[str, Any]:
     location = os.environ.get("GCP_CLOUD_RUN_LOCATION", "")
     if not table_name or not secret_arn:
         return error_response(RuntimeError("Cloud Monitoring Lambda is not configured"))
-    secret_value = boto3.client("secretsmanager").get_secret_value(SecretId=secret_arn)["SecretString"]
-    token = _access_token(json.loads(secret_value))
+    token: str | None = None
+
+    def fetch_factory(**window: str) -> Fetcher:
+        nonlocal token
+        if token is None:
+            secret_value = boto3.client("secretsmanager").get_secret_value(SecretId=secret_arn)["SecretString"]
+            token = _access_token(json.loads(secret_value))
+        return monitoring_fetcher(
+            token=token, project=project, service=service, location=location, **window
+        )
+
     return handle(
         event or {}, boto3.resource("dynamodb").Table(table_name),
         project=project, service=service, location=location,
-        fetch_factory=lambda **window: monitoring_fetcher(
-            token=token, project=project, service=service, location=location, **window
-        ),
+        fetch_factory=fetch_factory,
     )
