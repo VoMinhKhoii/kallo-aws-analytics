@@ -88,6 +88,8 @@ Direct-API pages expose Refresh. Glue-only views rely on the manual snapshot act
 
 The assessment note against iterative counting still applies: a service should be claimed once for its implemented type, not again merely because another managed service uses it internally. The report should present evidence for each explicit resource and working data path, then let the marker apply the rubric.
 
+The deployed Learner Lab policy explicitly denies both `lambda:CreateFunction` and `lambda:DeleteFunction` after the original stack was established. The final update therefore repurposes the existing Insight Lambda as the Cloud Monitoring collector. The old Athena Lambda cannot be deleted, so it is retained at reserved concurrency zero with no API route or invoke permission. It is an inert compatibility resource and is not claimed as an implemented Athena service.
+
 ## 5. Security and privacy boundaries
 
 - All browser-to-data access is same-origin through Next.js route handlers.
@@ -131,11 +133,16 @@ Page changes can also feel slow when the browser triggers a new server-side API 
 
 ## 8. Deployment status and evidence boundary
 
-The source, tests, CloudFormation, local validators, dashboard production build, Google IAM grant, and a live Google Monitoring read are complete. The current Google credential successfully returned the expected Cloud Run time series.
+The persistent `kallo-data` stack was updated successfully on 8 September 2026 and reached `UPDATE_COMPLETE`. API Gateway deployment V3 publishes only `/metrics/{metric}`, `/runs`, `/runs/{run_id}`, and `/cloud-monitoring` beneath the existing authenticated `prod` stage.
 
-The AWS data-stack update is not yet deployed because the current AWS Academy session token is expired. This is an external credential state, not a source-code failure. After starting a fresh Learner Lab session, run `scripts/deploy-data-stack.sh`, invoke one extract, verify the Glue-success load, then create the presentation stack only long enough to capture ECS/ALB evidence.
+The authenticated live checks returned:
 
-Do not describe the new AWS resources as live until that deployment evidence is captured.
+- `GET /cloud-monitoring?from=2026-09-08&to=2026-09-08&refresh=true`: HTTP 200 with 17 aligned Cloud Run points for `cal-487315`, service `kallo-prod`, region `asia-southeast1`;
+- a following non-refresh request: HTTP 200 with the same `collected_at`, confirming DynamoDB cache reuse;
+- `GET /metrics/ai_latency?from=2026-09-01&to=2026-09-08`: HTTP 200 with the current DynamoDB aggregate snapshot;
+- Monitoring collector reserved concurrency: 1; retained Athena compatibility Lambda reserved concurrency: 0.
+
+The Google reader has only `roles/monitoring.viewer`. Python tests, TypeScript, the production Next.js build, CloudFormation linting, shell validation, and draw.io validation are green. The remaining presentation-tier evidence is the separately disposable ECS/ALB deployment; do not imply that it is continuously hosted when it is stopped.
 
 ## 9. Verification commands
 

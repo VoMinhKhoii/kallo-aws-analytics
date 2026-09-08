@@ -14,7 +14,7 @@ The persistent `data-stack.yaml` contains:
 - API Gateway routes for metrics, runs, and Google Cloud Monitoring;
 - a TOKEN authorizer and Secrets Manager values.
 
-Athena and the generated Gemini weekly-summary path are not part of the current data stack. The separate `probe-stack.yaml` still records the earlier Session-0 capability check, including Athena, but it is not an application dependency or a service claim for the final solution.
+Athena and the generated Gemini weekly-summary path are not part of the current application. Learner Lab explicitly denied deletion of the old Athena Lambda, so it remains at reserved concurrency zero with no route or invoke permission; this inert compatibility resource is not an Athena implementation claim. The existing Insight Lambda was updated in place into the Cloud Monitoring collector because the same policy denied creating a replacement Lambda. The separate `probe-stack.yaml` still records the earlier Session-0 capability check, including Athena, but it is not an application dependency or a service claim for the final solution.
 
 The disposable `presentation-stack.yaml` contains the ALB, ECS Fargate service, ECR image reference, and private-console login secrets. Vercel remains the permanent submission URL; the presentation stack is created only when AWS-hosted evidence is needed.
 

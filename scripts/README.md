@@ -25,7 +25,7 @@ scripts/deploy-data-stack.sh
 
 The Google service account should have only `roles/monitoring.viewer`; keep its JSON key outside the repository with owner-only permissions. The script also accepts the JSON value through `GOOGLE_SERVICE_ACCOUNT_JSON`.
 
-The script uploads `glue/job.py` to `GLUE_SCRIPT_S3_URI`, uploads `glue/transforms.py` beside it, deploys `infra/data-stack.yaml`, and replaces all six inline Lambda placeholders with the repository implementations.
+The script uploads `glue/job.py` to `GLUE_SCRIPT_S3_URI`, uploads `glue/transforms.py` beside it, deploys `infra/data-stack.yaml`, and replaces all six active inline Lambda placeholders with the repository implementations.
 
 ## 3. First extract
 

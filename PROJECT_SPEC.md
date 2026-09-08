@@ -37,7 +37,7 @@ Dashboard (Next.js on Vercel permanently; ECS Fargate + ALB for AWS evidence)
 ```
 
 Two CloudFormation stacks + one probe stack:
-1. `infra/data-stack.yaml` (persistent, low-cost): S3 bucket, DynamoDB table (on-demand), Glue job, six Lambdas, API Gateway, EventBridge schedule + Glue-success rule, and Secrets Manager values for Supabase, the Google Monitoring reader, and the dashboard bearer token.
+1. `infra/data-stack.yaml` (persistent, low-cost): S3 bucket, DynamoDB table (on-demand), Glue job, six active Lambdas, API Gateway, EventBridge schedule + Glue-success rule, and Secrets Manager values for Supabase, the Google Monitoring reader, and the dashboard bearer token. One old Athena Lambda remains permanently throttled and unrouted because this Learner Lab policy denies function deletion.
 2. `infra/presentation-stack.yaml` (disposable, created per work session/demo): ALB + target group + security groups + ECS cluster/service/task definition. Takes image URI + default-VPC/subnet IDs as parameters. Deleting it must leave zero billable residue.
 3. `infra/probe-stack.yaml` (historical Session-0 evidence): proved Learner Lab capabilities before implementation. It is not a current application dependency.
 
