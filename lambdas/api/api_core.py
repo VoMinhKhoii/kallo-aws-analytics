@@ -224,6 +224,54 @@ def query_metric_range(
         arguments["ExclusiveStartKey"] = dict(last_key)
 
 
+def query_latest_metric(table: DynamoTable, metric: str) -> list[dict[str, Any]]:
+    """Read the newest complete snapshot for a metric.
+
+    The DynamoDB sort key is the loader date, not the observation date.  A
+    dashboard window therefore must not be applied to this key or an older
+    observation window can incorrectly hide the newest snapshot.
+    """
+
+    response = table.query(
+        KeyConditionExpression="#metric = :metric",
+        ExpressionAttributeNames={"#metric": "metric"},
+        ExpressionAttributeValues={":metric": metric},
+        ScanIndexForward=False,
+        Limit=1,
+    )
+    return [
+        normalize_dynamo_item(item)
+        for item in response.get("Items", [])
+        if isinstance(item, Mapping)
+    ]
+
+
+def filter_metric_payload(
+    payload: Any, from_date: str, to_date: str
+) -> Any:
+    """Filter dated aggregate rows while preserving current-state snapshots.
+
+    Time-series rows use either ``date`` or an ISO ``hour``.  Catalog-state
+    payloads intentionally have neither and remain available for every window.
+    """
+
+    if not isinstance(payload, list):
+        return payload
+    filtered: list[Any] = []
+    for row in payload:
+        if not isinstance(row, Mapping):
+            filtered.append(row)
+            continue
+        observation = row.get("date") or row.get("hour")
+        if not isinstance(observation, str):
+            filtered.append(dict(row))
+            continue
+        day = observation[:10]
+        if ISO_DATE.fullmatch(day) and from_date <= day <= to_date:
+            filtered.append(dict(row))
+    return filtered
+
+
 def get_run_record(table: DynamoTable, run_id: str) -> dict[str, Any] | None:
     # Strongly consistent: the dashboard polls within a second of POST /runs
     # writing the item, and an eventually-consistent miss surfaces as a 404 the

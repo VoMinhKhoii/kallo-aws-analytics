@@ -12,7 +12,8 @@ try:
         error_response,
         json_response,
         path_parameter,
-        query_metric_range,
+        filter_metric_payload,
+        query_latest_metric,
         query_parameters,
         request_method,
         validate_date_range,
@@ -24,7 +25,8 @@ except ImportError:
         error_response,
         json_response,
         path_parameter,
-        query_metric_range,
+        filter_metric_payload,
+        query_latest_metric,
         query_parameters,
         request_method,
         validate_date_range,
@@ -41,7 +43,11 @@ def handle(event: Mapping[str, Any], table: Any) -> dict[str, Any]:
         from_date, to_date = validate_date_range(
             parameters.get("from"), parameters.get("to")
         )
-        items = query_metric_range(table, metric, from_date, to_date)
+        items = query_latest_metric(table, metric)
+        for item in items:
+            item["payload"] = filter_metric_payload(
+                item.get("payload"), from_date, to_date
+            )
         return json_response(
             200,
             {
@@ -62,4 +68,3 @@ def handler(event: Mapping[str, Any] | None, context: Any) -> dict[str, Any]:
     if not table_name:
         return error_response(RuntimeError("TABLE_NAME is not set"))
     return handle(event or {}, boto3.resource("dynamodb").Table(table_name))
-

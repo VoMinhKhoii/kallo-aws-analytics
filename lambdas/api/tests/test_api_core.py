@@ -138,13 +138,19 @@ def test_metric_allowlist_rejects_unknown_names_without_query(metric):
     assert table.query_calls == []
 
 
-def test_metric_query_uses_partition_and_sort_key_range_and_decodes_payload():
+def test_metric_query_reads_latest_snapshot_and_filters_observation_dates():
     table = FakeTable(
         query_items=[
             {
                 "metric": "match_rate",
                 "date": "2026-08-09",
-                "payload": '{"match_rate":0.75}',
+                "payload": json.dumps(
+                    [
+                        {"date": "2026-07-31", "match_rate": 0.5},
+                        {"date": "2026-08-09", "match_rate": 0.75},
+                        {"date": "2026-08-11", "match_rate": 0.8},
+                    ]
+                ),
                 "count": Decimal("4"),
             }
         ]
@@ -159,14 +165,38 @@ def test_metric_query_uses_partition_and_sort_key_range_and_decodes_payload():
     )
 
     assert response["statusCode"] == 200
-    assert response_body(response)["items"][0]["payload"] == {"match_rate": 0.75}
+    assert response_body(response)["items"][0]["payload"] == [
+        {"date": "2026-08-09", "match_rate": 0.75}
+    ]
     call = table.query_calls[0]
-    assert "BETWEEN" in call["KeyConditionExpression"]
-    assert call["ExpressionAttributeValues"] == {
-        ":metric": "match_rate",
-        ":from_date": "2026-08-01",
-        ":to_date": "2026-08-10",
-    }
+    assert call["KeyConditionExpression"] == "#metric = :metric"
+    assert call["ExpressionAttributeValues"] == {":metric": "match_rate"}
+    assert call["ScanIndexForward"] is False
+    assert call["Limit"] == 1
+
+
+def test_metric_query_keeps_undated_current_state_rows():
+    table = FakeTable(
+        query_items=[
+            {
+                "metric": "implausible_foods",
+                "date": "2026-08-12",
+                "payload": [{"id": "food-1", "reasons": ["macro_mismatch"]}],
+            }
+        ]
+    )
+    response = metrics.handle(
+        {
+            "httpMethod": "GET",
+            "pathParameters": {"metric": "implausible_foods"},
+            "queryStringParameters": {"from": "2026-08-01", "to": "2026-08-10"},
+        },
+        table,
+    )
+
+    assert response_body(response)["items"][0]["payload"] == [
+        {"id": "food-1", "reasons": ["macro_mismatch"]}
+    ]
 
 
 @pytest.mark.parametrize(
