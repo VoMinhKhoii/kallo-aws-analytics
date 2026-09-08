@@ -80,7 +80,7 @@ Direct-API pages expose Refresh. Glue-only views rely on the manual snapshot act
 | Application Load Balancer | Gives the ECS task a stable session URL and performs target health checks | Required ingress for the Fargate demonstration, but kept off outside assessment sessions due to hourly cost. |
 | Amazon S3 | Raw JSONL, manifests, curated Parquet, aggregate JSON, and Glue sources | Durable and inexpensive separation of extraction, transformation, and load stages. |
 | AWS Glue | PySpark transformation and aggregate materialization | Provides the implemented Analytics service and a clear batch ETL boundary. No crawler or Data Catalog tables are needed because Athena was removed. |
-| Amazon DynamoDB | Serves thirteen precomputed aggregates and the short Cloud Monitoring cache | Predictable key reads, on-demand capacity, TTL for cache records, and no database server lifecycle. |
+| Amazon DynamoDB | Serves thirteen precomputed aggregates and the short Cloud Monitoring cache | Predictable key reads, on-demand capacity, application-enforced cache expiry, and no database server lifecycle. |
 | Amazon EventBridge | Daily extraction schedule and Glue-success routing | Automates both the start and the successful handoff of the batch. |
 | AWS Secrets Manager | Supabase credentials, Google monitoring reader JSON, bearer token, and disposable dashboard logins | Keeps secrets outside source and container images. |
 | Amazon ECR | Stores the Linux/AMD64 dashboard image | Supplies ECS with a versioned container artifact. |

@@ -99,9 +99,6 @@ Resources:
         PointInTimeRecoveryEnabled: false
       SSESpecification:
         SSEEnabled: true
-      TimeToLiveSpecification:
-        AttributeName: expires_at
-        Enabled: true
       Tags:
         - Key: Project
           Value: kallo-analytics
