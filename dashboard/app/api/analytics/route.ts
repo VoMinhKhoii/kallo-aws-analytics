@@ -58,7 +58,7 @@ export async function GET(req: Request) {
   Object.assign(args, paging(name, url.searchParams.get("limit"), url.searchParams.get("offset")));
 
   try {
-    const data = await query(name, args);
+    const data = await query(name, args, url.searchParams.get("refresh") === "1");
     return NextResponse.json(
       { data },
       // Let the browser reuse a response briefly; the server cache does the

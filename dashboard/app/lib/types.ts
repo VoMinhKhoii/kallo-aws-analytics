@@ -34,6 +34,7 @@ export const OPERATIONAL_METRIC_NAMES = METRIC_NAMES as readonly [
 
 export type DauWauRow = { date: string; dau: number; wau: number };
 export type MacroRow = {
+  date?: string;
   nutrient: string;
   bucket_min: number;
   bucket_max: number | null;
@@ -111,12 +112,14 @@ export type IngredientSummary = {
 };
 
 export type IngredientDemandRow = {
+  date?: string;
   rank: number;
   ingredient_query: string;
   count: number;
 };
 
 export type IngredientMappingRow = {
+  date?: string;
   rank: number;
   ingredient_query: string;
   decision_count: number;
@@ -126,6 +129,7 @@ export type IngredientMappingRow = {
 };
 
 export type CorpusReverseLookupRow = {
+  date?: string;
   rank: number;
   food_id: string | null;
   food_name: string | null;
@@ -136,6 +140,7 @@ export type CorpusReverseLookupRow = {
 };
 
 export type IngredientGapRow = {
+  date?: string;
   rank: number;
   ingredient_query: string;
   verdict: string;
@@ -144,6 +149,7 @@ export type IngredientGapRow = {
 };
 
 export type IngredientRankDistributionRow = {
+  date?: string;
   pool_size: number;
   selected_rank: number;
   count: number;

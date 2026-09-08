@@ -37,9 +37,6 @@ const TITLES: Record<string, string> = {
   "/ai": "AI",
   "/ingredients": "Ingredients",
   "/system": "System",
-  "/pipeline": "Pipeline overview",
-  "/retrieval": "Retrieval & matching",
-  "/coverage": "Coverage & corpus",
   "/trace": "Trace viewer",
 };
 

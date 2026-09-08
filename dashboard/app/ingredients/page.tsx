@@ -2,223 +2,153 @@
 
 import * as React from "react";
 import type {
-  CorpusReverseLookupRow,
-  IngredientDemandRow,
-  IngredientGapRow,
-  IngredientMappingRow,
-  IngredientRankDistributionRow,
+  CorpusReverseLookupRow, ImplausibleFoodRow, IngredientDemandRow, IngredientGapRow,
+  IngredientMappingRow, IngredientRankDistributionRow, MacroRow, MatchRateRow,
 } from "@/app/lib/types";
 import {
-  BarList,
-  ConsolePage,
-  formatDecimal,
-  formatNumber,
-  formatPercent,
-  MetricRibbon,
-  MetricState,
-  PageIntro,
-  Panel,
-  RangeControl,
-  ScopeControls,
-  SimpleTable,
-  SourceTag,
-  TableCell,
-  TableRow,
-  InlineNote,
-  type ConsoleRange,
+  BarList, ConsolePage, formatDecimal, formatNumber, formatPercent, InlineNote,
+  MetricRibbon, MetricState, PageIntro, Panel, RangeControl, SimpleTable,
+  SourceTag, TableCell, TableRow, rangeWindow, type ConsoleRange,
 } from "@/components/console/console";
+import { MacroDistributionChart } from "@/components/console/macro-distribution-chart";
+import { TimeSeriesChart } from "@/components/console/time-series-chart";
 import { useMetricBundle, type MetricBundleState } from "@/lib/use-metric-bundle";
-import { useCorpusRows, useOverturnGroups, useReverseRows, useUnresolved } from "@/lib/analytics-hooks";
 
 const INGREDIENT_METRICS = [
-  "ingredient_demand",
-  "ingredient_mappings",
-  "corpus_reverse_lookup",
-  "ingredient_gaps",
-  "ingredient_rank_distribution",
+  "ingredient_demand", "ingredient_mappings", "corpus_reverse_lookup",
+  "ingredient_gaps", "ingredient_rank_distribution", "match_rate",
+  "macro_distributions", "implausible_foods",
 ] as const;
 
 function metricError(bundle: MetricBundleState, name: string) {
   return (bundle.errors as Record<string, string | undefined>)[name] ?? bundle.error;
 }
 
-function MappingSummary({ row }: { row: IngredientMappingRow }) {
-  const chosen = row.chosen ? `${row.chosen.name ?? row.chosen.food_id ?? "Unresolved"}${row.chosen.source ? ` · ${row.chosen.source}` : ""}` : "No chosen food";
-  return (
-    <div className="min-w-[18rem]">
-      <p className="truncate text-xs font-medium text-[var(--console-ink)]">{chosen}</p>
-      <p className="mt-1 truncate text-[10px] text-[var(--console-muted)]">
-        {(row.candidates.length ? row.candidates : [{ rank: 0, name: "No candidate", food_id: null, source: null, similarity: null }]).map((candidate) => `${candidate.rank || "—"}. ${candidate.name ?? candidate.food_id ?? "No candidate"}${candidate.similarity == null ? "" : ` (${formatDecimal(candidate.similarity, 3)})`}`).join(" · ")}
-      </p>
-    </div>
-  );
+function aggregateDemand(rows: IngredientDemandRow[]) {
+  const counts = new Map<string, number>();
+  for (const row of rows) counts.set(row.ingredient_query, (counts.get(row.ingredient_query) ?? 0) + row.count);
+  return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([ingredient_query, count], index) => ({ rank: index + 1, ingredient_query, count }));
 }
 
-function DemandPanel({ rows, state }: { rows: IngredientDemandRow[]; state: MetricBundleState }) {
-  return (
-    <Panel title="Ingredient demand" description="Ranked sanitized queries in the selected window. Ties are stable and the source caps the list." source={<SourceTag>AWS aggregate</SourceTag>}>
-      <MetricState loading={state.loading} error={metricError(state, "ingredient_demand")} empty={rows.length === 0} emptyMessage="No sanitized ingredient decisions were returned for this window.">
-        <BarList items={rows.slice(0, 20).map((row) => ({ label: row.ingredient_query, value: row.count, valueLabel: formatNumber(row.count), detail: `rank ${row.rank}`, tone: "blue" }))} emptyLabel="No demand rows." />
-      </MetricState>
-    </Panel>
-  );
+function aggregateMappings(rows: IngredientMappingRow[]) {
+  const groups = new Map<string, IngredientMappingRow>();
+  for (const row of rows) {
+    const current = groups.get(row.ingredient_query);
+    groups.set(row.ingredient_query, {
+      ...row,
+      decision_count: (current?.decision_count ?? 0) + row.decision_count,
+      accepted_count: (current?.accepted_count ?? 0) + row.accepted_count,
+      candidates: row.candidates.length ? row.candidates : current?.candidates ?? [],
+      chosen: row.chosen ?? current?.chosen ?? null,
+    });
+  }
+  return [...groups.values()].sort((a, b) => b.decision_count - a.decision_count || a.ingredient_query.localeCompare(b.ingredient_query)).map((row, index) => ({ ...row, rank: index + 1 }));
 }
 
-function MappingPanel({ rows, state }: { rows: IngredientMappingRow[]; state: MetricBundleState }) {
-  return (
-    <Panel title="Query → candidate → chosen" description="One deterministic candidate summary for each frequent query. Catalog IDs are shown only as catalog identifiers." source={<SourceTag>AWS aggregate</SourceTag>}>
-      <MetricState loading={state.loading} error={metricError(state, "ingredient_mappings")} empty={rows.length === 0} emptyMessage="No ingredient mapping decisions were returned for this window.">
-        <SimpleTable columns={["Query", "Decisions", "Accepted", "Mapping"]} caption="Ingredient candidate mappings">
-          {rows.slice(0, 24).map((row) => (
-            <TableRow key={`${row.rank}-${row.ingredient_query}`}>
-              <TableCell><span className="font-mono text-[11px]">{row.ingredient_query}</span></TableCell>
-              <TableCell numeric>{formatNumber(row.decision_count)}</TableCell>
-              <TableCell numeric muted>{formatNumber(row.accepted_count)}</TableCell>
-              <TableCell><MappingSummary row={row} /></TableCell>
-            </TableRow>
-          ))}
-        </SimpleTable>
-      </MetricState>
-    </Panel>
-  );
+function aggregateGaps(rows: IngredientGapRow[]) {
+  const groups = new Map<string, IngredientGapRow>();
+  for (const row of rows) {
+    const key = `${row.ingredient_query}\u0000${row.verdict}\u0000${row.reject_bucket}`;
+    const current = groups.get(key);
+    groups.set(key, { ...row, count: (current?.count ?? 0) + row.count });
+  }
+  return [...groups.values()].sort((a, b) => b.count - a.count || a.ingredient_query.localeCompare(b.ingredient_query)).map((row, index) => ({ ...row, rank: index + 1 }));
 }
 
-function ReversePanel({ rows, state }: { rows: CorpusReverseLookupRow[]; state: MetricBundleState }) {
-  return (
-    <Panel title="Reverse corpus lookup" description="Accepted decisions ranked by canonical food, with bounded query examples." source={<SourceTag>AWS aggregate</SourceTag>}>
-      <MetricState loading={state.loading} error={metricError(state, "corpus_reverse_lookup")} empty={rows.length === 0} emptyMessage="No accepted canonical food mappings were returned for this window.">
-        <SimpleTable columns={["Food", "Source", "Decisions", "Queries", "Examples"]} caption="Canonical food reverse lookup">
-          {rows.slice(0, 24).map((row) => (
-            <TableRow key={`${row.rank}-${row.food_id ?? row.food_name}`}>
-              <TableCell><p className="max-w-56 truncate text-xs font-medium">{row.food_name ?? row.food_id ?? "No name"}</p><p className="mt-0.5 font-mono text-[10px] text-[var(--console-muted)]">{row.food_id ?? "No catalog id"}</p></TableCell>
-              <TableCell muted>{row.source ?? "No source"}</TableCell>
-              <TableCell numeric>{formatNumber(row.decision_count)}</TableCell>
-              <TableCell numeric>{formatNumber(row.query_count)}</TableCell>
-              <TableCell className="max-w-64 truncate" muted>{row.query_examples.join(" · ") || "No examples"}</TableCell>
-            </TableRow>
-          ))}
-        </SimpleTable>
-      </MetricState>
-    </Panel>
-  );
+function aggregateRanks(rows: IngredientRankDistributionRow[]) {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    const key = `${row.pool_size}:${row.selected_rank}`;
+    counts.set(key, (counts.get(key) ?? 0) + row.count);
+  }
+  const totals = new Map<number, number>();
+  for (const [key, count] of counts) {
+    const pool = Number(key.split(":")[0]);
+    totals.set(pool, (totals.get(pool) ?? 0) + count);
+  }
+  return [...counts].map(([key, count]) => {
+    const [pool_size, selected_rank] = key.split(":").map(Number);
+    return { pool_size, selected_rank, count, share: count / (totals.get(pool_size) ?? count) };
+  }).sort((a, b) => a.pool_size - b.pool_size || a.selected_rank - b.selected_rank);
 }
 
-function GapPanel({ rows, state }: { rows: IngredientGapRow[]; state: MetricBundleState }) {
-  return (
-    <Panel title="Unresolved and rejected gaps" description="Controlled verdict and reject buckets only; raw reject text is not part of the contract." source={<SourceTag>AWS aggregate</SourceTag>}>
-      <MetricState loading={state.loading} error={metricError(state, "ingredient_gaps")} empty={rows.length === 0} emptyMessage="No unmatched or rejected ingredient decisions were returned for this window.">
-        <SimpleTable columns={["Query", "Verdict", "Bucket", "Count"]} caption="Ingredient coverage gaps">
-          {rows.slice(0, 24).map((row) => (
-            <TableRow key={`${row.rank}-${row.ingredient_query}-${row.verdict}-${row.reject_bucket}`}>
-              <TableCell><span className="font-mono text-[11px]">{row.ingredient_query}</span></TableCell>
-              <TableCell><SourceTag tone={row.verdict === "rejected" ? "warn" : "neutral"}>{row.verdict}</SourceTag></TableCell>
-              <TableCell muted>{row.reject_bucket}</TableCell>
-              <TableCell numeric>{formatNumber(row.count)}</TableCell>
-            </TableRow>
-          ))}
-        </SimpleTable>
-      </MetricState>
-    </Panel>
-  );
+function aggregateReverse(rows: CorpusReverseLookupRow[]) {
+  const groups = new Map<string, CorpusReverseLookupRow>();
+  for (const row of rows) {
+    const key = row.food_id ?? `${row.food_name}:${row.source}`;
+    const current = groups.get(key);
+    groups.set(key, {
+      ...row,
+      decision_count: (current?.decision_count ?? 0) + row.decision_count,
+      query_count: (current?.query_count ?? 0) + row.query_count,
+      query_examples: [...new Set([...(current?.query_examples ?? []), ...row.query_examples])].slice(0, 5),
+    });
+  }
+  return [...groups.values()].sort((a, b) => b.decision_count - a.decision_count).map((row, index) => ({ ...row, rank: index + 1 }));
 }
 
-function RankPanel({ rows, state }: { rows: IngredientRankDistributionRow[]; state: MetricBundleState }) {
-  return (
-    <Panel title="Candidate rank distribution" description="Accepted decisions only, grouped by candidate pool size and selected rank." source={<SourceTag>AWS aggregate</SourceTag>}>
-      <MetricState loading={state.loading} error={metricError(state, "ingredient_rank_distribution")} empty={rows.length === 0} emptyMessage="No accepted decisions with a valid selected rank were returned for this window.">
-        <SimpleTable columns={["Pool size", "Selected rank", "Count", "Share"]} caption="Ingredient selected rank distribution">
-          {rows.map((row) => (
-            <TableRow key={`${row.pool_size}-${row.selected_rank}`}>
-              <TableCell numeric>{row.pool_size}</TableCell>
-              <TableCell numeric>{row.selected_rank}</TableCell>
-              <TableCell numeric>{formatNumber(row.count)}</TableCell>
-              <TableCell numeric muted>{formatPercent(row.share)}</TableCell>
-            </TableRow>
-          ))}
-        </SimpleTable>
-      </MetricState>
-    </Panel>
-  );
+function aggregateMacros(rows: MacroRow[]) {
+  const groups = new Map<string, MacroRow>();
+  for (const row of rows) {
+    const key = `${row.nutrient}:${row.bucket_min}:${row.bucket_max ?? "max"}`;
+    const current = groups.get(key);
+    groups.set(key, { ...row, count: (current?.count ?? 0) + row.count });
+  }
+  return [...groups.values()];
 }
 
-function LiveDrilldowns({ range }: { range: string }) {
-  const reverse = useReverseRows(range, 10);
-  const corpus = useCorpusRows(range, 10);
-  const unresolved = useUnresolved(range, 10);
-  const overturn = useOverturnGroups(range, 8);
-  return (
-    <Panel title="Live catalog drilldowns" description="Existing cached Supabase RPCs remain available for deeper operator review. These panels are separate from the AWS aggregate contract." source={<SourceTag tone="live">Supabase cache</SourceTag>}>
-      <div className="grid gap-3 p-4 sm:grid-cols-2 sm:p-5 xl:grid-cols-4">
-        <div className="border border-[var(--console-rule)] bg-[var(--console-panel)] p-3">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--console-muted)]">Reverse rows</p>
-          <MetricState loading={reverse.loading} error={reverse.error} empty={reverse.rows.length === 0} emptyMessage="No live rows."><p className="mt-2 text-2xl font-semibold text-[var(--console-ink)]">{formatNumber(reverse.total)}</p><p className="mt-1 text-[11px] text-[var(--console-muted)]">catalog foods in current page</p></MetricState>
-        </div>
-        <div className="border border-[var(--console-rule)] bg-[var(--console-panel)] p-3">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--console-muted)]">Corpus rows</p>
-          <MetricState loading={corpus.loading} error={corpus.error} empty={corpus.rows.length === 0} emptyMessage="No live rows."><p className="mt-2 text-2xl font-semibold text-[var(--console-ink)]">{formatNumber(corpus.total)}</p><p className="mt-1 text-[11px] text-[var(--console-muted)]">accepted catalog rows</p></MetricState>
-        </div>
-        <div className="border border-[var(--console-rule)] bg-[var(--console-panel)] p-3">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--console-muted)]">Unresolved queue</p>
-          <MetricState loading={unresolved.loading} error={unresolved.error} empty={unresolved.rows.length === 0} emptyMessage="No live rows."><p className="mt-2 text-2xl font-semibold text-[var(--console-ink)]">{formatNumber(unresolved.total)}</p><p className="mt-1 text-[11px] text-[var(--console-muted)]">distinct unresolved queries</p></MetricState>
-        </div>
-        <div className="border border-[var(--console-rule)] bg-[var(--console-panel)] p-3">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--console-muted)]">Overturn groups</p>
-          <MetricState loading={overturn.loading} error={overturn.error} empty={overturn.rows.length === 0} emptyMessage="No live rows."><p className="mt-2 text-2xl font-semibold text-[var(--console-ink)]">{formatNumber(overturn.total)}</p><p className="mt-1 text-[11px] text-[var(--console-muted)]">query/rank groups</p></MetricState>
-        </div>
-      </div>
-      <InlineNote>Live totals are returned by the existing cached RPCs. Raw request, session, and user identifiers are not rendered in this console.</InlineNote>
-    </Panel>
-  );
+function mappingSummary(row: IngredientMappingRow | undefined) {
+  if (!row) return "No mapping observation";
+  const chosen = row.chosen?.name ?? row.chosen?.food_id ?? "No chosen food";
+  const candidates = row.candidates.map((candidate) => `${candidate.rank}. ${candidate.name ?? candidate.food_id ?? "Unknown"}${candidate.similarity == null ? "" : ` (${formatDecimal(candidate.similarity, 3)})`}`).join(" · ");
+  return `${chosen}${candidates ? ` — ${candidates}` : ""}`;
 }
 
 export default function IngredientsPage() {
   const [range, setRange] = React.useState<ConsoleRange>("30d");
-  const [platform, setPlatform] = React.useState("all");
-  const window = React.useMemo(() => {
-    const today = new Date();
-    const to = today.toISOString().slice(0, 10);
-    const fromDate = new Date(`${to}T00:00:00Z`);
-    fromDate.setUTCDate(fromDate.getUTCDate() - Number(range.slice(0, -1)) + 1);
-    return { from: fromDate.toISOString().slice(0, 10), to };
-  }, [range]);
+  const window = React.useMemo(() => rangeWindow(range), [range]);
   const bundle = useMetricBundle(INGREDIENT_METRICS, window.from, window.to);
-  const demand = (bundle.data?.ingredient_demand ?? []) as IngredientDemandRow[];
-  const mappings = (bundle.data?.ingredient_mappings ?? []) as IngredientMappingRow[];
-  const reverse = (bundle.data?.corpus_reverse_lookup ?? []) as CorpusReverseLookupRow[];
-  const gaps = (bundle.data?.ingredient_gaps ?? []) as IngredientGapRow[];
-  const ranks = (bundle.data?.ingredient_rank_distribution ?? []) as IngredientRankDistributionRow[];
-  const accepted = mappings.length ? mappings.reduce((total, row) => total + row.accepted_count, 0) : undefined;
-  const decisions = mappings.length ? mappings.reduce((total, row) => total + row.decision_count, 0) : undefined;
+  const demand = aggregateDemand((bundle.data?.ingredient_demand ?? []) as IngredientDemandRow[]);
+  const mappings = aggregateMappings((bundle.data?.ingredient_mappings ?? []) as IngredientMappingRow[]);
+  const gaps = aggregateGaps((bundle.data?.ingredient_gaps ?? []) as IngredientGapRow[]);
+  const ranks = aggregateRanks((bundle.data?.ingredient_rank_distribution ?? []) as IngredientRankDistributionRow[]);
+  const reverse = aggregateReverse((bundle.data?.corpus_reverse_lookup ?? []) as CorpusReverseLookupRow[]);
+  const macros = aggregateMacros((bundle.data?.macro_distributions ?? []) as MacroRow[]);
+  const matches = (bundle.data?.match_rate ?? []) as MatchRateRow[];
+  const flags = (bundle.data?.implausible_foods ?? []) as ImplausibleFoodRow[];
+  const mappingByQuery = new Map(mappings.map((row) => [row.ingredient_query, row]));
+  const decisions = mappings.reduce((sum, row) => sum + row.decision_count, 0);
+  const accepted = mappings.reduce((sum, row) => sum + row.accepted_count, 0);
+  const unresolved = gaps.reduce((sum, row) => sum + row.count, 0);
+  const acceptedRanks = ranks.reduce((sum, row) => sum + row.count, 0);
+  const firstRanks = ranks.filter((row) => row.selected_rank === 1).reduce((sum, row) => sum + row.count, 0);
 
-  return (
-    <ConsolePage>
-      <PageIntro eyebrow="Data quality / Ingredients" title="Ingredients" description="Demand, candidate mappings, corpus coverage, and rank behavior from sanitized ingredient decisions, with live catalog drilldowns alongside the aggregate view.">
-        <div className="grid gap-3 sm:justify-items-end">
-          <RangeControl value={range} onChange={setRange} label="Decision window" options={["7d", "30d", "90d"]} />
-          <ScopeControls values={{ platform }} onChange={(name, value) => name === "platform" && setPlatform(value)} supported={{ platform: false, locale: false, mealMode: false }} />
-        </div>
-      </PageIntro>
+  return <ConsolePage>
+    <PageIntro eyebrow="Ingredients" title="Ingredients" description="Demand, retrieval quality, corpus coverage, output distributions, and catalog checks."><RangeControl value={range} onChange={setRange} label="Window" options={["7d", "30d", "90d"]} /></PageIntro>
+    <div className="mt-3 grid gap-3">
+      <MetricRibbon items={[
+        { label: "Decisions", value: formatNumber(decisions || undefined), detail: "selected window", loading: bundle.loading, error: metricError(bundle, "ingredient_mappings") },
+        { label: "Accepted", value: formatPercent(decisions ? accepted / decisions : undefined), detail: decisions ? `${accepted} of ${decisions}` : "No decisions", tone: "green", loading: bundle.loading, error: metricError(bundle, "ingredient_mappings") },
+        { label: "Unresolved", value: formatNumber(unresolved || undefined), detail: "controlled gap buckets", tone: unresolved ? "amber" : "green", loading: bundle.loading, error: metricError(bundle, "ingredient_gaps") },
+        { label: "First choice", value: formatPercent(acceptedRanks ? firstRanks / acceptedRanks : undefined), detail: "accepted candidate ranks", tone: "blue", loading: bundle.loading, error: metricError(bundle, "ingredient_rank_distribution") },
+      ]} />
 
-      <div className="mt-6 grid gap-3">
-        <MetricRibbon items={[
-          { label: "Observed queries", value: formatNumber(decisions), detail: "ingredient decisions", loading: bundle.loading, error: metricError(bundle, "ingredient_mappings") },
-          { label: "Accepted decisions", value: formatNumber(accepted), detail: "shown mapping subset", tone: accepted == null ? "ink" : "green", loading: bundle.loading, error: metricError(bundle, "ingredient_mappings") },
-          { label: "Demand rows", value: formatNumber(demand.length || undefined), detail: demand.length ? "capped ranked list" : "No demand rows", loading: bundle.loading, error: metricError(bundle, "ingredient_demand") },
-          { label: "Corpus foods", value: formatNumber(reverse.length || undefined), detail: reverse.length ? "accepted reverse lookup" : "No accepted mappings", loading: bundle.loading, error: metricError(bundle, "corpus_reverse_lookup") },
-        ]} />
+      <Panel title="Match rate over time" description="Matched ingredients divided by every ingredient observed by the pipeline." source={<SourceTag>AWS aggregate</SourceTag>}><MetricState loading={bundle.loading} error={metricError(bundle, "match_rate")} empty={matches.length === 0} emptyMessage="No matching rows were returned for this window."><div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={matches} series={[{ key: "match_rate", label: "Match rate", color: "var(--console-green)" }]} ariaLabel="Ingredient match rate over time" format="percent" /></div></MetricState></Panel>
 
-        <div className="grid gap-3 xl:grid-cols-[0.75fr_1.25fr]">
-          <DemandPanel rows={demand} state={bundle} />
-          <MappingPanel rows={mappings} state={bundle} />
-        </div>
-        <div className="grid gap-3 xl:grid-cols-2">
-          <ReversePanel rows={reverse} state={bundle} />
-          <GapPanel rows={gaps} state={bundle} />
-        </div>
-        <RankPanel rows={ranks} state={bundle} />
-        <LiveDrilldowns range={range} />
-        <InlineNote tone="plain">Platform, locale, and meal-mode selectors are intentionally marked “Not segmented”: the current ingredient aggregate payloads do not carry those dimensions.</InlineNote>
+      <Panel title="Demand and chosen mappings" description="One ranked view replaces separate demand and mapping panels." source={<SourceTag>AWS aggregate</SourceTag>}><MetricState loading={bundle.loading} error={metricError(bundle, "ingredient_demand") || metricError(bundle, "ingredient_mappings")} empty={demand.length === 0} emptyMessage="No ingredient decisions were returned for this window."><SimpleTable columns={["Query", "Demand", "Accepted", "Chosen and candidates"]} caption="Ingredient demand and mappings">{demand.slice(0, 30).map((row) => { const mapping = mappingByQuery.get(row.ingredient_query); return <TableRow key={row.ingredient_query}><TableCell><span className="font-mono text-[11px]">{row.ingredient_query}</span></TableCell><TableCell numeric>{formatNumber(row.count)}</TableCell><TableCell numeric muted>{mapping ? `${mapping.accepted_count}/${mapping.decision_count}` : "—"}</TableCell><TableCell className="max-w-[36rem] truncate" muted>{mappingSummary(mapping)}</TableCell></TableRow>; })}</SimpleTable></MetricState></Panel>
+
+      <Panel title="Meal-output macro distribution" description="Distribution buckets are summed only across the selected observation window." source={<SourceTag>AWS aggregate</SourceTag>}><MetricState loading={bundle.loading} error={metricError(bundle, "macro_distributions")} empty={macros.length === 0} emptyMessage="No meal-output rows were returned for this window."><div className="px-3 py-4 sm:px-5"><MacroDistributionChart rows={macros} /></div></MetricState></Panel>
+
+      <div className="grid gap-3 xl:grid-cols-2">
+        <Panel title="Coverage gaps" description="Highest-volume unmatched and rejected normalized queries." source={<SourceTag>AWS aggregate</SourceTag>}><MetricState loading={bundle.loading} error={metricError(bundle, "ingredient_gaps")} empty={gaps.length === 0} emptyMessage="No unresolved ingredient groups were returned for this window."><BarList items={gaps.slice(0, 20).map((row) => ({ label: row.ingredient_query, value: row.count, detail: `${row.verdict} · ${row.reject_bucket}`, tone: "amber" }))} /></MetricState></Panel>
+        <Panel title="Accepted candidate ranks" description="Selected rank within each candidate-pool size." source={<SourceTag>AWS aggregate</SourceTag>}><MetricState loading={bundle.loading} error={metricError(bundle, "ingredient_rank_distribution")} empty={ranks.length === 0} emptyMessage="No accepted candidate-rank rows were returned for this window."><BarList items={ranks.map((row) => ({ label: `Pool ${row.pool_size} · rank ${row.selected_rank}`, value: row.count, detail: `${formatPercent(row.share)} within pool`, tone: row.selected_rank === 1 ? "green" : "blue" }))} /></MetricState></Panel>
       </div>
-    </ConsolePage>
-  );
+
+      <div className="grid gap-3 xl:grid-cols-2">
+        <Panel title="Corpus coverage" description="Canonical foods reached by accepted decisions, with bounded query examples." source={<SourceTag>AWS aggregate</SourceTag>}><MetricState loading={bundle.loading} error={metricError(bundle, "corpus_reverse_lookup")} empty={reverse.length === 0} emptyMessage="No accepted corpus mappings were returned for this window."><SimpleTable columns={["Food", "Decisions", "Queries", "Examples"]} caption="Corpus reverse lookup">{reverse.slice(0, 20).map((row) => <TableRow key={row.food_id ?? `${row.food_name}-${row.source}`}><TableCell><p className="font-medium">{row.food_name ?? row.food_id ?? "Unknown"}</p><p className="text-[10px] text-[var(--console-muted)]">{row.source ?? "No source"}</p></TableCell><TableCell numeric>{row.decision_count}</TableCell><TableCell numeric>{row.query_count}</TableCell><TableCell className="max-w-64 truncate" muted>{row.query_examples.join(" · ")}</TableCell></TableRow>)}</SimpleTable></MetricState></Panel>
+        <Panel title="Current catalog checks" description="Current-state nutrition plausibility checks; this inventory is not time-filtered." source={<SourceTag>Current snapshot</SourceTag>}><MetricState loading={bundle.loading} error={metricError(bundle, "implausible_foods")} empty={flags.length === 0} emptyMessage="No current catalog plausibility flags were returned."><div className="divide-y divide-[var(--console-rule)]">{flags.slice(0, 16).map((row) => <div key={String(row.id)} className="px-4 py-3 text-xs sm:px-5"><p className="font-medium text-[var(--console-ink)]">{row.name_en ?? `Food ${row.id ?? "unknown"}`}</p><p className="mt-1 text-[var(--console-muted)]">{row.reasons.join(" · ")}</p></div>)}</div></MetricState></Panel>
+      </div>
+      <InlineNote>The selected window is applied to dated Glue aggregates. Current catalog checks intentionally describe the newest food-composition snapshot.</InlineNote>
+    </div>
+  </ConsolePage>;
 }

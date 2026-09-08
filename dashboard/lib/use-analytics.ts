@@ -17,8 +17,8 @@ export function analyticsUrl(fn: string, params: Record<string, string | number 
   return `/api/analytics?${u.toString()}`;
 }
 
-async function load(url: string): Promise<unknown> {
-  if (memo.has(url)) return memo.get(url);
+async function load(url: string, bypass = false): Promise<unknown> {
+  if (!bypass && memo.has(url)) return memo.get(url);
   const pending = waiting.get(url);
   if (pending) return pending;
 
@@ -39,7 +39,7 @@ async function load(url: string): Promise<unknown> {
   return p;
 }
 
-export type Async<T> = { data: T | null; error: string | null; code?: string; loading: boolean };
+export type Async<T> = { data: T | null; error: string | null; code?: string; loading: boolean; refreshing: boolean; refresh: () => void };
 
 export function useAnalytics<T>(
   fn: string,
@@ -47,25 +47,33 @@ export function useAnalytics<T>(
   enabled = true
 ): Async<T> {
   const url = analyticsUrl(fn, params);
+  const [refreshKey, setRefreshKey] = React.useState(0);
   const [state, setState] = React.useState<Async<T>>(() => ({
     data: (memo.get(url) as T) ?? null,
     error: null,
     loading: enabled && !memo.has(url),
+    refreshing: false,
+    refresh: () => setRefreshKey((value) => value + 1),
   }));
 
   React.useEffect(() => {
     if (!enabled) return;
-    if (memo.has(url)) {
-      setState({ data: memo.get(url) as T, error: null, loading: false });
+    const bypass = refreshKey > 0;
+    if (!bypass && memo.has(url)) {
+      setState((previous) => ({ ...previous, data: memo.get(url) as T, error: null, loading: false, refreshing: false }));
       return;
     }
     let live = true;
-    setState((s) => ({ ...s, loading: true, error: null }));
-    load(url)
-      .then((d) => live && setState({ data: d as T, error: null, loading: false }))
-      .catch((e: Error & { code?: string }) => live && setState({ data: null, error: e.message, code: e.code, loading: false }));
+    setState((s) => ({ ...s, loading: !s.data, refreshing: Boolean(s.data), error: null }));
+    const requestUrl = bypass ? `${url}&refresh=1` : url;
+    load(requestUrl, bypass)
+      .then((d) => {
+        memo.set(url, d);
+        if (live) setState((previous) => ({ ...previous, data: d as T, error: null, loading: false, refreshing: false }));
+      })
+      .catch((e: Error & { code?: string }) => live && setState((previous) => ({ ...previous, error: e.message, code: e.code, loading: false, refreshing: false })));
     return () => { live = false; };
-  }, [url, enabled]);
+  }, [url, enabled, refreshKey]);
 
   return state;
 }
@@ -94,7 +102,7 @@ export function usePaged<Row>(
 
   const total = res.data?.total ?? 0;
   return {
-    rows, total, meta: res.data, error: res.error, code: res.code, loading: res.loading,
+    rows, total, meta: res.data, error: res.error, code: res.code, loading: res.loading, refreshing: res.refreshing, refresh: res.refresh,
     hasMore: rows.length < total,
     loadMore: () => setOffset(rows.length),
   };

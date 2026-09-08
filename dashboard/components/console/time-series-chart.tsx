@@ -3,7 +3,7 @@
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 
-type Point = { date: string } & Record<string, number | string | null | undefined>;
+type Point = { date: string } & Record<string, unknown>;
 type Series = { key: string; label: string; color: string };
 
 export function TimeSeriesChart({
@@ -11,11 +11,13 @@ export function TimeSeriesChart({
   series,
   ariaLabel,
   format = "number",
+  tooltipDetails,
 }: {
   data: Point[];
   series: Series[];
   ariaLabel: string;
   format?: "number" | "duration" | "percent" | "currency";
+  tooltipDetails?: (point: Point) => React.ReactNode;
 }) {
   const config: ChartConfig = Object.fromEntries(series.map((item) => [item.key, { label: item.label, color: item.color }]));
   const valueFormatter = (value: number) => {
@@ -30,7 +32,17 @@ export function TimeSeriesChart({
         <CartesianGrid vertical={false} strokeDasharray="3 3" />
         <XAxis dataKey="date" tickLine={false} axisLine={false} minTickGap={20} tickMargin={10} />
         <YAxis tickLine={false} axisLine={false} width={62} tickMargin={8} tickFormatter={(value) => valueFormatter(Number(value))} />
-        <ChartTooltip content={<ChartTooltipContent formatter={(value) => valueFormatter(Number(value))} />} />
+        <ChartTooltip
+          content={(props) => (
+            <ChartTooltipContent
+              active={props.active}
+              payload={props.payload}
+              label={props.label}
+              formatter={(value) => valueFormatter(Number(value))}
+              footer={tooltipDetails?.(props.payload?.[0]?.payload as Point)}
+            />
+          )}
+        />
         <ChartLegend content={<ChartLegendContent />} />
         {series.map((item) => (
           <Line key={item.key} type="monotone" dataKey={item.key} name={item.key} stroke={item.color} strokeWidth={2} dot={data.length === 1 ? { r: 3 } : false} activeDot={{ r: 3 }} connectNulls={false} isAnimationActive={false} />

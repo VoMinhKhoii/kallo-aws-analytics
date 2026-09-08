@@ -10,6 +10,7 @@ import {
   Database,
   Info,
   LoaderCircle,
+  RefreshCw,
 } from "lucide-react";
 import type {
   AppHealthRow,
@@ -58,7 +59,7 @@ export function latestByHour<T extends { hour: string }>(rows: T[] | undefined):
 }
 
 export function PageIntro({
-  eyebrow,
+  eyebrow: _eyebrow,
   title,
   description,
   children,
@@ -69,14 +70,35 @@ export function PageIntro({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-5 border-b border-[var(--console-rule)] pb-6 pt-7 sm:flex-row sm:items-end sm:justify-between">
-      <div className="min-w-0 max-w-3xl">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--console-muted)]">{eyebrow}</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-[var(--console-ink)] sm:text-4xl">{title}</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--console-muted)]">{description}</p>
+    <div className="flex flex-col gap-3 border-b border-[var(--console-rule)] py-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <h1 className="text-lg font-semibold tracking-[-0.02em] text-[var(--console-ink)]">{title}</h1>
+        <p className="sr-only">{description}</p>
       </div>
       {children ? <div className="shrink-0">{children}</div> : null}
     </div>
+  );
+}
+
+export function RefreshButton({
+  onClick,
+  refreshing = false,
+  label = "Refresh",
+}: {
+  onClick: () => void;
+  refreshing?: boolean;
+  label?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={refreshing}
+      className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-[var(--console-rule)] bg-[var(--console-surface)] px-3 text-xs font-medium text-[var(--console-ink)] transition-colors hover:bg-[var(--console-panel)] focus-visible:outline-2 focus-visible:outline-[var(--console-blue)] disabled:cursor-wait disabled:opacity-55"
+    >
+      <RefreshCw className={cn("size-3.5", refreshing && "animate-spin")} aria-hidden="true" />
+      {refreshing ? "Refreshing…" : label}
+    </button>
   );
 }
 

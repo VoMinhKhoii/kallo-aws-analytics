@@ -1,4 +1,4 @@
-import { getCachedSelectedMetrics } from "@/app/lib/api";
+import { getCachedSelectedMetrics, getSelectedMetrics } from "@/app/lib/api";
 import { METRIC_NAMES, type MetricName } from "@/app/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -32,8 +32,11 @@ export async function GET(request: Request) {
     return Response.json({ error: "from and to must be an ordered ISO date range" }, { status: 400 });
   }
 
-  const bundle = await getCachedSelectedMetrics(requested as MetricName[], from, to);
+  const refresh = url.searchParams.get("refresh") === "1";
+  const bundle = refresh
+    ? await getSelectedMetrics(requested as MetricName[], from, to)
+    : await getCachedSelectedMetrics(requested as MetricName[], from, to);
   return Response.json(bundle, {
-    headers: { "Cache-Control": "private, max-age=30" },
+    headers: { "Cache-Control": refresh ? "private, no-store" : "private, max-age=30" },
   });
 }

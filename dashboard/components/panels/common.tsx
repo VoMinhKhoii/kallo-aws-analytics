@@ -6,9 +6,9 @@ import { cn } from "@/lib/utils";
 
 export function PageHeader({ title, sub }: { title: string; sub: React.ReactNode }) {
   return (
-    <div className="pt-8 pb-6">
-      <h1 className="text-4xl font-semibold tracking-tight">{title}</h1>
-      <p className="text-muted-foreground mt-1.5 text-sm">{sub}</p>
+    <div className="flex items-center justify-between gap-3 border-b border-[var(--console-rule)] py-3">
+      <h1 className="text-lg font-semibold tracking-[-0.02em]">{title}</h1>
+      <p className="sr-only">{sub}</p>
     </div>
   );
 }

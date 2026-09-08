@@ -141,12 +141,12 @@ async function callRpc(fn: string, args: Record<string, unknown>): Promise<unkno
  * Cached, de-duplicated RPC call. Concurrent callers for the same key share a
  * single in-flight request rather than each opening their own.
  */
-export async function query(name: RpcName, args: Record<string, unknown>): Promise<unknown> {
+export async function query(name: RpcName, args: Record<string, unknown>, refresh = false): Promise<unknown> {
   if (!isLive) throw new AnalyticsError(configProblem ?? "analytics source is not configured", 503, "NOT_CONFIGURED");
   const spec = RPC[name];
   const key = `${name}:${JSON.stringify(args)}`;
 
-  const cached = cacheGet(key);
+  const cached = refresh ? undefined : cacheGet(key);
   if (cached !== undefined) return cached;
 
   const pending = inflight.get(key);

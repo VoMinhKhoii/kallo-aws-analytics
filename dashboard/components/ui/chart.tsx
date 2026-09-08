@@ -56,6 +56,7 @@ function ChartTooltipContent({
   formatter,
   hideLabel = false,
   className,
+  footer,
 }: {
   active?: boolean;
   payload?: readonly any[];
@@ -64,6 +65,7 @@ function ChartTooltipContent({
   formatter?: (value: any, name: string) => React.ReactNode;
   hideLabel?: boolean;
   className?: string;
+  footer?: React.ReactNode;
 }) {
   const { config } = useChart();
   if (!active || !payload?.length) return null;
@@ -85,6 +87,7 @@ function ChartTooltipContent({
           );
         })}
       </div>
+      {footer ? <div className="mt-1 border-t pt-1.5 text-muted-foreground">{footer}</div> : null}
     </div>
   );
 }

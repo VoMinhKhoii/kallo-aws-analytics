@@ -19,8 +19,8 @@ export function metricBundleUrl(
   return `/api/metrics?${params.toString()}`;
 }
 
-async function load(url: string): Promise<MetricBundle> {
-  const hit = memo.get(url);
+async function load(url: string, bypass = false): Promise<MetricBundle> {
+  const hit = bypass ? undefined : memo.get(url);
   if (hit) return hit;
   const pending = waiting.get(url);
   if (pending) return pending;
@@ -54,6 +54,8 @@ export type MetricBundleState = {
   errors: Partial<Record<MetricName, string>>;
   loading: boolean;
   error: string | null;
+  refresh: () => void;
+  refreshing: boolean;
 };
 
 export function useMetricBundle(
@@ -63,6 +65,7 @@ export function useMetricBundle(
   enabled = true,
 ): MetricBundleState {
   const url = metricBundleUrl(metrics, from, to);
+  const [refreshKey, setRefreshKey] = React.useState(0);
   const [state, setState] = React.useState<MetricBundleState>(() => {
     const cached = memo.get(url);
     return {
@@ -70,32 +73,37 @@ export function useMetricBundle(
       errors: cached?.errors ?? {},
       loading: enabled && !cached,
       error: null,
+      refresh: () => setRefreshKey((value) => value + 1),
+      refreshing: false,
     };
   });
 
   React.useEffect(() => {
     if (!enabled) {
-      setState({ data: null, errors: {}, loading: false, error: null });
+      setState((previous) => ({ ...previous, data: null, errors: {}, loading: false, error: null, refreshing: false }));
       return;
     }
-    const cached = memo.get(url);
+    const bypass = refreshKey > 0;
+    const cached = bypass ? undefined : memo.get(url);
     if (cached) {
-      setState({ data: cached.data, errors: cached.errors, loading: false, error: null });
+      setState((previous) => ({ ...previous, data: cached.data, errors: cached.errors, loading: false, error: null, refreshing: false }));
       return;
     }
     let active = true;
-    setState((previous) => ({ ...previous, loading: true, error: null }));
-    load(url)
+    setState((previous) => ({ ...previous, loading: !previous.data, refreshing: Boolean(previous.data), error: null }));
+    const requestUrl = bypass ? `${url}&refresh=1` : url;
+    load(requestUrl, bypass)
       .then((bundle) => {
-        if (active) setState({ data: bundle.data, errors: bundle.errors, loading: false, error: null });
+        memo.set(url, bundle);
+        if (active) setState((previous) => ({ ...previous, data: bundle.data, errors: bundle.errors, loading: false, refreshing: false, error: null }));
       })
       .catch((reason: Error & { code?: string }) => {
-        if (active) setState({ data: null, errors: {}, loading: false, error: reason.message });
+        if (active) setState((previous) => ({ ...previous, loading: false, refreshing: false, error: reason.message }));
       });
     return () => {
       active = false;
     };
-  }, [enabled, url]);
+  }, [enabled, refreshKey, url]);
 
   return state;
 }
