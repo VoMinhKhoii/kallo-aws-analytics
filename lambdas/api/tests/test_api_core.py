@@ -15,6 +15,10 @@ from lambdas.api.api_core import (
 )
 
 
+class ConditionalCheckFailedException(Exception):
+    response = {"Error": {"Code": "ConditionalCheckFailedException"}}
+
+
 def response_body(response):
     return json.loads(response["body"])
 
@@ -23,6 +27,7 @@ class FakeTable:
     def __init__(self, *, query_items=None, run_item=None, journal=None):
         self.query_items = list(query_items or [])
         self.run_item = run_item
+        self.guard_item = None
         self.query_calls = []
         self.get_calls = []
         self.puts = []
@@ -34,11 +39,43 @@ class FakeTable:
 
     def get_item(self, **kwargs):
         self.get_calls.append(kwargs)
+        if kwargs.get("Key") == {
+            "metric": runs.RUN_GUARD_METRIC,
+            "date": runs.RUN_GUARD_DATE,
+        }:
+            return {"Item": self.guard_item} if self.guard_item is not None else {}
         return {"Item": self.run_item} if self.run_item is not None else {}
 
     def put_item(self, **kwargs):
-        self.puts.append(kwargs["Item"])
+        item = kwargs["Item"]
+        if item.get("metric") == runs.RUN_GUARD_METRIC:
+            now = kwargs.get("ExpressionAttributeValues", {}).get(":now")
+            if self.guard_item is not None and self.guard_item.get("guard_until", 0) > now:
+                raise ConditionalCheckFailedException()
+            self.guard_item = dict(item)
+            self.journal.append("claim")
+            return {}
+        self.puts.append(item)
         self.journal.append("put_item")
+        return {}
+
+    def update_item(self, **kwargs):
+        if kwargs.get("Key") != {
+            "metric": runs.RUN_GUARD_METRIC,
+            "date": runs.RUN_GUARD_DATE,
+        }:
+            raise AssertionError("unexpected update key")
+        values = kwargs["ExpressionAttributeValues"]
+        if self.guard_item is None or self.guard_item.get("owner_run_id") != values[":run_id"]:
+            raise ConditionalCheckFailedException()
+        self.guard_item.update(
+            {
+                "guard_until": values[":now"],
+                "phase": values[":phase"],
+                "released_at": values[":released_at"],
+            }
+        )
+        self.journal.append("release")
         return {}
 
 
@@ -217,11 +254,13 @@ def test_run_start_returns_accepted_id_and_exact_async_payload():
         lambda_client=client,
         function_name="extract-function",
         run_id_factory=lambda: "2cbac7f2-cb92-4959-86df-80b9778f33ee",
+        now_factory=lambda: 1_000,
     )
 
     assert response["statusCode"] == 202
     assert response_body(response) == {
-        "run_id": "2cbac7f2-cb92-4959-86df-80b9778f33ee"
+        "run_id": "2cbac7f2-cb92-4959-86df-80b9778f33ee",
+        "next_allowed_at": "1970-01-01T00:46:40Z",
     }
     call = client.calls[0]
     assert call["FunctionName"] == "extract-function"
@@ -232,9 +271,71 @@ def test_run_start_returns_accepted_id_and_exact_async_payload():
     }
     # The status item must exist before the invoke, or the dashboard's first
     # poll races the extract Lambda and reads a hard 404.
-    assert order == ["put_item", "invoke"]
+    assert order == ["claim", "put_item", "invoke"]
     assert table.puts[0]["metric"] == "_run#2cbac7f2-cb92-4959-86df-80b9778f33ee"
     assert table.puts[0]["phase"] == "queued"
+
+
+def test_run_start_rejects_a_second_claim_with_authoritative_retry_metadata():
+    table = FakeTable()
+    first_client = FakeLambdaClient()
+    first = runs.handle(
+        {"httpMethod": "POST"},
+        table=table,
+        lambda_client=first_client,
+        function_name="extract-function",
+        run_id_factory=lambda: "run-first",
+        now_factory=lambda: 1_000,
+    )
+    second_client = FakeLambdaClient()
+    second = runs.handle(
+        {"httpMethod": "POST"},
+        table=table,
+        lambda_client=second_client,
+        function_name="extract-function",
+        run_id_factory=lambda: "run-second",
+        now_factory=lambda: 1_000,
+    )
+
+    assert first["statusCode"] == 202
+    assert second["statusCode"] == 429
+    assert response_body(second) == {
+        "error": "an analytics snapshot is already running or was started recently",
+        "retry_after": 1800,
+        "next_allowed_at": "1970-01-01T00:46:40Z",
+    }
+    assert second["headers"]["Retry-After"] == "1800"
+    assert second_client.calls == []
+    assert [call["Key"] for call in table.get_calls] == [
+        {"metric": runs.RUN_GUARD_METRIC, "date": runs.RUN_GUARD_DATE}
+    ]
+
+
+def test_run_start_can_claim_an_expired_server_guard():
+    table = FakeTable()
+    first_client = FakeLambdaClient()
+    runs.handle(
+        {"httpMethod": "POST"},
+        table=table,
+        lambda_client=first_client,
+        function_name="extract-function",
+        run_id_factory=lambda: "run-first",
+        now_factory=lambda: 1_000,
+    )
+    second_client = FakeLambdaClient()
+    second = runs.handle(
+        {"httpMethod": "POST"},
+        table=table,
+        lambda_client=second_client,
+        function_name="extract-function",
+        run_id_factory=lambda: "run-second",
+        now_factory=lambda: 2_800,
+    )
+
+    assert second["statusCode"] == 202
+    assert response_body(second)["run_id"] == "run-second"
+    assert table.guard_item["owner_run_id"] == "run-second"
+    assert len(second_client.calls) == 1
 
 
 def test_run_start_marks_the_run_failed_when_the_invoke_is_rejected():
@@ -246,12 +347,41 @@ def test_run_start_marks_the_run_failed_when_the_invoke_is_rejected():
         lambda_client=client,
         function_name="extract-function",
         run_id_factory=lambda: "run-99",
+        now_factory=lambda: 1_000,
     )
 
     assert response["statusCode"] == 500
     # A rejected invoke must not leave the run stuck at "queued" forever.
     assert [put["phase"] for put in table.puts] == ["queued", "failed"]
     assert table.puts[-1]["failure_reason"] == "start_failed"
+    assert table.guard_item["owner_run_id"] == "run-99"
+    assert table.guard_item["phase"] == "released"
+    assert table.guard_item["guard_until"] == 1_000
+
+
+def test_run_start_can_retry_after_invoke_failure_releases_guard():
+    table = FakeTable()
+    failed = runs.handle(
+        {"httpMethod": "POST"},
+        table=table,
+        lambda_client=FakeLambdaClient(status_code=500),
+        function_name="extract-function",
+        run_id_factory=lambda: "run-failed",
+        now_factory=lambda: 1_000,
+    )
+    retried_client = FakeLambdaClient()
+    retried = runs.handle(
+        {"httpMethod": "POST"},
+        table=table,
+        lambda_client=retried_client,
+        function_name="extract-function",
+        run_id_factory=lambda: "run-retried",
+        now_factory=lambda: 1_000,
+    )
+
+    assert failed["statusCode"] == 500
+    assert retried["statusCode"] == 202
+    assert len(retried_client.calls) == 1
 
 
 def test_run_poll_reads_run_status_record_and_returns_record_shape():
@@ -275,6 +405,7 @@ def test_run_poll_reads_run_status_record_and_returns_record_shape():
         "date": "latest",
     }
     assert table.get_calls[0]["ConsistentRead"] is True
+    assert table.guard_item is None
 
 
 def test_insight_context_is_compact_and_decodes_aggregate_payloads():
@@ -335,4 +466,3 @@ def test_insight_returns_clean_502_when_gemini_fails(monkeypatch):
         "error": "Weekly summary is temporarily unavailable"
     }
     assert "upstream" not in response["body"]
-

@@ -45,27 +45,13 @@ WHERE CAST(logged_at AS DATE) BETWEEN DATE '{from_date}' AND DATE '{to_date}'
 GROUP BY 1
 ORDER BY 1
 """.strip(),
-    "meals_by_locale_range": """
-SELECT
-  CAST(m.logged_at AS DATE) AS meal_date,
-  COALESCE(u.preferred_locale, 'unknown') AS preferred_locale,
-  COUNT(*) AS meal_count
-FROM v_meals AS m
-LEFT JOIN (
-  SELECT user_hash, arbitrary(preferred_locale) AS preferred_locale
-  FROM v_user_funnel
-  GROUP BY user_hash
-) AS u ON m.user_hash = u.user_hash
-WHERE CAST(m.logged_at AS DATE) BETWEEN DATE '{from_date}' AND DATE '{to_date}'
-GROUP BY 1, 2
-ORDER BY 1, 2
-""".strip(),
     "latency_percentiles_range": """
 SELECT
   CAST(created_at AS DATE) AS run_date,
   COALESCE(model_call2, 'unknown') AS model,
   approx_percentile(CAST(total_ms AS DOUBLE), 0.50) AS p50_ms,
   approx_percentile(CAST(total_ms AS DOUBLE), 0.95) AS p95_ms,
+  approx_percentile(CAST(total_ms AS DOUBLE), 0.99) AS p99_ms,
   COUNT(*) AS run_count
 FROM v_pipeline_runs
 WHERE CAST(created_at AS DATE) BETWEEN DATE '{from_date}' AND DATE '{to_date}'
@@ -188,4 +174,3 @@ def handler(event: Mapping[str, Any] | None, context: Any) -> dict[str, Any]:
         database=database,
         output=output,
     )
-

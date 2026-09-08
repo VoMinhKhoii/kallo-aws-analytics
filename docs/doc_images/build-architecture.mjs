@@ -13,7 +13,7 @@ const tree = phantom("root", "", { dir: "row", gap: 56, align: "center", header:
     onpremFrame("prod", "PRODUCTION — GCP + Supabase", [
       icon("kallo", "gcp_cloud_run", "Kallo app (Cloud Run)"),
       icon("supabase", "generic_database", "Supabase Postgres"),
-      box("sbnote", "analytics schema: 7 sanitized\nread-only views\nHMAC'd IDs · column allowlists", { fs: 10 }),
+      box("sbnote", "analytics schema: 6 sanitized\nread-only views\nno funnel, retention, or journeys", { fs: 10 }),
     ], { dir: "col", gap: 20, align: "center" }),
     icon("operator", "user", "Operator / tutor (browser)"),
   ]),
@@ -26,29 +26,31 @@ const tree = phantom("root", "", { dir: "row", gap: 56, align: "center", header:
       phantom("extractcl", "", { dir: "row", gap: 56, align: "center", header: 0, pad: 0 }, [
         phantom("trigcol", "", { dir: "col", gap: 76, align: "center", header: 0, pad: 0 }, [
           icon("evb_daily", "eventbridge_scheduler", "EventBridge daily rule"),
-          icon("secrets", "secrets_manager", "Secrets Manager"),
+          icon("secrets", "secrets_manager", "Secrets Manager\nSupabase · Gemini · bearer"),
         ]),
         icon("lambda_extract", "lambda", "Lambda extract"),
       ]),
       phantom("lake", "", { dir: "col", gap: 14, align: "center", header: 0, pad: 0 }, [
         icon("s3", "s3", ""),
-        box("s3note", "S3 data lake\nraw/ · curated/ · aggregates/ · manifests", { fs: 10, bold: true }),
+        box("s3note", "S3 data lake\n6 sanitized snapshots → 13 aggregates\nlatest complete curated run", { fs: 10, bold: true }),
       ]),
-      icon("glue", "glue", "Glue job (PySpark · 2 workers)"),
+      icon("glue", "glue", "Glue job (PySpark · 2 workers)\napp health · AI · ingredient quality"),
       icon("evb_succ", "eventbridge", "Rule: Glue SUCCEEDED"),
       icon("lambda_loader", "lambda", "Lambda loader"),
     ]),
     // Lane 2 — serving, left→right: ALB → Fargate → API Gateway → api handlers
     phantom("serve", "", { dir: "row", gap: 90, align: "center", header: 0, pad: 0 }, [
       group("vpc", "group_vpc", "Default VPC", { dir: "row", gap: 24, align: "center" }, [
-        group("pubsub", "group_subnet", "Public subnets", { dir: "row", gap: 40, align: "center" }, [
+        group("pubsub", "group_subnet", "Public subnets", { dir: "row", gap: 80, align: "center" }, [
           icon("alb", "application_load_balancer", "Application Load Balancer"),
-          icon("dashboard", "fargate", "ECS Fargate — Next.js dashboard"),
+          icon("dashboard", "fargate", "ECS Fargate — Next.js dashboard\nAWS aggregates + cached Supabase RPCs"),
         ]),
       ]),
       phantom("gwcol", "", { dir: "col", gap: 56, align: "center", header: 0, pad: 0 }, [
         icon("ecr", "ecr", "ECR (dashboard image)"),
-        icon("apigw", "api_gateway", "API Gateway (REST)\nTOKEN authorizer"),
+        icon("authsecrets", "secrets_manager", "5 disposable login secrets"),
+        icon("apigw", "api_gateway", "API Gateway (REST)\nTOKEN authorizer · 13 metrics"),
+        box("serving_guardrails", "SERVING GUARDRAILS\nTOKEN cache: 300s · stage-scoped Allow\nreserved: API metrics 2 + authorizer 2\nfive other functions ×1 · total 9 / 10", { fs: 10, bold: true }),
       ]),
       phantom("apicol", "", { dir: "col", gap: 90, align: "center", header: 0, pad: 0 }, [
         icon("athena", "athena", "Athena workgroup · byte cap"),
@@ -57,11 +59,17 @@ const tree = phantom("root", "", { dir: "row", gap: 56, align: "center", header:
     ]),
     ]),
     // Convergence sink — fed by loader (lane 1) and api handlers (lane 2)
-    icon("ddb", "dynamodb", "DynamoDB \"aggregates\"\nPK metric · SK date"),
+    phantom("statecol", "", { dir: "col", gap: 24, align: "center", header: 0, pad: 0 }, [
+      icon("ddb", "dynamodb", "DynamoDB \"aggregates\"\nPK metric · SK date"),
+      box("live_boundary", "OPERATIONAL CONTRACT\nDAU / WAU context retained\nno detailed user-behavior analytics", { fs: 10, bold: true, fill: "#FDECEC", stroke: "#B42318" }),
+    ]),
   ]),
 
-  // ---- external AI (right) ----
-  ossBox("gemini", "Google Gemini API\n(external)", { bold: true }),
+  // ---- continuously hosted dashboard + external AI (right) ----
+  phantom("external_services", "", { dir: "col", gap: 56, align: "center", header: 0, pad: 0 }, [
+    ossBox("vercel", "Vercel production\ncontinuous Next.js dashboard\nsame server-side API + RPC paths", { bold: true }),
+    ossBox("gemini", "Google Gemini API\nexternal insight dependency", { bold: true }),
+  ]),
 ]);
 
 renderTree(d, tree, [40, 90]);
@@ -71,7 +79,7 @@ d.title("Kallo Analytics Plane — runtime architecture (AWS Academy Learner Lab
 d.link("kallo", "supabase", "writes");
 // lane 1 — extract
 d.link("evb_daily", "lambda_extract", "invoke daily", { dir: "LR" });
-d.link("supabase", "lambda_extract", "HTTPS PostgREST · watermarked pulls");
+d.link("supabase", "lambda_extract", "HTTPS PostgREST · full snapshots");
 d.link("secrets", "lambda_extract", "read creds", { dash: true, dir: "LR" });
 d.link("lambda_extract", "s3", "write JSON Lines", { flow: true });
 d.link("lambda_extract", "glue", "StartJobRun ×1");
@@ -83,15 +91,14 @@ d.link("glue", "evb_succ", "SUCCEEDED", { dash: true });
 d.link("evb_succ", "lambda_loader", "invoke");
 d.link("lambda_loader", "ddb", "idempotent upserts", { flow: true });
 // lane 2 — serving
-d.link("operator", "alb", "HTTPS");
+d.link("operator", "alb", "assessment session only", { dash: true });
 d.link("alb", "dashboard", "forward");
 d.link("ecr", "dashboard", "image pull", { dash: true });
+d.link("authsecrets", "dashboard", "ECS secret injection", { dash: true });
 d.link("dashboard", "apigw", "Bearer · server-side");
 d.link("apigw", "lambda_api", "invoke");
 d.link("lambda_api", "athena", "start/poll queries", { dir: "LR" });
-d.link("athena", "s3note", "query curated Parquet", { dash: true });
 d.link("lambda_api", "ddb", "read aggregates");
-d.link("lambda_api", "gemini", "generateContent");
 
 const res = d.validate();
 console.log("VALIDATE:", JSON.stringify({ ok: res.ok, errors: res.errors, warnings: res.warnings, advice: res.audit.advice }));
@@ -101,5 +108,5 @@ writeFileSync(new URL("./kallo-analytics-architecture.drawio", import.meta.url),
 import { execFileSync as __exec } from "node:child_process";
 try {
   const __f = new URL("./kallo-analytics-architecture.drawio", import.meta.url).pathname;
-  console.log(__exec("drawio-ai", ["render", __f, "--check", "-o", __f + ".png"], { encoding: "utf8" }).trim());
+  console.log(__exec("drawio-ai", ["render", __f, "--check", "--page", "1", "-o", __f + ".png"], { encoding: "utf8" }).trim());
 } catch (e) { console.error("RENDER-SKIPPED:", String(e.message).split("\n")[0]); }

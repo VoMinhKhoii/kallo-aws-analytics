@@ -1,0 +1,4 @@
+[
+  { "rank": 1, "ingredient_query": "chicken breast", "decision_count": 84, "accepted_count": 80, "candidates": [{ "rank": 1, "food_id": "VNFC-002", "name": "Chicken breast", "source": "USDA", "similarity": 0.94 }], "chosen": { "food_id": "VNFC-002", "name": "Chicken breast", "source": "USDA", "similarity": 0.94 } },
+  { "rank": 2, "ingredient_query": "jasmine rice", "decision_count": 67, "accepted_count": 61, "candidates": [{ "rank": 1, "food_id": "VNFC-014", "name": "Cooked jasmine rice", "source": "VNFC", "similarity": 0.91 }], "chosen": { "food_id": "VNFC-014", "name": "Cooked jasmine rice", "source": "VNFC", "similarity": 0.91 } }
+]

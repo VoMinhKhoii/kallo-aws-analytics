@@ -123,6 +123,18 @@ def test_fixtures_have_three_to_five_rows_and_exact_allowlists() -> None:
         assert all(tuple(row) == config.columns for row in rows)
 
 
+def test_ingredient_decisions_view_uses_date_and_opaque_tie_breaker() -> None:
+    config = next(
+        config for config in VIEW_CONFIGS if config.name == "v_ingredient_decisions"
+    )
+    assert config.order_columns == ("occurred_on", "decision_key")
+    assert config.columns[0:3] == (
+        "decision_key",
+        "occurred_on",
+        "ingredient_query",
+    )
+
+
 def test_pagination_assembles_jsonl_files_as_a_full_snapshot() -> None:
     config = VIEW_CONFIGS[0]
     rows = fixture_rows(config.name)
@@ -130,7 +142,9 @@ def test_pagination_assembles_jsonl_files_as_a_full_snapshot() -> None:
     def respond(url: str, headers: Mapping[str, str]) -> FakeResponse:
         query = parse_qs(urlparse(url).query)
         assert query["select"] == [",".join(config.columns)]
-        assert query["order"] == ["created_at.asc"]
+        assert query["order"] == [
+            ",".join(f"{column}.asc" for column in config.order_columns)
+        ]
         # Full snapshot: never a cursor filter. A `gt.` filter on a coarse
         # cursor silently drops same-period rows, so assert it never appears.
         assert set(query) == {"select", "order"}
@@ -318,7 +332,9 @@ def test_every_view_is_a_full_snapshot_with_no_cursor_filter() -> None:
         )
         query = parse_qs(urlparse(http.calls[0]["url"]).query)
         assert set(query) == {"select", "order"}, config.name
-        assert query["order"] == [f"{config.order_column}.asc"], config.name
+        assert query["order"] == [
+            ",".join(f"{column}.asc" for column in config.order_columns)
+        ], config.name
 
 
 def test_page_retries_5xx_with_backoff_but_not_4xx() -> None:

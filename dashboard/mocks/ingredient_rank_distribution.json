@@ -1,0 +1,7 @@
+[
+  { "pool_size": 3, "selected_rank": 1, "count": 186, "share": 0.7381 },
+  { "pool_size": 3, "selected_rank": 2, "count": 49, "share": 0.1944 },
+  { "pool_size": 3, "selected_rank": 3, "count": 17, "share": 0.0675 },
+  { "pool_size": 2, "selected_rank": 1, "count": 72, "share": 0.8 },
+  { "pool_size": 2, "selected_rank": 2, "count": 18, "share": 0.2 }
+]

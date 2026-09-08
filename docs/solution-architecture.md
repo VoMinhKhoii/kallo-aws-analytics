@@ -4,27 +4,27 @@
 
 ### Links
 
-- **Live dashboard:** `[active during demo; ALB DNS changes per deployment — screenshots included]`
+- **Live dashboard:** `https://kallo-aws-analytics.vercel.app` for continuous iteration; the ALB URL exists only during a supervised evidence session and the 6 September evidence deployment was deleted after capture.
 - **Source repository:** `[repository URL to be inserted before submission]`
 - **Public datasets:** None. The project uses private, sanitised operational data from the live `kallo.fit` application; no public dataset is redistributed with the submission.
 
 ## 1. Summary (0.5 marks)
 
-This project builds a low-cost analytics and operations plane for `kallo.fit`, a live calorie-tracking application whose production path runs on Google Cloud Run with Supabase Postgres. It extracts only seven privacy-reduced analytics views through Supabase PostgREST, lands incremental JSON Lines (JSONL) batches in Amazon S3, transforms them with AWS Glue into curated Parquet and dashboard aggregates, serves those aggregates through DynamoDB and API Gateway, and presents them in a Next.js dashboard on Amazon ECS Fargate behind an Application Load Balancer (ALB). The design is intentionally asynchronous and separate from the application's serving path, and it is bounded by the AWS Academy Learner Lab's service restrictions and USD 50 account budget.
+This project builds a low-cost analytics and operations plane for `kallo.fit`, a live calorie-tracking application whose production path runs on Google Cloud Run with Supabase Postgres. It extracts only six privacy-reduced operational views through Supabase PostgREST, lands complete run-scoped JSON Lines (JSONL) snapshots in Amazon S3, transforms them with AWS Glue into curated Parquet and thirteen dashboard aggregates, serves those aggregates through DynamoDB and API Gateway, and presents them in a Next.js dashboard on Amazon ECS Fargate behind an Application Load Balancer (ALB). The design is intentionally asynchronous and separate from the application's serving path, and it is bounded by the AWS Academy Learner Lab's service restrictions and USD 50 account budget.
 
 ## 2. Introduction (1 mark)
 
 ### 2.1 Motivation
 
-The live `kallo.fit` application currently has no reporting surface for product engagement, food-data coverage or AI-pipeline health. Querying its operational Supabase tables from dashboard requests would add reporting load and failure modes to the production serving path. This project therefore copies an allowlisted, pseudonymised subset into an independent AWS analytics plane: a reporting failure can make the dashboard stale, but cannot prevent a user from logging a meal.
+The live `kallo.fit` application currently has no reporting surface for aggregate usage, food-data quality or AI-pipeline health. Querying its operational Supabase tables from dashboard requests would add reporting load and failure modes to the production serving path. This project therefore copies an allowlisted, privacy-reduced subset into an independent AWS analytics plane: a reporting failure can make the dashboard stale, but cannot prevent a user from logging a meal.
 
 ### 2.2 High-level view
 
-At bird's-eye level, a daily or manually requested batch crosses the cloud boundary once: Lambda reads restricted Supabase views and writes a staged raw layer to S3; Glue converts the manifested batch to Parquet and twelve precomputed aggregate payloads; a success event invokes a loader that upserts DynamoDB. The dashboard normally reads those small aggregates, while Athena provides a separate fixed-template path for deeper SQL and Gemini turns seven days of aggregates into an on-demand operational brief. Figure 1 expands this overview and labels the actual service actions.
+At bird's-eye level, a daily or manually requested batch crosses the cloud boundary once: Lambda reads restricted Supabase views and writes a staged raw layer to S3; Glue converts the manifested batch to Parquet and thirteen precomputed aggregate payloads; a success event invokes a loader that upserts DynamoDB. The dashboard normally reads those small aggregates, while Athena provides a separate fixed-template path for deeper SQL and Gemini turns seven days of operational aggregates into an on-demand brief. Figure 1 expands this overview and labels the actual service actions.
 
 ### 2.3 Beneficiaries
 
-The direct beneficiary is the application operator/developer, who receives one place to inspect engagement, meal volume, model latency and failures, token cost, ingredient matching, onboarding conversion and food-data anomalies. Future contributors benefit from explicit view contracts, infrastructure as code, pure transformation functions and local tests. End users benefit indirectly when the operator uses coverage gaps and implausible nutrition records to correct the food catalogue and improve model or pipeline behaviour; the dashboard itself is not an end-user feature.
+The direct beneficiary is the application operator/developer, who receives one place to inspect aggregate DAU/WAU, macro-distribution shape, application health, model latency and failures, token cost, ingredient matching and food-data anomalies. Future contributors benefit from explicit view contracts, infrastructure as code, pure transformation functions and local tests. End users benefit indirectly when the operator uses catalogue gaps and implausible nutrition records to correct the food corpus and improve model or pipeline behaviour; the dashboard itself is not an end-user feature.
 
 ## 3. Related work (1 mark)
 
@@ -48,7 +48,7 @@ Kimball's technical DW/BI architecture separates a back-room ETL environment fro
 
 ### 4.1 Main architecture
 
-**Figure 1. Implemented runtime and deployment topology.** Solid arrows are runtime calls or data movement; dotted arrows are deployment-time relationships. The two red notes are current repository limitations, not fabricated completed work. Mermaid flowchart notation follows [20].
+**Figure 1. Implemented runtime and deployment topology.** Solid arrows are runtime calls or data movement; dotted arrows are deployment-time relationships. Mermaid flowchart notation follows [20].
 
 ```mermaid
 flowchart LR
@@ -88,7 +88,7 @@ flowchart LR
       curated[(S3 curated Parquet)]
       aggregates[(S3 aggregate JSON)]
       results[(S3 Athena results<br/>7-day expiry)]
-      ddb[(DynamoDB<br/>aggregates, watermarks, runs)]
+      ddb[(DynamoDB<br/>aggregates, run guard, run states)]
       catalog[Glue Data Catalog database]
       athena[Amazon Athena workgroup<br/>1 GiB scan cut-off]
     end
@@ -101,7 +101,7 @@ flowchart LR
     end
   end
 
-  supabase -->|serves the seven SQL views| postgrest
+  supabase -->|serves the six SQL views| postgrest
   operator -->|GET dashboard over HTTP| alb
   alb -->|forwards to target port 80| ecs
   ecs -->|writes application logs| cwlogs
@@ -127,13 +127,13 @@ flowchart LR
   daily -->|scheduled Lambda invocation| extract
   extract -->|GetSecretValue| secrets
   extract -->|GET allowlisted columns;<br/>Range pages of 1000| postgrest
-  extract -->|GetItem / PutItem watermarks<br/>and on-demand run phase| ddb
+  extract -->|PutItem on-demand run phase| ddb
   extract -->|PutObject JSONL parts| raw
   extract -->|PutObject manifest.json after all views| raw
   extract -->|StartJobRun once:<br/>run_id + manifest_key| glue
   glue -->|GetObject manifest;<br/>read manifested JSONL| raw
   glue -->|write partitioned Parquet| curated
-  glue -->|PutObject 12 metric JSON files| aggregates
+  glue -->|PutObject 13 metric JSON files| aggregates
   glue -->|Glue Job State Change| success
   success -->|invoke only when named job SUCCEEDED| loader
   loader -->|GetJobRun to recover arguments| glue
@@ -156,48 +156,43 @@ flowchart LR
   iam -.->|execution roles| extract
   iam -.->|execution roles| glue
 
-  portgap[Current gap: task/target use port 80,<br/>but the image listens on 3000]
-  cataloggap[Current gap: database exists,<br/>but catalogue tables/crawler do not]
-  portgap -.-> ecs
-  cataloggap -.-> catalog
-
-  classDef gap fill:#fff0f0,stroke:#b42318,color:#7a271a;
-  class portgap,cataloggap gap;
 ```
 
-The ALB DNS name is an output of the disposable presentation stack, so it changes when that stack is deleted and recreated. No URL or screenshot is asserted in this report before a real deployment. The current ALB/ECS port mismatch shown in Figure 1 must be corrected and demonstrated before the live link can truthfully be described as active.
+The ALB DNS name is an output of the disposable presentation stack, so it changes when that stack is deleted and recreated. The source-controlled presentation template consistently maps ALB port 80 to target and container port 3000. Because the presentation stack bills hourly, it remains disposable and its live URL must be evidenced during an active lab session rather than asserted from source alone. The 6 September 2026 evidence deployment passed the complete browser suite and was deleted immediately afterward; Vercel is the stable iteration URL.
 
 ### 4.2 Client-operation and scheduled sequences
 
 #### Operation 1 — load the dashboard panels
 
-1. The browser requests `/` from the public ALB. The ALB is configured to forward to the single Fargate task; the intended result is a dynamically rendered Next.js page for the latest 90-day UTC window.
-2. During server rendering, Next.js starts twelve metric requests in parallel—`dau_wau`, `retention_cohorts`, `meal_volume`, `macro_distributions`, `top_foods`, `ai_latency`, `ai_failure_rate`, `token_cost_daily`, `match_rate`, `onboarding_funnel`, `coverage_gaps` and `implausible_foods`. These twelve payloads populate nine visual panels because engagement, AI health and coverage each combine two metrics.
-3. Each `GET /metrics/{metric}?from=YYYY-MM-DD&to=YYYY-MM-DD` carries the server-held bearer token to API Gateway. The TOKEN authoriser compares it in constant time with the Secrets Manager value and, on success, returns both an Allow policy and the token as the usage-plan identifier.
+1. The browser requests a dashboard route from the public ALB or the production Vercel deployment. The rendered shell then asks same-origin routes for either an explicit AWS metric subset (`/api/metrics`) or a bounded, cached Supabase RPC used by trace and ingredient drilldowns. Navigation links disable automatic Next.js prefetch so merely rendering the sidebar cannot start hidden data reads.
+2. The server proxy reads those metrics serially with 500 ms spacing. This deliberately stays within the Learner Lab API rate boundary instead of creating a burst of concurrent invocations. Today, AI, Ingredients and System request only their own aggregate subsets. Diagnose pages also use page-scoped subsets; Trace viewer checks the thirteen-metric operational contract.
+3. Each `GET /metrics/{metric}?from=YYYY-MM-DD&to=YYYY-MM-DD` carries the server-held bearer token to API Gateway. The TOKEN authoriser compares it in constant time with the Secrets Manager value and, on success, returns a stage-scoped Allow policy plus the token as the usage-plan identifier. API Gateway caches that decision for five minutes.
 4. API Gateway applies the stage limit (2 requests/second, burst 5) and monthly quota (10,000), then invokes the metrics Lambda. The Lambda rejects unknown metric names and invalid date ranges, and issues a DynamoDB `Query` against `metric = :metric AND date BETWEEN :from AND :to`—never a table scan.
-5. Next.js merges daily payloads where necessary and renders every panel. `Promise.allSettled` preserves available panels if individual requests fail and displays an error banner. DAU/WAU and retention define an active user as a pseudonymous user who logged at least one meal on the relevant day.
+5. Each aggregate record is a complete snapshot, so the dashboard selects only the newest returned payload and never merges multiple loader dates. Per-metric failures remain independent: successful panels render, a failed metric says **Unavailable**, and a successful metric with no eligible rows says **No data**. DAU/WAU defines an active actor as a pseudonymous user who logged at least one meal on the relevant day; the hash is never emitted in the aggregate.
 
-**Implementation note.** The request fan-out is real source code, but twelve immediate calls exceed the API's burst limit of five unless API Gateway/Lambda timing spreads them. This requires deployment testing and may need client-side batching or a quota adjustment; it has not been represented as already proven.
+**Implementation note.** Serial spacing creates a known first-load floor proportional to each page's metric count, before network and cold-start latency. The server cache revalidates after five minutes, the browser proxy uses a 30-second private cache, and route loading boundaries keep the shell responsive during an uncached read.
+
+**Deployment boundary.** The six-view/thirteen-metric reduction is source-controlled but must be deployed as one coordinated extractor, Glue, loader, API and Supabase-view revision before production is expected to serve the reduced contract. Historical E2E findings are retained in `docs/dashboard-defect-validation.md`; they are not claims about the new undeployed revision.
 
 #### Operation 2 — run the pipeline now (asynchronous run ID and polling)
 
 1. The operator selects **Run pipeline now**. The browser posts to the Next.js same-origin route `/api/runs`, which sends `POST /runs` with the bearer token to API Gateway.
-2. After authorisation and quota enforcement, the runs Lambda creates a UUID and invokes the extract Lambda with `InvocationType="Event"` and `{"mode":"on_demand","run_id":"…"}`. Asynchronous Lambda invocation queues the event and returns without waiting for extraction [12]; the API responds `202 {"run_id":"…"}`.
-3. The extract Lambda writes `_run#<run_id>/latest` with phase `extracting`, performs the seven-view extraction, writes the manifest, starts Glue once, then replaces the phase with `transform_started` and records the Glue job-run ID when supplied.
-4. The browser immediately polls once and then polls its same-origin `/api/runs/{run_id}` route every five seconds. The runs Lambda performs a DynamoDB `GetItem` on the run key and returns the current phase. There is a small accepted race in which an immediate poll can return 404 before the asynchronous extractor creates the first run record.
+2. After authorisation and quota enforcement, the runs Lambda atomically claims the exact DynamoDB item `_run_guard#pipeline/latest` with a conditional write. The guard reserves the single pipeline slot for 30 minutes — longer than the configured ten-minute Glue timeout — across tabs and devices. A second claim receives `429` with `Retry-After` and `next_allowed_at` metadata. Only the successful claimant creates a UUID and invokes the extract Lambda with `InvocationType="Event"` and `{"mode":"on_demand","run_id":"…"}`. Asynchronous Lambda invocation queues the event and returns without waiting for extraction [12]; the API responds `202 {"run_id":"…","next_allowed_at":"…"}`.
+3. The extract Lambda writes `_run#<run_id>/latest` with phase `extracting`, performs the six-view extraction, writes the manifest, starts Glue once, then replaces the phase with `transform_started` and records the Glue job-run ID when supplied.
+4. The browser immediately polls once and then polls its same-origin `/api/runs/{run_id}` route every five seconds. The runs Lambda performs a DynamoDB `GetItem` on the run key and returns the current phase. The queued run item is written before the asynchronous invoke, so the first poll has a stable status record; the server guard remains authoritative even when browser state is bypassed.
 5. When Glue succeeds, EventBridge invokes the loader. After it validates every aggregate and upserts them, it updates the run to `completed`; the next poll stops the timer and displays success. Failed extract or Glue executions are visible in service logs, but the current run record has no automated terminal `failed` phase or dead-letter destination.
 
 #### Operation 3 — ad-hoc Athena query
 
 1. An authorised API client posts `{"template_id":"…","from":"YYYY-MM-DD","to":"YYYY-MM-DD"}` to `/athena/query`. The word *ad-hoc* here means choosing one of three fixed analytical templates and a date range; arbitrary client SQL is deliberately impossible.
-2. The Athena Lambda validates the template identifier and ISO dates, inserts only validated `DATE` literals, then calls `StartQueryExecution` in the enforced workgroup. The implemented templates are macro percentiles, meals by preferred locale and latency percentiles.
+2. The Athena Lambda validates the template identifier and ISO dates, inserts only validated `DATE` literals, then calls `StartQueryExecution` in the enforced workgroup. The implemented templates are macro percentiles and latency percentiles.
 3. The API returns `202 {"query_execution_id":"…"}`. The client polls `GET /athena/query/{id}`; the Lambda calls `GetQueryExecution` and, after `SUCCEEDED`, `GetQueryResults` for at most 100 rows. Athena writes its own result object beneath `athena-results/`, which expires after seven days [15]. The workgroup enforces its configuration and stops any query above 1 GiB scanned [9].
-4. **Current implementation boundary:** the Lambda routes and fixed queries exist, but the Next.js dashboard exposes no Athena form or polling client. More importantly, CloudFormation creates the Glue database but no `AWS::Glue::Table` resources or crawler, so the referenced `v_meals`, `v_user_funnel` and `v_pipeline_runs` catalogue tables are not automatically available. This operation is therefore source-implemented but not end-to-end deployable from the present stacks.
+4. **Current implementation boundary:** CloudFormation creates the Glue database and the two external Parquet tables referenced by the fixed templates (`v_meals` and `v_pipeline_runs`). The Lambda start/poll routes are source-implemented, but the Next.js dashboard still exposes no Athena form or polling client. This operation is therefore API-deployable but not accessible through the current dashboard UI.
 
 #### Operation 4 — weekly Gemini insight
 
 1. The operator selects **Generate summary**. The browser posts to the Next.js `/api/insight` route, which forwards `POST /insight/weekly` through the authenticated API.
-2. The insight Lambda calculates the inclusive UTC range from today minus six days through today and issues DynamoDB `Query` calls for seven aggregate metrics: engagement, meal volume, latency, failure rate, token cost, match rate and coverage gaps.
+2. The insight Lambda calculates the inclusive UTC range from today minus six days through today and issues DynamoDB `Query` calls for nine operational metrics: DAU/WAU, macro distributions, app health, latency, failure rate, token cost, match rate, ingredient gaps and food plausibility.
 3. It builds a compact JSON context and retrieves the Gemini key from Secrets Manager on the first invocation of a warm Lambda environment.
 4. The Lambda calls `POST /v1beta/models/gemini-2.5-flash:generateContent` with a low-temperature prompt, a 300-token ceiling and a 25-second HTTP timeout. Gemini returns generated text at `candidates[0].content.parts[0].text`, matching the documented `generateContent` request/response model [18].
 5. The text is returned to the browser and displayed, or a fixed 502 message is shown on a Gemini/network/response failure. “Weekly” describes the seven-day data window; the summary is generated on demand, is not scheduled weekly and is not persisted.
@@ -205,9 +200,9 @@ The ALB DNS name is an output of the disposable presentation stack, so it change
 #### Operation 5 — unattended daily schedule
 
 1. An enabled EventBridge rule with `rate(1 day)` invokes the extract Lambda. EventBridge, rather than the production application, owns the schedule.
-2. The extractor generates a run UUID, reads the stored per-view watermark (except the full-refresh food-composition view), pages PostgREST, writes JSONL and advances a watermark only after that view completes. If any view raises an error, no manifest or Glue start is issued.
-3. After all views finish, it writes `raw/_manifests/dt=<UTC-date>/manifest.json` and calls `StartJobRun` exactly once with `--run_id` and `--manifest_key`.
-4. Glue reads only the manifest-listed files, verifies row counts, writes curated Parquet and twelve aggregate JSON objects, and completes. AWS Glue emits a state-change event directly to EventBridge [13].
+2. The extractor generates a run UUID and pages every allowlisted view as a complete, deterministically ordered snapshot. It writes run-scoped JSONL objects and keeps no extraction watermark. If any view raises an error, no manifest or Glue start is issued.
+3. After all views finish, it writes `raw/_manifests/dt=<UTC-date>/run=<run-id>/manifest.json` and calls `StartJobRun` exactly once with `--run_id` and `--manifest_key`.
+4. Glue reads only the manifest-listed files, verifies row counts, overwrites each curated Parquet dataset with the latest complete snapshot, writes thirteen run-scoped aggregate JSON objects, and completes. AWS Glue emits a state-change event directly to EventBridge [13].
 5. The exact-job-name, `SUCCEEDED` rule invokes the loader. The loader recovers Glue arguments with `GetJobRun`, validates all aggregate objects before mutating DynamoDB, then uses deterministic `PutItem` writes at `(metric, date)` and marks the run complete. Replaying the same output replaces the same keys rather than creating duplicates.
 
 ### 4.3 AWS component choice and implementation evidence
@@ -216,45 +211,45 @@ The ALB DNS name is an output of the disposable presentation stack, so it change
 |---|---|---|---|
 | AWS CloudFormation | Defines the probe, persistent data and disposable presentation stacks. | Repeatable teardown is essential in a temporary Learner Lab; separating the ALB/Fargate tier limits idle spend. | All three YAML templates exist. Deployment scripts call CloudFormation, but credentials, default-VPC IDs, image URI and secrets remain intentional operator inputs. |
 | Amazon S3 | Stores raw JSONL, manifests, curated Parquet, aggregate JSON, Glue scripts and Athena results. | Durable object storage separates stages cheaply and lets Glue/Athena operate without a database server. | Bucket, encryption, public-access block and abort rules are automated; Athena results expire after seven days. Raw, curated and aggregate retention is not time-limited. |
-| AWS Lambda | Runs extraction, loading, four API handlers and the TOKEN authoriser. | Short, event-driven control-plane work does not justify always-on hosts. Reserved concurrency (one each), memory and timeouts constrain cost. | Application ZIPs and handlers exist and are unit-tested; `deploy-data-stack.sh` replaces the template's seven inline placeholders after stack deployment. No DLQ or failed-run updater is configured. |
+| AWS Lambda | Runs extraction, loading, four API handlers and the TOKEN authoriser. | Short, event-driven control-plane work does not justify always-on hosts. Reserved concurrency (one or two each), memory and timeouts constrain cost. | Application ZIPs and handlers exist and are unit-tested; `deploy-data-stack.sh` replaces the template's seven inline placeholders after stack deployment. No DLQ or failed-run updater is configured. |
 | Amazon EventBridge | Starts the daily extract and filters the named Glue job's `SUCCEEDED` event to the loader. | Native schedule and service-event routing avoids a polling server or workflow engine for this linear batch. | Both enabled rules and scoped Lambda permissions are in CloudFormation. Delivery is automated after deployment; the daily cadence is `rate(1 day)`, not a fixed UTC clock time. |
-| AWS Glue ETL | Reads manifested raw JSON, writes partitioned Parquet and computes twelve aggregates. | Glue supplies managed Spark without EMR cluster provisioning [7], while columnar Parquet reduces later data movement and scan work [6]. EMR would add instance selection, cluster lifetime and idle-cost decisions for only thousands of rows; the job is bounded to two G.1X workers, one concurrent run and ten minutes. | Job, arguments and strict cost guards are automated; PySpark entrypoint and pure transforms exist. The code collects each small view to the driver, an explicitly scale-limited choice. |
-| AWS Glue Data Catalog | Intended schema registry shared by Glue and Athena. | A catalogue is the native contract Athena uses to locate and type S3 data [10]. | The database is automated. **Not fully implemented:** no crawler or table definitions are present, so Athena's table names are unresolved after a clean deployment. |
-| Amazon DynamoDB | Stores date-keyed aggregate payloads, extraction watermarks and run states. | The access patterns are key-value/range reads with no joins or transactions. On-demand capacity charges for requests instead of an idle relational instance [11], unlike RDS. | PAY_PER_REQUEST table and key schema are automated; extractor/loader/API code uses `GetItem`, `PutItem`, `UpdateItem` and `Query`. PITR is deliberately disabled; aggregate payloads are JSON strings. |
-| Amazon Athena | Runs three asynchronous fixed-template SQL analyses over curated data. | Athena queries S3 in place and has no warehouse cluster to keep running [8], unlike Redshift. A workgroup-level 1 GiB cut-off and seven-day result expiry bound exploratory cost. | Workgroup and API handler are automated. **Not end-to-end:** catalogue tables and dashboard client are absent, as noted above. |
-| Amazon API Gateway | Exposes metrics, run, Athena and insight routes with a regional REST endpoint. | Managed routing, Lambda proxy integration, throttling and quotas avoid operating an API server. | Resources, methods, CORS, deployment, stage, authoriser, API key and usage plan are defined. The 2 r/s, burst-5 configuration needs load-panel validation against twelve parallel calls. |
-| AWS Secrets Manager | Holds Supabase credentials, Gemini key and dashboard bearer token. | Prevents secrets from entering source or container images and supports runtime retrieval/ECS secret injection. | Secret resources and environment references are automated; values are NoEcho deploy parameters. Rotation is manual, and the Supabase setup still requires a correctly scoped JWT/gateway key. |
+| AWS Glue ETL | Reads manifested raw JSON, overwrites latest-snapshot Parquet and computes thirteen aggregates. | Glue supplies managed Spark without EMR cluster provisioning [7], while columnar Parquet reduces later data movement and scan work [6]. EMR would add instance selection, cluster lifetime and idle-cost decisions for only thousands of rows; the job is bounded to two G.1X workers, one concurrent run and ten minutes. | Job, arguments and strict cost guards are automated; PySpark entrypoint and pure transforms exist. The code collects each small view to the driver, an explicitly scale-limited choice. |
+| AWS Glue Data Catalog | Registers the two curated datasets used by the fixed Athena templates. | A catalogue is the native contract Athena uses to locate and type S3 data [10]. | The database and explicit external Parquet tables for `v_meals` and `v_pipeline_runs` are automated; no crawler is needed for the fixed schema. |
+| Amazon DynamoDB | Stores date-keyed aggregate payloads, manual-run guards and run states. | The access patterns are key-value/range reads with no joins or transactions. On-demand capacity charges for requests instead of an idle relational instance [11], unlike RDS. | PAY_PER_REQUEST table and key schema are automated; runs/loader/API code uses `GetItem`, `PutItem`, `UpdateItem` and `Query`. PITR is deliberately disabled; aggregate payloads are JSON strings. |
+| Amazon Athena | Runs three asynchronous fixed-template SQL analyses over curated data. | Athena queries S3 in place and has no warehouse cluster to keep running [8], unlike Redshift. A workgroup-level 1 GiB cut-off and seven-day result expiry bound exploratory cost. | Workgroup, catalogue tables and API handlers are automated. The remaining product gap is the absence of a dashboard query/polling control. |
+| Amazon API Gateway | Exposes metrics, run, Athena and insight routes with a regional REST endpoint. | Managed routing, Lambda proxy integration, throttling and quotas avoid operating an API server. | Resources, methods, CORS, deployment, stage, authoriser, API key and usage plan are defined. Dashboard metric reads are intentionally serial and spaced to stay within the 2 r/s, burst-5 and single-Lambda-execution constraints. The source allowlist contains thirteen operational names. |
+| AWS Secrets Manager | The persistent data stack holds Supabase credentials, the Gemini key and dashboard API bearer token; each disposable presentation stack holds five short-lived console-login values. | Prevents secrets from entering source or container images and supports runtime retrieval/ECS secret injection. | Persistent secret values are `NoEcho` deploy parameters. The ECS task references the existing Supabase secret by ARN and JSON key, while its five login secrets are owned and deleted with the presentation stack. Rotation is manual, and Supabase still requires a correctly scoped JWT/gateway key. |
 | Amazon ECS | Maintains the desired count and lifecycle of the Next.js task. | The dashboard is a standalone Node container, better suited to a container service than splitting its server-rendered UI into Lambdas. | Cluster, task definition and one-task service are in the disposable stack. |
-| AWS Fargate | Supplies serverless container capacity for the dashboard. | Removes EC2 instance management and uses the smallest specified 0.25-vCPU/512-MiB task. The stack can be deleted after each lab session. | Launch type, x86-64 runtime and public-IP networking are automated. **Not presently demonstrable:** task port 80 conflicts with the image's port 3000. |
-| Elastic Load Balancing — Application Load Balancer | Provides the public HTTP entry point and task health routing. | CloudFront is unavailable in Learner Lab. ALB natively targets ECS `awsvpc` task IPs [14] and provides a session-only DNS name. | ALB, listener, IP target group and security groups are automated. The stack has no TLS certificate/domain, and the current target/container port must be reconciled. |
+| AWS Fargate | Supplies serverless container capacity for the dashboard. | Removes EC2 instance management and uses the smallest specified 0.25-vCPU/512-MiB task. The stack can be deleted after each lab session. | Launch type, x86-64 runtime, public-IP networking and container port 3000 are automated. |
+| Elastic Load Balancing — Application Load Balancer | Provides the public HTTP entry point and task health routing. | CloudFront is unavailable in Learner Lab. ALB natively targets ECS `awsvpc` task IPs [14] and provides a session-only DNS name. | ALB listener port 80, IP target group port 3000 and security groups are automated. The stack has no TLS certificate/domain and must never be left running outside evidence capture. |
 | Amazon ECR | Stores the `linux/amd64` dashboard image consumed by ECS. | Private, region-local image storage integrates with ECS and avoids an external image dependency. | `push-image.sh` creates the repository if required, builds and pushes with the operator's federated credentials, then records the URI locally. ECR is script-managed rather than CloudFormation-managed and is not deleted by `lab-down.sh`. |
 | Amazon VPC / EC2 networking | Supplies the existing default VPC, two public subnets and security-group isolation. | Public task addressing avoids a NAT Gateway, whose fixed hourly cost is unsuitable for the budget. Task ingress is restricted to the ALB security group. | The presentation template creates only security groups and receives the existing VPC/subnets as parameters; it creates no VPC, NAT Gateway or endpoint. |
 | Amazon CloudWatch | Receives ECS logs plus service metrics enabled for API Gateway, Athena and Glue. | Native logs and metrics are enough for a short demonstration without another monitoring platform. | A seven-day ECS log group is automated. No dashboards, metric alarms or explicit Lambda log-retention resources are defined, so observability is partial. |
 | AWS IAM (`LabRole`) | Authorises Lambda, Glue, ECS tasks/execution and EventBridge targets. | Learner Lab prohibits creating roles and policies; using the supplied role is the only compliant approach. | Every role ARN references the existing `LabRole`; the templates contain no `AWS::IAM::Role` or `AWS::IAM::Policy`. Least-privilege policy design is therefore outside this repository's control. |
 
-The assignment's “fully implemented and automated” criterion should therefore be claimed only for the source-controlled paths that are actually wired: scheduled/manual extraction, S3 landing, one Glue start, transformation, Glue-success loading, DynamoDB metric/run APIs, bearer authorisation, weekly insight and stack/script provisioning. A clean deployment still requires operator-supplied secrets and one-time Supabase configuration. Athena catalogue registration and the presentation port are known blockers, and an Athena dashboard control is absent. Those items require correction and captured deployment evidence before the whole solution can be labelled fully implemented.
+The assignment's “fully implemented and automated” criterion should therefore be claimed only for the source-controlled paths that are actually wired: scheduled/manual extraction, S3 landing, one Glue start, transformation, Glue-success loading, DynamoDB metric/run APIs, bearer authorisation, fixed-template Athena APIs, weekly insight and stack/script provisioning. A clean deployment still requires operator-supplied secrets and one-time Supabase configuration. An Athena dashboard control remains absent, and any live AWS claim still requires captured deployment evidence.
 
 ### 4.4 Cost, security and failure boundaries
 
-The persistent stack uses pay-per-request or per-invocation services. Glue is the largest burst risk and is constrained to two G.1X workers, a ten-minute timeout, no retries and one concurrent run. Athena enforces a 1 GiB per-query cut-off and result expiry. Each Lambda has reserved concurrency one; API Gateway adds a low request rate and quota. The presentation stack is deliberately disposable, with one smallest-size Fargate task, no NAT Gateway, no custom VPC and no CloudFront.
+The persistent stack uses pay-per-request or per-invocation services. Glue is the largest burst risk and is constrained to two G.1X workers, a ten-minute timeout, no retries and one concurrent run. The runs Lambda adds a server-authoritative exact-key DynamoDB guard with a 30-minute horizon, preventing duplicate or overlapping manual starts without a scan or a new resource; failed invokes release the guard immediately. Athena enforces a 1 GiB per-query cut-off and result expiry. Mutating and expensive Lambdas retain reserved concurrency one; the read-only metrics Lambda and its TOKEN authoriser each use two lanes so one page bundle and its health probe can be served without either Lambda throttling. API Gateway caches the static TOKEN authorisation result for five minutes, matching the dashboard's aggregate cache window and avoiding one authoriser invocation per metric. The cached Allow policy is limited to all methods and resources in the current API stage, and the deployment resource is replaced with this authorizer revision; rotating the token can therefore take up to five minutes to invalidate an already-authorised token. Total reserved Lambda concurrency is nine, below the lab ceiling of ten. API Gateway still caps the whole API at two requests per second with burst five and a 10,000-request monthly quota. The presentation stack is deliberately disposable, with one smallest-size Fargate task, no NAT Gateway, no custom VPC and no CloudFront.
 
-S3 blocks public access and encrypts objects with SSE-S3; DynamoDB encryption is enabled; secrets are runtime values rather than committed configuration. The API accepts only a static bearer token, and its authoriser uses constant-time comparison. This is suitable for a single-operator demonstration, not a multi-user production identity system: there is no per-user authorisation, HTTPS listener, web application firewall or automated secret rotation.
+S3 blocks public access and encrypts objects with SSE-S3; DynamoDB encryption is enabled; secrets are runtime values rather than committed configuration. The API accepts only a static bearer token, and its authoriser uses constant-time comparison. The private Next.js console adds a separate fail-closed founder/reviewer session boundary: five server environment variable names configure the two credential pairs and an independent signing secret; successful login sets an eight-hour role-only HMAC cookie with `HttpOnly` and `SameSite=Strict`. `Secure` is the fail-safe default and is verified on Vercel; only the HTTP-only classroom ALB explicitly sets `DASHBOARD_COOKIE_SECURE=false`. Middleware and route handlers require that session for dashboard pages and APIs, require a same-origin `Origin` on mutating requests, and reserve manual runs/weekly insight for the founder role; the reviewer role is read-only. No credential, cookie, username or email value is logged or sent to the browser. In AWS, the five console values are injected from Secrets Manager resources owned by the disposable presentation stack. This remains a lightweight console gate rather than a multi-user identity system: credentials are manually configured, and there is no account recovery, MFA, WAF or automated secret rotation.
 
-Failure isolation is strongest at the production boundary: analytics reads only restricted views and cannot write to production tables. Within the pipeline, watermarks are advanced per completed view before the whole manifest is published, so a later-view failure can leave earlier watermarks advanced without a corresponding Glue run; the next extraction will not re-read those earlier rows. Manifests and raw part keys also use one fixed path per date, so multiple same-day runs overwrite rather than retain distinct run objects. These are honest limitations of the current implementation.
+Failure isolation is strongest at the production boundary: analytics reads only restricted views and cannot write to production tables. Each extraction is a complete snapshot, keeps no watermark, and writes run-scoped raw and manifest keys, so a failed or second same-day run cannot strand a cursor or overwrite a prior run's raw evidence. Glue overwrites curated datasets only after reading a complete manifest. Extract, Glue and loader failures write a terminal `failed` run state where a run ID exists; no DLQ or automatic retry workflow is configured.
 
 ## 5. System descriptions (1 mark)
 
-The **Supabase analytics schema** is the privacy and authority boundary. Its migration creates a non-login `analytics_reader` role, seven security-definer read-only views and a one-row pepper table that the reader cannot access. **PostgREST** exposes those views over HTTPS after an operator adds the schema to Supabase's exposed schemas and mints the restricted JWT.
+The **Supabase analytics schema** is the privacy and authority boundary. Its migrations create a non-login `analytics_reader` role, six final security-definer read-only views and a one-row pepper table that the reader cannot access. **PostgREST** exposes those views over HTTPS after an operator adds the schema to Supabase's exposed schemas and mints the restricted JWT.
 
-The **extract Lambda** owns incremental extraction. It has an exact per-view column configuration, reads range pages of 1,000, retries timeouts and 5xx errors up to four total attempts, writes one JSONL object per non-empty page, advances per-view watermarks, writes the manifest after all views, and invokes Glue once. The food-composition dimension is the only full-refresh view.
+The **extract Lambda** owns full-snapshot extraction. It has an exact per-view column configuration, reads deterministic range pages of 1,000, retries timeouts and 5xx errors up to four total attempts, writes run-scoped JSONL objects, writes the manifest only after all views succeed, and invokes Glue once. It keeps no extraction cursor or watermark.
 
-**S3** is the data lake and stage boundary. **Glue** reads the explicit manifest rather than discovering arbitrary raw objects, validates stated row counts, writes date-partitioned curated Parquet, and invokes pure Python transformations to produce the dashboard's twelve payloads. The **Glue-success EventBridge rule** prevents the loader from observing incomplete transform output.
+**S3** is the data lake and stage boundary. **Glue** reads the explicit manifest rather than discovering arbitrary raw objects, validates stated row counts, overwrites each curated Parquet dataset with the latest complete snapshot, and invokes pure Python transformations to produce the dashboard's thirteen payloads. The **Glue-success EventBridge rule** prevents the loader from observing incomplete transform output.
 
-The **loader Lambda** resolves the manifest from Glue job arguments, validates all JSON files before writing any, and idempotently replaces the `(metric, date)` records in **DynamoDB**. That table also holds watermarks and asynchronous run phases, keeping three small access patterns in one on-demand store.
+The **loader Lambda** resolves the manifest from Glue job arguments, validates all JSON files before writing any, and idempotently replaces the `(metric, date)` records in **DynamoDB**. That table also holds the exact-key manual-run guard and asynchronous run phases.
 
 **API Gateway** and the **authoriser Lambda** form the authenticated boundary. Separate metrics, runs, Athena and insight Lambdas keep permissions and failure behaviour conceptually isolated even though Learner Lab assigns the shared `LabRole`. **Athena** is the bounded SQL path over curated data; **Gemini** is called only with aggregate JSON, never raw user records.
 
-The **Next.js dashboard** runs as a standalone x86-64 image in **ECS Fargate**. It renders nine panels from twelve DynamoDB metrics, proxies interactive browser actions through same-origin routes so the bearer token stays server-side, and uses bundled mock JSON only when `MOCK_API=1`. The **ALB** is the temporary public front door; **ECR** stores its image; **CloudWatch Logs** retains task logs for seven days.
+The **Next.js dashboard** runs on Vercel for continuous product iteration and can also run as a standalone x86-64 image in **ECS Fargate** for AWS assessment evidence. Its Observe pages cover Today, AI, Ingredients and System; Diagnose pages cover pipeline, serving trace, retrieval and corpus coverage. Source code defines thirteen DynamoDB metric contracts, requests only the subset needed by each page, proxies browser actions through same-origin routes so credentials stay server-side, and uses bundled mock JSON only when `MOCK_API=1`. The AWS metric route uses the server-held bearer token; bounded trace and ingredient RPC routes use the restricted Supabase credential. Time-series measures are chart-first: DAU/WAU, p50/p95/p99 latency, weighted failure rate, token volume, app-health volume and match quality use lines; macro buckets use a histogram. Exact tables remain only where they add diagnostic detail. The **ALB** remains a temporary assessment front door; **ECR** stores its image; **CloudWatch Logs** retains task logs for seven days.
 
 ## 6. Datasets, data structures and APIs (1 mark)
 
@@ -266,51 +261,50 @@ There are no public datasets. The SQL migration exposes only the following priva
 |---|---|---|
 | `analytics.v_pipeline_runs` | `id`, `created_at`, `pipeline_version`, `model_call1`, `model_call2`, `total_ms`, `ingredient_count`, `matched_count`, `unmatched_count`, `retry_count`, `escalated`, `cache_hit_l4` | Operational model latency and matching counts; excludes captured meal input. |
 | `analytics.v_budget_events` | `id`, `created_at`, `request_id`, `route`, `work_kind`, `provider`, `model`, `request_count`, `input_tokens`, `output_tokens`, `error_category` | Model usage, estimated cost and failures; contains no prompt or response bodies. |
-| `analytics.v_meals` | `id`, `user_hash`, `logged_at`, `meal_slot`, `entry_mode`, `confidence_overall`, `calories_kcal`, `protein_g`, `carbohydrate_g`, `fat_g`, `fiber_g` | Replaces `user_id` with HMAC-SHA-256 using a dedicated pepper and truncates `logged_at` to the hour. Supports meal engagement and nutrition distributions. |
-| `analytics.v_meal_items` | `id`, `meal_id`, `ingredient_name`, `food_composition_id`, `estimated_grams`, `match_confidence`, `cooking_method`, `created_at` | Supports top-food reporting. `ingredient_name` is retained because it is the analytic subject; no source PII flag currently exists, so the migration notes that a future flag must become an exclusion predicate. |
-| `analytics.v_unmatched_ingredients` | `id`, `query_text`, `created_at` | Supports coverage-gap ranking. `query_text` is retained as a food name under the same future-PII-flag condition. |
-| `analytics.v_user_funnel` | `user_hash`, `created_at`, `onboarding_step`, `onboarding_completed_at`, `goal`, `preferred_locale` | Uses the same HMAC so meals and sign-ups can be related without exporting the user ID; both timestamps are truncated to a day. |
+| `analytics.v_meals` | `id`, `user_hash`, `logged_at`, `calories_kcal`, `protein_g`, `carbohydrate_g`, `fat_g` | Replaces `user_id` with HMAC-SHA-256 and truncates `logged_at` to the hour. The hash is used only for aggregate DAU/WAU; macro values support distribution histograms. |
 | `analytics.v_food_composition` | `id`, `name_en`, `type_en`, `state`, `source_id`, `serving_size_g`, `calories_kcal`, `protein_g`, `carbohydrate_g`, `fat_g`, `fiber_g` | Small full-refresh reference view used for nutrition plausibility checks; contains no user data. |
+| `analytics.v_app_health` | `event_id`, `occurred_at`, `platform`, `app_version`, `event_name`, `route`, `metric`, `check`, `status_code`, `duration_ms`, `fatal` | Supports controlled application-health buckets without actor/session identifiers, error text, stack traces or arbitrary properties. |
+| `analytics.v_ingredient_decisions` | `decision_key`, `occurred_on`, `ingredient_query`, `verdict`, `pool_size`, `selected_rank`, `reject_bucket`, candidate ranks 1–3 with canonical food id/name/source/similarity, chosen canonical food id/name/source/similarity | Flattens bounded ingredient decision and candidate mappings behind an HMAC decision key; excludes request IDs, candidate JSON, large nested objects and reject text. |
 
-The pepper is set once in `analytics.pepper`, never exported to AWS and never readable by `analytics_reader`. Stable HMAC values permit cohort joins without exposing raw identifiers. Excluded everywhere are email addresses, `raw_input`, free-text feedback, raw `user_id`, and exact timestamps where hour/day precision is enough.
+The pepper is set once in `analytics.pepper`, never exported to AWS and never readable by `analytics_reader`. Stable HMAC values permit distinct DAU/WAU counts without exposing raw identifiers. Excluded everywhere are email addresses, raw input, free-text feedback, raw user IDs, behavior journeys, and exact timestamps where hour/day precision is enough.
 
 ### 6.2 S3 object layout
 
 ```text
 s3://<analytics-bucket>/
-├── raw/<view>/dt=YYYY-MM-DD/part-<page>.jsonl
-├── raw/_manifests/dt=YYYY-MM-DD/manifest.json
-├── curated/<view>/dt=YYYY-MM-DD/*.parquet
-├── aggregates/dt=YYYY-MM-DD/<metric>.json
+├── raw/<view>/dt=YYYY-MM-DD/run=<run-id>/part-<page>.jsonl
+├── raw/_manifests/dt=YYYY-MM-DD/run=<run-id>/manifest.json
+├── curated/<view>/*.parquet
+├── aggregates/dt=YYYY-MM-DD/run=<run-id>/<metric>.json
 └── athena-results/<Athena-generated result objects>
 ```
 
-Each manifest contains `run_id`, `started_at`, `finished_at`, and a `views` object whose entries contain `rows` and `files`. The aggregate directory contains twelve files matching the names listed in Section 4.2. Raw and curated objects are encrypted and private; only Athena results have an automated seven-day expiry. The code's same-date fixed keys mean the layout behaves as a latest-run-per-day partition, not a complete immutable run archive.
+Each manifest contains `run_id`, `started_at`, `finished_at`, and a `views` object whose entries contain `rows` and `files`. The aggregate run directory contains thirteen files matching the operational contract. Raw and aggregate objects remain disjoint across same-day runs; curated Parquet is deliberately overwritten with the latest complete snapshot so Athena never counts the same source row once per extraction. All objects are encrypted and private; only Athena results have an automated seven-day expiry.
 
 ### 6.3 DynamoDB key and item structures
 
 The table has string partition key `metric`, string sort key `date`, on-demand capacity and no secondary indexes.
 
 ```json
-{"metric":"meal_volume","date":"2026-08-10","payload":"[{\"date\":\"2026-08-10\",...}]"}
-{"metric":"_watermark#v_meals","date":"latest","watermark":"2026-08-10T12:00:00Z","cursor_column":"logged_at","updated_at":"..."}
+{"metric":"ai_latency","date":"2026-08-10","payload":"[{\"date\":\"2026-08-10\",...}]"}
 {"metric":"_run#<uuid>","date":"latest","run_id":"<uuid>","phase":"transform_started","manifest_key":"...","glue_job_run_id":"..."}
+{"metric":"_run_guard#pipeline","date":"latest","owner_run_id":"<uuid>","phase":"claimed","guard_until":1770000000}
 ```
 
-Aggregate `payload` values are canonical JSON strings. Metrics use a date sort key so the API can `Query` a range; watermarks and runs use `latest` and are fetched by exact `GetItem`. Loader `PutItem` calls make a replay idempotent for the same metric/date. The table has encryption enabled, point-in-time recovery disabled and no TTL.
+Aggregate `payload` values are canonical JSON strings. Metrics use a date sort key so the API can `Query` a range; run and guard records use `latest` and are fetched by exact `GetItem`. Loader `PutItem` calls make a replay idempotent for the same metric/date. The table has encryption enabled, point-in-time recovery disabled and no TTL.
 
 ### 6.4 Dashboard API surface
 
 | Method and path | Request | Response / AWS action |
 |---|---|---|
 | `GET /metrics/{metric}?from=&to=` | Supported metric plus ISO date range | `200` metric items from DynamoDB `Query`. |
-| `POST /runs` | Empty body | `202 {"run_id":"…"}` after asynchronous Lambda `Invoke`. |
+| `POST /runs` | Empty body | `202 {"run_id":"…","next_allowed_at":"…"}` after a conditional guard claim and asynchronous Lambda `Invoke`; `429` with `Retry-After` and `next_allowed_at` while the shared guard is active. |
 | `GET /runs/{run_id}` | Safe run identifier | `200` DynamoDB `GetItem` run record, or `404`. |
 | `POST /athena/query` | Fixed `template_id`, `from`, `to` | `202 {"query_execution_id":"…"}` after `StartQueryExecution`. |
 | `GET /athena/query/{id}` | Athena execution ID | State/statistics and, on success, up to 100 result rows. |
-| `POST /insight/weekly` | Empty body | `200 {"summary":"…"}` after aggregate queries and Gemini, or a controlled error. |
+| `POST /insight/weekly` | Empty body | `200 {"summary":"…"}` after aggregate queries and Gemini, or a controlled error. Founder dashboard session required. |
 
-All non-OPTIONS routes require `Authorization: Bearer <token>`. The authoriser's returned usage identifier selects the API key/usage plan, so the client does not send a second key.
+The dashboard's same-origin `/api/*` proxy routes require the private role session; the manual run and insight routes additionally require the founder role, while the read-only analytics health POST accepts either role. Mutating requests must carry a matching `Origin` and are also protected by the strict session cookie. The downstream AWS API still requires `Authorization: Bearer <token>` on all non-OPTIONS routes; the bearer remains server-held and is never exposed to the browser. The authoriser's returned usage identifier selects the API key/usage plan, so the client does not send a second key.
 
 ### 6.5 Third-party API 1 — Supabase PostgREST
 
@@ -318,10 +312,8 @@ Supabase provides an automatically generated REST API over database objects and 
 
 ```http
 GET https://<project>.supabase.co/rest/v1/v_meals
-    ?select=id,user_hash,logged_at,meal_slot,entry_mode,confidence_overall,
-            calories_kcal,protein_g,carbohydrate_g,fat_g,fiber_g
-    &order=logged_at.asc
-    &logged_at=gt.<watermark>
+    ?select=id,user_hash,logged_at,calories_kcal,protein_g,carbohydrate_g,fat_g
+    &order=logged_at.asc,id.asc
 Accept-Profile: analytics
 Authorization: Bearer <restricted analytics JWT>
 apikey: <Supabase gateway API key>
@@ -335,23 +327,19 @@ Range: 0-999
     "id": "<meal-id>",
     "user_hash": "<64-character HMAC hex>",
     "logged_at": "2026-08-10T12:00:00+00:00",
-    "meal_slot": "lunch",
-    "entry_mode": "text",
-    "confidence_overall": 0.91,
     "calories_kcal": 540,
     "protein_g": 24,
     "carbohydrate_g": 66,
-    "fat_g": 18,
-    "fiber_g": 5
+    "fat_g": 18
   }
 ]
 ```
 
-Success may be HTTP 200 or 206. The loop stops after a short page; timeouts and 5xx responses back off and retry, while 4xx and malformed JSON fail the view. The handler accepts a JSON secret that can hold distinct `analytics_jwt` and `api_key` values, although the current CloudFormation parameter stores only `url` and `key` and therefore uses that one value for both headers. A deployment using a distinct modern Supabase gateway key must store the richer secret manually or extend the template.
+Success may be HTTP 200 or 206. The loop stops after a short page; timeouts and 5xx responses back off and retry, while 4xx and malformed JSON fail the view. The deployed Secrets Manager JSON has distinct `url`, `analytics_jwt`, and `api_key` keys. The extractor and the ECS dashboard receive the restricted JWT and gateway key separately; neither value is emitted to the browser or deployment logs.
 
 ### 6.6 Third-party API 2 — Gemini `generateContent`
 
-The insight Lambda sends only the compact seven-metric aggregate context, not raw or row-level records. Authentication uses the `x-goog-api-key` header as documented by Google [18], [19].
+The insight Lambda sends only the compact nine-metric operational aggregate context, not raw or row-level records. Authentication uses the `x-goog-api-key` header as documented by Google [18], [19].
 
 ```http
 POST https://generativelanguage.googleapis.com/v1beta/models/

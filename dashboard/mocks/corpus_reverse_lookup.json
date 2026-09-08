@@ -1,0 +1,4 @@
+[
+  { "rank": 1, "food_id": "VNFC-002", "food_name": "Chicken breast", "source": "USDA", "decision_count": 80, "query_count": 3, "query_examples": ["chicken breast", "grilled chicken", "ức gà"] },
+  { "rank": 2, "food_id": "VNFC-014", "food_name": "Cooked jasmine rice", "source": "VNFC", "decision_count": 61, "query_count": 2, "query_examples": ["jasmine rice", "cơm trắng"] }
+]

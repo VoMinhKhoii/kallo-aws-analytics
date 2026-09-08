@@ -1,21 +1,46 @@
-import { getCachedDashboardMetrics } from "@/app/lib/api";
+import { getCachedSelectedMetrics } from "@/app/lib/api";
+import { OPERATIONAL_METRIC_NAMES } from "@/app/lib/types";
 import { BarRow, CHART, Note, PageHeader, StatRow, type Stat } from "@/components/panels/common";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { RequestTraceDetail } from "@/components/console/request-trace-detail";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 const number = (value: number) => value.toLocaleString("en-US");
 
-export default async function TracePage() {
+export default async function TracePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ request?: string | string[] }>;
+}) {
+  const params = await searchParams;
+  const requested = Array.isArray(params.request) ? params.request[0] : params.request;
+  const requestId = requested && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requested)
+    ? requested
+    : undefined;
   const to = new Date().toISOString().slice(0, 10);
-  const { data, errors } = await getCachedDashboardMetrics("2000-01-01", to);
+  const bundle = await getCachedSelectedMetrics(OPERATIONAL_METRIC_NAMES, "2000-01-01", to);
+  const errors = Object.entries(bundle.errors).map(([metric, error]) => `${metric}: ${error}`);
+  const data = {
+    dau_wau: bundle.data.dau_wau ?? [],
+    macro_distributions: bundle.data.macro_distributions ?? [],
+    ai_latency: bundle.data.ai_latency ?? [],
+    ai_failure_rate: bundle.data.ai_failure_rate ?? [],
+    token_cost_daily: bundle.data.token_cost_daily ?? [],
+    match_rate: bundle.data.match_rate ?? [],
+    implausible_foods: bundle.data.implausible_foods ?? [],
+    app_health: bundle.data.app_health ?? [],
+    ingredient_demand: bundle.data.ingredient_demand ?? [],
+    ingredient_mappings: bundle.data.ingredient_mappings ?? [],
+    corpus_reverse_lookup: bundle.data.corpus_reverse_lookup ?? [],
+    ingredient_gaps: bundle.data.ingredient_gaps ?? [],
+    ingredient_rank_distribution: bundle.data.ingredient_rank_distribution ?? [],
+  };
   const aiCalls = data.ai_latency.reduce((sum, row) => sum + row.call_count, 0);
-  const mealRows = data.meal_volume.reduce((sum, row) => sum + row.count, 0);
   const observedDays = new Set(data.dau_wau.map((row) => row.date)).size;
-  const cohortCount = new Set(data.retention_cohorts.map((row) => row.cohort_week)).size;
-  const metricFamilies = 12 - errors.length;
+  const metricFamilies = OPERATIONAL_METRIC_NAMES.length - errors.length;
   const latestActivity = data.dau_wau.at(-1);
   const latestMatch = data.match_rate.at(-1);
   const latestLatency = data.ai_latency.at(-1);
@@ -23,25 +48,26 @@ export default async function TracePage() {
   const stats: Stat[] = [
     { label: "Metric families", value: number(metricFamilies), denom: "authenticated API reads" },
     { label: "Observed days", value: number(observedDays), denom: "DAU/WAU series" },
-    { label: "Meal records", value: number(mealRows), denom: "curated aggregate" },
     { label: "AI calls", value: number(aiCalls), denom: "telemetry aggregate" },
-    { label: "Cohorts", value: number(cohortCount), denom: "retention series" },
+    { label: "Health buckets", value: number(data.app_health.length), denom: "application telemetry" },
+    { label: "Ingredient mappings", value: number(data.ingredient_mappings.length), denom: "bounded curation set" },
     { label: "Quality flags", value: number(data.implausible_foods.length), denom: "plausibility audit" },
   ];
 
   const contractRows = [
     ["dau_wau", data.dau_wau.length],
-    ["retention_cohorts", data.retention_cohorts.length],
-    ["meal_volume", data.meal_volume.length],
     ["macro_distributions", data.macro_distributions.length],
-    ["top_foods", data.top_foods.length],
     ["ai_latency", data.ai_latency.length],
     ["ai_failure_rate", data.ai_failure_rate.length],
     ["token_cost_daily", data.token_cost_daily.length],
     ["match_rate", data.match_rate.length],
-    ["coverage_gaps", data.coverage_gaps.length],
     ["implausible_foods", data.implausible_foods.length],
-    ["onboarding_funnel", data.onboarding_funnel.steps.length],
+    ["app_health", data.app_health.length],
+    ["ingredient_demand", data.ingredient_demand.length],
+    ["ingredient_mappings", data.ingredient_mappings.length],
+    ["corpus_reverse_lookup", data.corpus_reverse_lookup.length],
+    ["ingredient_gaps", data.ingredient_gaps.length],
+    ["ingredient_rank_distribution", data.ingredient_rank_distribution.length],
   ] as const;
   const maxRows = Math.max(...contractRows.map(([, count]) => count), 1);
 
@@ -50,6 +76,7 @@ export default async function TracePage() {
       <PageHeader title="AWS path trace" sub={`A live aggregate trace across the deployed analytics plane · ${to}`} />
       <StatRow stats={stats} />
       {errors.length > 0 && <div className="mt-3"><Note><b>{errors.length} AWS metric reads failed.</b> {errors.slice(0, 2).join(" · ")}</Note></div>}
+      {requestId ? <RequestTraceDetail requestId={requestId} /> : null}
 
       <Card className="mt-3">
         <CardHeader>
@@ -58,8 +85,8 @@ export default async function TracePage() {
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <Note tone="plain"><b>1 · Vercel</b><br />The server component reads encrypted runtime configuration. The bearer token never reaches the browser.</Note>
-          <Note tone="plain"><b>2 · API Gateway</b><br />The Lambda authorizer validates the bearer before the metrics route runs.</Note>
-          <Note tone="plain"><b>3 · Lambda</b><br />A single-concurrency metrics function reads the requested aggregate partition.</Note>
+          <Note tone="plain"><b>2 · API Gateway</b><br />The Lambda authorizer validates the bearer; its stage-scoped Allow is cached for five minutes.</Note>
+          <Note tone="plain"><b>3 · Lambda</b><br />The metrics function uses two bounded read lanes for the requested aggregate partitions.</Note>
           <Note tone="plain"><b>4 · DynamoDB</b><br />Curated payloads are returned to this server-rendered page with no mock fallback.</Note>
         </CardContent>
       </Card>
@@ -82,7 +109,7 @@ export default async function TracePage() {
         <Card>
           <CardHeader>
             <div><CardTitle>Serving contract coverage</CardTitle><CardDescription className="mt-1">Rows returned by each aggregate family</CardDescription></div>
-            <CardAction><Badge variant="outline">{metricFamilies}/12 healthy</Badge></CardAction>
+            <CardAction><Badge variant="outline">{metricFamilies}/{OPERATIONAL_METRIC_NAMES.length} healthy</Badge></CardAction>
           </CardHeader>
           <CardContent>
             {contractRows.map(([metric, count], index) => (
@@ -94,7 +121,7 @@ export default async function TracePage() {
       </div>
 
       <div className="mt-3">
-        <Note tone="plain"><b>Trace boundary:</b> this deployed AWS serving schema exposes privacy-safe aggregates, not raw per-meal request payloads. The page therefore traces the real infrastructure and aggregate contracts without inventing individual spans.</Note>
+        <Note tone="plain"><b>Trace boundary:</b> the AWS serving schema exposes aggregate usage context, application health, and AI-pipeline operations. It excludes funnels, retention cohorts, journeys, profiles, and raw meal payloads.</Note>
       </div>
     </>
   );

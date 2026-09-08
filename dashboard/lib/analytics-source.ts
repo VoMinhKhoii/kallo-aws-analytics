@@ -56,8 +56,6 @@ export const isRange = (v: string): v is RangeKey => (RANGES as readonly string[
 
 /** Only these functions are reachable, whatever the caller sends. */
 export const RPC = {
-  summary: { fn: "analytics_summary", paged: false },
-  weeks: { fn: "analytics_weeks", paged: false },
   overturnGroups: { fn: "analytics_overturn_groups", paged: true, defLimit: 10, maxLimit: 50 },
   overturnPool: { fn: "analytics_overturn_pool", paged: false },
   reverseRows: { fn: "analytics_reverse_rows", paged: true, defLimit: 14, maxLimit: 50 },

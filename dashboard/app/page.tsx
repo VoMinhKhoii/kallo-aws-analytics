@@ -1,123 +1,126 @@
-import { Badge } from "@/components/ui/badge";
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarRow, CHART, Note, PageHeader, StatRow, type Stat } from "@/components/panels/common";
-import { getCachedDashboardMetrics } from "@/app/lib/api";
+"use client";
 
-export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+import * as React from "react";
+import type { AppHealthRow, DauWauRow, FailureRow, LatencyRow, MatchRateRow, TokenCostRow } from "@/app/lib/types";
+import {
+  ConsolePage,
+  formatDuration,
+  formatNumber,
+  formatPercent,
+  HealthTable,
+  latestByDate,
+  MetricRibbon,
+  MetricState,
+  PageIntro,
+  Panel,
+  RangeControl,
+  ScopeControls,
+  SourceTag,
+  InlineNote,
+  type ConsoleRange,
+} from "@/components/console/console";
+import { useMetricBundle } from "@/lib/use-metric-bundle";
+import { TimeSeriesChart } from "@/components/console/time-series-chart";
 
-const number = (value: number) => value.toLocaleString("en-US");
-const percent = (value: number) => `${(value * 100).toFixed(1)}%`;
+const OVERVIEW_METRICS = ["dau_wau", "ai_latency", "ai_failure_rate", "token_cost_daily", "match_rate", "app_health"] as const;
 
-export default async function AwsAnalyticsDashboard() {
-  const to = new Date().toISOString().slice(0, 10);
-  const from = "2000-01-01";
-  const { data, errors } = await getCachedDashboardMetrics(from, to);
-  const presentationLabel = process.env.VERCEL === "1"
-    ? "Next.js on Vercel (iteration host)"
-    : "ECS Fargate behind this ALB";
+function metricError(bundle: { error: string | null; errors: Partial<Record<string, string>> }, name: string) {
+  return bundle.errors[name] ?? bundle.error;
+}
 
-  const latestActivity = data.dau_wau.at(-1);
-  const latestMatch = data.match_rate.at(-1);
-  const latestFailure = data.ai_failure_rate.at(-1);
-  const totalMeals = data.meal_volume.reduce((sum, row) => sum + row.count, 0);
-  const totalCost = data.token_cost_daily.reduce((sum, row) => sum + row.cost_usd, 0);
-  const funnel = data.onboarding_funnel;
+export default function TodayPage() {
+  const [range, setRange] = React.useState<ConsoleRange>("30d");
+  const [platform, setPlatform] = React.useState("all");
+  const pipelineWindow = React.useMemo(() => {
+    const to = new Date().toISOString().slice(0, 10);
+    const from = new Date(`${to}T00:00:00Z`);
+    from.setUTCDate(from.getUTCDate() - Number(range.slice(0, -1)) + 1);
+    return { from: from.toISOString().slice(0, 10), to };
+  }, [range]);
+  const pipeline = useMetricBundle(OVERVIEW_METRICS, pipelineWindow.from, pipelineWindow.to);
 
-  const stats: Stat[] = [
-    { label: "Daily active users", value: number(latestActivity?.dau ?? 0), denom: `WAU ${number(latestActivity?.wau ?? 0)}` },
-    { label: "Meals processed", value: number(totalMeals), denom: "curated aggregate" },
-    { label: "Ingredient match rate", value: percent(latestMatch?.match_rate ?? 0), denom: `${number(latestMatch?.ingredient_count ?? 0)} ingredients` },
-    { label: "Onboarding complete", value: percent(funnel.completion_share), denom: `${number(funnel.completed_users)} of ${number(funnel.total_users)} users` },
-    { label: "AI failure rate", value: percent(latestFailure?.failure_rate ?? 0), denom: latestFailure?.model ?? "no model rows" },
-    { label: "Estimated token cost", value: `$${totalCost.toFixed(4)}`, denom: "known-price calls" },
-  ];
-
-  const topFoodMax = Math.max(data.top_foods[0]?.count ?? 0, 1);
-  const coverageMax = Math.max(data.coverage_gaps[0]?.count ?? 0, 1);
-  const cohortRows = data.retention_cohorts.filter((row) => row.weeks_later === 0).slice(-8);
+  const healthRows = (pipeline.data?.app_health ?? []) as AppHealthRow[];
+  const usage = (pipeline.data?.dau_wau ?? []) as DauWauRow[];
+  const latency = (pipeline.data?.ai_latency ?? []) as LatencyRow[];
+  const failures = (pipeline.data?.ai_failure_rate ?? []) as FailureRow[];
+  const costs = (pipeline.data?.token_cost_daily ?? []) as TokenCostRow[];
+  const matches = (pipeline.data?.match_rate ?? []) as MatchRateRow[];
+  const latestLatency = latestByDate(latency);
+  const latestMatch = latestByDate(matches);
+  const latestUsage = latestByDate(usage);
+  const calls = latency.length ? latency.reduce((total, row) => total + row.call_count, 0) : undefined;
+  const events = failures.reduce((total, row) => total + row.event_count, 0);
+  const failed = failures.reduce((total, row) => total + row.failure_count, 0);
+  const cost = costs.some((row) => row.pricing_known)
+    ? costs.filter((row) => row.pricing_known).reduce((total, row) => total + row.cost_usd, 0)
+    : undefined;
+  const latencyByDate = new Map<string, { date: string; p50: number; p95: number; p99?: number }>();
+  for (const row of latency) {
+    const current = latencyByDate.get(row.date);
+    latencyByDate.set(row.date, {
+      date: row.date,
+      p50: Math.max(current?.p50 ?? 0, row.p50_ms),
+      p95: Math.max(current?.p95 ?? 0, row.p95_ms),
+      p99: row.p99_ms == null ? current?.p99 : Math.max(current?.p99 ?? 0, row.p99_ms),
+    });
+  }
+  const latencyTrend = [...latencyByDate.values()].sort((left, right) => left.date.localeCompare(right.date));
+  const healthByHour = new Map<string, number>();
+  for (const row of healthRows) {
+    if (platform !== "all" && row.platform !== platform) continue;
+    healthByHour.set(row.hour, (healthByHour.get(row.hour) ?? 0) + row.count);
+  }
+  const healthTrend = [...healthByHour]
+    .map(([date, eventCount]) => ({ date: date.replace("T", " ").replace(/:00:00(?:Z)?$/, ":00"), eventCount }))
+    .sort((left, right) => left.date.localeCompare(right.date));
 
   return (
-    <>
-      <PageHeader title="AWS analytics plane" sub={`Live aggregates from API Gateway → Lambda → DynamoDB · ${to}`} />
-      <StatRow stats={stats} />
-
-      {errors.length > 0 && (
-        <div className="mt-3">
-          <Note>
-            <b>{errors.length} metric request{errors.length === 1 ? "" : "s"} returned an error.</b>{" "}
-            {errors.slice(0, 2).join(" · ")}
-          </Note>
+    <ConsolePage>
+      <PageIntro eyebrow="Operational overview" title="Today" description="High-level DAU/WAU context, application health, and AI-pipeline performance. Funnels, retention analysis, journeys, meal trends, and user-level drilldowns are outside this analytics plane.">
+        <div className="grid gap-3 sm:justify-items-end">
+          <RangeControl value={range} onChange={setRange} label="Pipeline window" options={["7d", "30d", "90d"]} />
+          <ScopeControls values={{ platform }} onChange={(name, value) => name === "platform" && setPlatform(value)} supported={{ platform: true, locale: false, mealMode: false }} />
         </div>
-      )}
+      </PageIntro>
 
-      <div className="mt-3 grid gap-3 xl:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <div>
-              <CardTitle>Most logged foods</CardTitle>
-              <CardDescription className="mt-1">Ranked from curated meal-item aggregates</CardDescription>
-            </div>
-            <CardAction><Badge variant="outline">DynamoDB</Badge></CardAction>
-          </CardHeader>
-          <CardContent>
-            {data.top_foods.slice(0, 8).map((row) => (
-              <BarRow key={`${row.rank}-${row.ingredient_name}`} label={row.ingredient_name} n={number(row.count)}
-                w={`${(row.count / topFoodMax) * 100}%`} color={CHART[1]} />
-            ))}
-          </CardContent>
-        </Card>
+      <div className="mt-6 grid gap-3">
+        <MetricRibbon items={[
+          { label: "DAU", value: formatNumber(latestUsage?.dau), detail: latestUsage?.date ?? "No activity row", loading: pipeline.loading, error: metricError(pipeline, "dau_wau") },
+          { label: "WAU", value: formatNumber(latestUsage?.wau), detail: "active meal loggers", tone: "blue", loading: pipeline.loading, error: metricError(pipeline, "dau_wau") },
+          { label: "AI calls", value: formatNumber(calls), detail: `${range} operational window`, loading: pipeline.loading, error: metricError(pipeline, "ai_latency") },
+          { label: "AI failure rate", value: formatPercent(events ? failed / events : undefined), detail: events ? `${formatNumber(failed)} of ${formatNumber(events)} events` : "No failure rows", tone: failed ? "amber" : "green", loading: pipeline.loading, error: metricError(pipeline, "ai_failure_rate") },
+          { label: "Latest match rate", value: formatPercent(latestMatch?.match_rate), detail: latestMatch?.date ?? "No matching rows", tone: "blue", loading: pipeline.loading, error: metricError(pipeline, "match_rate") },
+        ]} />
 
-        <Card>
-          <CardHeader>
-            <div>
-              <CardTitle>Coverage gaps</CardTitle>
-              <CardDescription className="mt-1">Unmatched Vietnamese food queries to prioritise</CardDescription>
-            </div>
-            <CardAction><Badge variant="outline">Top {Math.min(data.coverage_gaps.length, 8)}</Badge></CardAction>
-          </CardHeader>
-          <CardContent>
-            {data.coverage_gaps.slice(0, 8).map((row) => (
-              <BarRow key={`${row.rank}-${row.query_text}`} label={row.query_text} n={number(row.count)}
-                w={`${(row.count / coverageMax) * 100}%`} color={CHART[3]} />
-            ))}
-          </CardContent>
-        </Card>
+        <Panel title="Active usage over time" description="DAU and rolling WAU are aggregate context only; no user journey or individual profile is exposed." source={<SourceTag>AWS aggregate</SourceTag>}>
+          <MetricState loading={pipeline.loading} error={metricError(pipeline, "dau_wau")} empty={usage.length === 0} emptyMessage="No aggregate usage rows were returned for this window.">
+            <div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={usage} series={[{ key: "dau", label: "DAU", color: "var(--console-green)" }, { key: "wau", label: "WAU", color: "var(--console-blue)" }]} ariaLabel="Daily active and weekly active users over time" /></div>
+          </MetricState>
+        </Panel>
+
+        <Panel title="Application health" description="Controlled crash, API-failure, health-check and performance buckets; no error text, stack traces or actor identifiers." source={<SourceTag tone={healthRows.length ? "live" : "neutral"}>AWS aggregate</SourceTag>}>
+          <MetricState loading={pipeline.loading} error={metricError(pipeline, "app_health")} empty={healthRows.length === 0} emptyMessage="No app-health events were returned for the selected window.">
+            <div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={healthTrend} series={[{ key: "eventCount", label: "Health events", color: "var(--console-brick)" }]} ariaLabel="Application health events by UTC hour" /></div>
+            <HealthTable rows={healthRows.slice().sort((a, b) => b.hour.localeCompare(a.hour)).slice(0, 24)} platform={platform} />
+          </MetricState>
+        </Panel>
+
+        <div className="grid gap-3 xl:grid-cols-2">
+          <Panel title="Model latency" description="Daily call volume and p50/p95/p99 latency by model." source={<SourceTag>AWS aggregate</SourceTag>}>
+            <MetricState loading={pipeline.loading} error={metricError(pipeline, "ai_latency")} empty={latency.length === 0} emptyMessage="No AI latency rows were returned for this window.">
+              <div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={latencyTrend} series={[{ key: "p50", label: "p50", color: "var(--console-green)" }, { key: "p95", label: "p95", color: "var(--console-blue)" }, { key: "p99", label: "p99", color: "var(--console-brick)" }]} ariaLabel="AI pipeline p50, p95, and p99 latency over time" format="duration" /></div>
+              <InlineNote>Each point uses the highest model percentile for that UTC day. p99 appears after the reduced aggregate contract is deployed.</InlineNote>
+            </MetricState>
+          </Panel>
+
+          <Panel title="AI operating cost" description="Known-price token rows only; this is not total AWS infrastructure spend." source={<SourceTag>AWS aggregate</SourceTag>}>
+            <MetricState loading={pipeline.loading} error={metricError(pipeline, "token_cost_daily")} empty={costs.length === 0} emptyMessage="No token-use rows were returned for this window.">
+              <div className="px-4 py-5 sm:px-5"><p className="text-3xl font-semibold tracking-[-0.04em]">{cost == null ? "Price unavailable" : `$${cost.toFixed(4)}`}</p><p className="mt-2 text-xs text-[var(--console-muted)]">Latest p95: {formatDuration(latestLatency?.p95_ms)} · {latestLatency?.model ?? "no model row"}</p></div>
+              <InlineNote>{formatNumber(costs.reduce((total, row) => total + row.input_tokens + row.output_tokens, 0))} observed input and output tokens in the selected window.</InlineNote>
+            </MetricState>
+          </Panel>
+        </div>
       </div>
-
-      <div className="mt-3 grid gap-3 xl:grid-cols-[1.15fr_0.85fr]">
-        <Card>
-          <CardHeader>
-            <div>
-              <CardTitle>Retention cohorts</CardTitle>
-              <CardDescription className="mt-1">Week-zero activation for recent cohorts</CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {cohortRows.map((row) => (
-              <BarRow key={row.cohort_week} label={row.cohort_week} n={`${row.active_users}/${row.cohort_size}`}
-                sub={percent(row.retention_rate)} w={`${row.retention_rate * 100}%`} color={CHART[2]} />
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <div>
-              <CardTitle>Pipeline proof</CardTitle>
-              <CardDescription className="mt-1">Current AWS path exercised end to end</CardDescription>
-            </div>
-            <CardAction><Badge>live</Badge></CardAction>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm leading-relaxed">
-            <p><b>Source:</b> restricted Supabase analytics views</p>
-            <p><b>Transform:</b> Glue PySpark to curated Parquet</p>
-            <p><b>Serving:</b> DynamoDB through an authorised API Gateway</p>
-            <p><b>Presentation:</b> {presentationLabel}</p>
-            <Note tone="plain">All figures on this page came from the deployed AWS API. No mock-data mode is enabled.</Note>
-          </CardContent>
-        </Card>
-      </div>
-    </>
+    </ConsolePage>
   );
 }

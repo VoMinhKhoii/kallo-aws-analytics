@@ -17,7 +17,9 @@ def test_authorizer_allows_exact_bearer_token_and_uses_api_arn():
     )
 
     assert effect(policy) == "Allow"
-    assert policy["policyDocument"]["Statement"][0]["Resource"] == METHOD_ARN
+    assert policy["policyDocument"]["Statement"][0]["Resource"] == (
+        "arn:aws:execute-api:us-east-1:123456789012:api/prod/*/*"
+    )
     assert policy["usageIdentifierKey"] == "dashboard-secret"
 
 
@@ -33,7 +35,17 @@ def test_authorizer_denies_wrong_or_malformed_tokens():
 
     assert effect(wrong) == "Deny"
     assert effect(malformed) == "Deny"
+    assert wrong["policyDocument"]["Statement"][0]["Resource"] == METHOD_ARN
     assert "usageIdentifierKey" not in wrong
+
+
+def test_cached_allow_resource_rejects_an_arn_without_a_stage():
+    try:
+        authorizer.cached_allow_resource("not-an-api-arn")
+    except ValueError as error:
+        assert str(error) == "TOKEN authorizer methodArn has no API stage"
+    else:
+        raise AssertionError("expected malformed method ARN to be rejected")
 
 
 def test_allow_and_deny_both_take_compare_digest_path(monkeypatch):
@@ -69,4 +81,3 @@ def test_token_secret_loader_accepts_plain_secret_string():
 
     assert authorizer.load_token_secret(client, "token-arn") == "cached-token"
     assert client.calls == [{"SecretId": "token-arn"}]
-

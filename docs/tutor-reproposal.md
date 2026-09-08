@@ -24,7 +24,7 @@ I am writing to confirm three service changes since my email proposal. The objec
 | Related work | 1.0 | PostHog, BigQuery/Looker Studio, AWS serverless data lakes and Kimball ETL. |
 | System architecture | 5.0 | CloudFormation; S3; Lambda; Glue/Catalog; EventBridge; DynamoDB; Athena; API Gateway; Secrets Manager; ECR; ECS/Fargate; ALB; VPC; CloudWatch. Labelled diagram, operation sequences, choices and automation evidence. |
 | System descriptions | 1.0 | Responsibilities and boundaries across source, pipeline, APIs and presentation. |
-| Datasets, structures and APIs | 1.0 | Seven views, privacy controls, S3/DynamoDB layouts, PostgREST and Gemini. |
+| Datasets, structures and APIs | 1.0 | Eleven views, privacy controls, S3/DynamoDB layouts, PostgREST and Gemini. |
 | References | 0.5 | IEEE-numbered primary and comparable-system sources. |
 | **Total** | **10.0** | |
 

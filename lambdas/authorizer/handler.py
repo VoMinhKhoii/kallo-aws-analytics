@@ -43,7 +43,17 @@ def constant_time_token_matches(authorization: Any, expected_token: str) -> bool
     )
 
 
+def cached_allow_resource(method_arn: str) -> str:
+    """Authorize every configured method in this API stage for a cached token."""
+
+    arn_parts = method_arn.split("/")
+    if len(arn_parts) < 2 or not arn_parts[0] or not arn_parts[1]:
+        raise ValueError("TOKEN authorizer methodArn has no API stage")
+    return f"{arn_parts[0]}/{arn_parts[1]}/*/*"
+
+
 def build_policy(method_arn: str, allowed: bool, expected_token: str) -> dict[str, Any]:
+    resource = cached_allow_resource(method_arn) if allowed else method_arn
     policy: dict[str, Any] = {
         "principalId": "dashboard",
         "policyDocument": {
@@ -52,7 +62,7 @@ def build_policy(method_arn: str, allowed: bool, expected_token: str) -> dict[st
                 {
                     "Action": "execute-api:Invoke",
                     "Effect": "Allow" if allowed else "Deny",
-                    "Resource": method_arn,
+                    "Resource": resource,
                 }
             ],
         },
@@ -87,4 +97,3 @@ def handler(event: Mapping[str, Any] | None, context: Any) -> dict[str, Any]:
             boto3.client("secretsmanager"), secret_arn
         )
     return authorize(event or {}, _cached_secret)
-

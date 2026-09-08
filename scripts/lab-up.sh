@@ -49,11 +49,47 @@ if [[ -z "$IMAGE_URI" ]]; then
   exit 1
 fi
 
+AUTH_ENV_NAMES=(
+  DASHBOARD_FOUNDER_USERNAME
+  DASHBOARD_FOUNDER_PASSWORD
+  DASHBOARD_REVIEWER_USERNAME
+  DASHBOARD_REVIEWER_PASSWORD
+  DASHBOARD_SESSION_SECRET
+)
+for name in "${AUTH_ENV_NAMES[@]}"; do
+  if [[ -z "${!name:-}" ]]; then
+    echo "Error: required environment variable $name is not set" >&2
+    exit 1
+  fi
+done
+if ((${#DASHBOARD_FOUNDER_PASSWORD} < 12)); then
+  echo "Error: DASHBOARD_FOUNDER_PASSWORD must contain at least 12 characters" >&2
+  exit 1
+fi
+if ((${#DASHBOARD_REVIEWER_PASSWORD} < 12)); then
+  echo "Error: DASHBOARD_REVIEWER_PASSWORD must contain at least 12 characters" >&2
+  exit 1
+fi
+if ((${#DASHBOARD_SESSION_SECRET} < 32)); then
+  echo "Error: DASHBOARD_SESSION_SECRET must contain at least 32 characters" >&2
+  exit 1
+fi
+
 VPC_ID="$(aws ec2 describe-vpcs \
   --filters Name=is-default,Values=true \
   --query 'Vpcs[0].VpcId' --output text --region "$REGION")"
 if [[ -z "$VPC_ID" || "$VPC_ID" == "None" ]]; then
   echo "Error: no default VPC found in $REGION" >&2
+  exit 1
+fi
+
+SUPABASE_CREDS_SECRET_ARN="$(aws cloudformation describe-stack-resource \
+  --stack-name "$DATA_STACK_NAME" \
+  --logical-resource-id SupabaseCreds \
+  --query 'StackResourceDetail.PhysicalResourceId' \
+  --output text --region "$REGION")"
+if [[ -z "$SUPABASE_CREDS_SECRET_ARN" || "$SUPABASE_CREDS_SECRET_ARN" == "None" ]]; then
+  echo "Error: data stack $DATA_STACK_NAME has no SupabaseCreds secret resource" >&2
   exit 1
 fi
 
@@ -90,6 +126,12 @@ aws cloudformation deploy \
     PublicSubnetIdOne="$PUBLIC_SUBNET_ONE" \
     PublicSubnetIdTwo="$PUBLIC_SUBNET_TWO" \
     DataStackName="$DATA_STACK_NAME" \
+    SupabaseCredsSecretArn="$SUPABASE_CREDS_SECRET_ARN" \
+    DashboardFounderUsername="$DASHBOARD_FOUNDER_USERNAME" \
+    DashboardFounderPassword="$DASHBOARD_FOUNDER_PASSWORD" \
+    DashboardReviewerUsername="$DASHBOARD_REVIEWER_USERNAME" \
+    DashboardReviewerPassword="$DASHBOARD_REVIEWER_PASSWORD" \
+    DashboardSessionSecret="$DASHBOARD_SESSION_SECRET" \
   --no-fail-on-empty-changeset \
   --region "$REGION"
 

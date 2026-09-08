@@ -1,0 +1,5 @@
+[
+  { "rank": 1, "ingredient_query": "mystery herb", "verdict": "unmatched", "reject_bucket": "unmatched", "count": 18 },
+  { "rank": 2, "ingredient_query": "regional fish paste", "verdict": "rejected", "reject_bucket": "low_similarity", "count": 11 },
+  { "rank": 3, "ingredient_query": "homemade seed milk", "verdict": "rejected", "reject_bucket": "no_candidates", "count": 7 }
+]

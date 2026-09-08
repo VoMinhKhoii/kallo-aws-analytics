@@ -32,10 +32,11 @@ EXTRACT_FUNCTION_NAME="$(aws cloudformation describe-stacks \
   --query 'Stacks[0].Outputs[?OutputKey==`ExtractFunctionName`].OutputValue | [0]' \
   --output text \
   --region us-east-1)"
+RUN_ID="$(uuidgen | tr '[:upper:]' '[:lower:]')"
 
 aws lambda invoke \
   --function-name "$EXTRACT_FUNCTION_NAME" \
-  --payload '{"mode":"on_demand"}' \
+  --payload "$(jq -cn --arg run_id "$RUN_ID" '{mode:"on_demand",run_id:$run_id}')" \
   --cli-binary-format raw-in-base64-out \
   --region us-east-1 \
   /tmp/kallo-first-extract.json
@@ -58,8 +59,22 @@ This builds for `linux/amd64`, creates `kallo-dashboard` in ECR if needed, pushe
 Create the session-only presentation tier using the saved image URI:
 
 ```bash
+export DASHBOARD_FOUNDER_USERNAME='YOUR-FOUNDER-USERNAME'
+export DASHBOARD_FOUNDER_PASSWORD='AT-LEAST-12-CHARACTERS'
+export DASHBOARD_REVIEWER_USERNAME='YOUR-REVIEWER-USERNAME'
+export DASHBOARD_REVIEWER_PASSWORD='AT-LEAST-12-CHARACTERS'
+export DASHBOARD_SESSION_SECRET='AT-LEAST-32-CHARACTERS'
 scripts/lab-up.sh
 ```
+
+The five login values are passed as CloudFormation `NoEcho` parameters and
+stored in Secrets Manager resources owned by the disposable presentation
+stack. ECS reads them through `LabRole`; `scripts/lab-down.sh` deletes those
+secrets with the ALB and service. The HTTP-only classroom ALB explicitly uses
+non-`Secure` session cookies, while production hosts keep the secure default.
+The script also resolves the existing data stack's `SupabaseCreds` resource so
+the server-side product and ingredient panels use its restricted analytics JWT
+and publishable API key; it never reads or prints those values.
 
 You can instead pass an image explicitly, and can point at a differently named data stack:
 

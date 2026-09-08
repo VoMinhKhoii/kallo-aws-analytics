@@ -31,8 +31,10 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
 
   const term = q.trim().toLowerCase();
   const pages = ALL_NAV.filter((n) => !term || n.label.toLowerCase().includes(term));
-  // A bare hex-ish token is almost certainly a request id prefix.
-  const looksLikeId = /^[0-9a-f]{4,}$/i.test(q.trim());
+  // Pipeline request ids are UUIDs. Only route complete ids because the
+  // trace-detail RPC accepts an exact UUID, not a fuzzy prefix.
+  const looksLikeId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(q.trim());
+  const traceHref = `/trace?request=${encodeURIComponent(q.trim())}`;
 
   const go = (href: string) => { onClose(); router.push(href); };
 
@@ -49,7 +51,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
             className="h-11 flex-1 bg-transparent text-sm outline-none"
             onKeyDown={(e) => {
               if (e.key !== "Enter") return;
-              if (looksLikeId) go("/trace");
+              if (looksLikeId) go(traceHref);
               else if (pages[0]) go(pages[0].href);
             }}
           />
@@ -64,10 +66,10 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
             </button>
           ))}
           {looksLikeId && (
-            <button onClick={() => go("/trace")}
+            <button onClick={() => go(traceHref)}
                     className="hover:bg-accent flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px]">
               <CornerDownLeft className="text-muted-foreground size-4" />
-              Open the trace list and look for <span className="tabular font-medium">{q.trim()}</span>
+              Open request trace <span className="tabular font-medium">{q.trim()}</span>
             </button>
           )}
           {pages.length === 0 && !looksLikeId && (

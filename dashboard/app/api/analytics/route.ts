@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { authorizeRequest } from "@/lib/auth";
 import {
   AnalyticsError, authMode, cacheStats, configProblem, isLive, isRange, isRpcName, paging, query, type RpcName,
 } from "@/lib/analytics-source";
@@ -17,7 +18,7 @@ const EXTRA: Partial<Record<RpcName, { key: string; param: string; kind: "text" 
 };
 
 /** RPCs that do not take a range at all. */
-const NO_RANGE = new Set<RpcName>(["weeks", "traceDetail"]);
+const NO_RANGE = new Set<RpcName>(["traceDetail"]);
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -74,12 +75,15 @@ export async function GET(req: Request) {
 }
 
 /** Liveness the UI can trust: it actually runs the cheapest real query. */
-export async function POST() {
+export async function POST(request: Request) {
+  const access = authorizeRequest(request, { sameOrigin: true });
+  if ("response" in access) return access.response;
+
   if (!isLive) {
     return NextResponse.json({ ok: false, reason: configProblem, authMode }, { status: 503 });
   }
   try {
-    await query("summary", { p_range: "7d" });
+    await query("requestsPage", { p_range: "7d", p_limit: 1, p_offset: 0 });
     return NextResponse.json({ ok: true, authMode, cache: cacheStats() });
   } catch (err) {
     const message = err instanceof AnalyticsError ? err.message : "health check failed";

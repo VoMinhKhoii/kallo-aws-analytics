@@ -21,13 +21,21 @@ const laptop = frame("laptop", "Developer laptop (two git repos)", { dir: "col",
   ]),
 ]);
 
-// ZONE 2 — Production (GCP + Supabase) — existing product, untouched except one migration
+// ZONE 2 — Production (GCP + Supabase) — existing product with a narrow read-only boundary.
 const prod = frame("prod", "Production (GCP + Supabase)", { dir: "col", gap: 16, stroke: "#5A6B7B" }, [
   icon("cloudrun", "gcp_cloud_run", "GCP Cloud Run (Kallo app)"),
   frame("supa_box", "Supabase Postgres", { dir: "col", gap: 8, stroke: "#3FCF8E" }, [
     icon("supabase", "supabase", ""),
-    box("supa_note", "analytics schema: sanitized views\n(added by assignment migration)", { w: 220, h: 44, fill: "#E9F9F1", stroke: "#3FCF8E" }),
+    box("supa_note", "6 sanitized read-only views\nAI runs · macros · app health · ingredient quality", { w: 260, h: 46, fill: "#E9F9F1", stroke: "#3FCF8E" }),
+    box("privacy_note", "No funnels, retention, journeys, or user-level reporting", { w: 260, h: 34, fill: "#F7F4EF", stroke: "#8C9BAB" }),
   ]),
+]);
+
+// Continuous dashboard host — used for product iteration while AWS presentation stays disposable.
+const vercel = frame("vercel", "Vercel production (continuous dashboard)", { dir: "col", gap: 12, stroke: "#232F3E" }, [
+  box("vercel_app", "Next.js operator console\nfounder + reviewer sessions", { w: 230, h: 46, bold: true }),
+  box("vercel_note", "DAU/WAU context · app health · AI pipeline\ningredient/corpus quality", { w: 250, h: 46 }),
+  box("vercel_cost", "Continuous host · deployed from assignment repo\nno AWS presentation billing", { w: 250, h: 42 }),
 ]);
 
 // ZONE 3 — AWS Academy Learner Lab
@@ -48,20 +56,26 @@ const aws = group("aws", "group_aws_cloud_alt", "AWS Academy Learner Lab (us-eas
         icon("evb", "eventbridge", "EventBridge"),
         icon("secrets", "secrets_manager", "Secrets"),
       ]),
+      box("runtime_contract", "13 operational aggregates\nDAU/WAU · health · AI latency/failures/cost · match/macros/corpus", { w: 380, h: 46, fill: "#FFF4E6", stroke: "#ED7100", bold: true }),
+      box("serving_guardrails", "API guardrails: TOKEN auth cached 300 s · metrics + authorizer concurrency 2 each\nLambda reserved concurrency: 9 / 10 account total", { w: 430, h: 46, fill: "#F7F4EF", stroke: "#8C9BAB" }),
     ]),
     frame("pres_stack", "presentation stack (disposable · per work session)", { dir: "row", gap: 20, stroke: "#8C4FFF" }, [
       icon("alb", "application_load_balancer", "ALB"),
       icon("fargate", "fargate", "ECS Fargate"),
+      icon("authsecrets", "secrets_manager", "5 login secrets"),
+      box("pres_note", "API Gateway + cached Supabase RPCs\nshared restricted secret · assessment evidence only", { w: 260, h: 46 }),
     ]),
   ]),
 ]);
 
-const tutor = icon("tutor", "user", "tutor demo");
+const tutor = icon("tutor", "user", "tutor demo\nVercel normally · ALB for evidence");
 
 const tree = frame("root", "Kallo × AWS — two repos, three platforms (deployment topology)", { dir: "row", gap: 90, align: "top" }, [
   laptop,
-  phantom("platforms", "", { dir: "col", gap: 50, align: "left", header: 0 }, [prod, aws]),
-  tutor,
+  phantom("platforms", "", { dir: "col", gap: 42, align: "left", header: 0 }, [
+    phantom("continuous_hosts", "", { dir: "row", gap: 42, align: "top", header: 0 }, [prod, vercel, tutor]),
+    aws,
+  ]),
 ]);
 renderTree(d, tree, [40, 70]);
 
@@ -73,7 +87,9 @@ d.link("ops", "ecr", "docker push · session creds", { dir: "LR" });
 d.link("cfn", "data_stack", "creates", { dash: true });
 d.link("cfn", "pres_stack", "creates / deletes per session", { dash: true, route: { es: "B", en: "L", kind: "Lvh" } });
 d.link("supa_box", "data_stack", "daily extract · HTTPS, read-only views", { flow: true, dir: "TB" });
-d.link("tutor", "pres_stack", "ALB URL · live during demo");
+d.link("vercel", "supa_box", "cached read-only RPCs", { dash: true });
+d.link("vercel", "data_stack", "API Gateway · server-held bearer", { flow: true });
+d.link("tutor", "vercel", "normal testing URL");
 
 const res = d.validate();
 console.log("VALIDATE:", JSON.stringify({ ok: res.ok, errors: res.errors, warnings: res.warnings, advice: res.audit.advice }));
@@ -83,5 +99,6 @@ writeFileSync(new URL("./kallo-cross-platform-topology.drawio", import.meta.url)
 import { execFileSync as __exec } from "node:child_process";
 try {
   const __f = new URL("./kallo-cross-platform-topology.drawio", import.meta.url).pathname;
-  console.log(__exec("drawio-ai", ["render", __f, "--check", "--page", "1", "-o", __f + ".png"], { encoding: "utf8" }).trim());
+  const __png = new URL("./kallo-cross-platform-topology.png", import.meta.url).pathname;
+  console.log(__exec("drawio-ai", ["render", __f, "--check", "--page", "1", "-o", __png], { encoding: "utf8" }).trim());
 } catch (e) { console.error("RENDER-SKIPPED:", String(e.message).split("\n")[0]); }

@@ -9,3 +9,5 @@ __pycache__/
 .lab-config
 .local/
 *.tsbuildinfo
+.vercel
+.env*.local

@@ -126,12 +126,6 @@ Resources:
               Type: string
             - Name: logged_at
               Type: string
-            - Name: meal_slot
-              Type: string
-            - Name: entry_mode
-              Type: string
-            - Name: confidence_overall
-              Type: double
             - Name: calories_kcal
               Type: double
             - Name: protein_g
@@ -140,43 +134,8 @@ Resources:
               Type: double
             - Name: fat_g
               Type: double
-            - Name: fiber_g
-              Type: double
           InputFormat: org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat
           Location: !Sub s3://${AnalyticsBucket}/curated/v_meals/
-          OutputFormat: org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat
-          SerdeInfo:
-            SerializationLibrary: org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe
-
-  UserFunnelGlueTable:
-    Type: AWS::Glue::Table
-    Properties:
-      CatalogId: !Ref AWS::AccountId
-      DatabaseName: !Ref AnalyticsGlueDatabase
-      TableInput:
-        Name: v_user_funnel
-        TableType: EXTERNAL_TABLE
-        Parameters:
-          classification: parquet
-        # No dt partition: the Glue job overwrites curated/ with the
-        # latest complete snapshot on every run. A date partition would
-        # keep one full copy per run and multiply every Athena count.
-        StorageDescriptor:
-          Columns:
-            - Name: user_hash
-              Type: string
-            - Name: created_at
-              Type: string
-            - Name: onboarding_step
-              Type: bigint
-            - Name: onboarding_completed_at
-              Type: string
-            - Name: goal
-              Type: string
-            - Name: preferred_locale
-              Type: string
-          InputFormat: org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat
-          Location: !Sub s3://${AnalyticsBucket}/curated/v_user_funnel/
           OutputFormat: org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat
           SerdeInfo:
             SerializationLibrary: org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe
@@ -359,7 +318,7 @@ Resources:
       Role: !Sub arn:aws:iam::${AWS::AccountId}:role/LabRole
       Timeout: 30
       MemorySize: 256
-      ReservedConcurrentExecutions: 1
+      ReservedConcurrentExecutions: 2
       Environment:
         Variables:
           TABLE_NAME: !Ref AnalyticsTable
@@ -451,7 +410,7 @@ Resources:
       Role: !Sub arn:aws:iam::${AWS::AccountId}:role/LabRole
       Timeout: 10
       MemorySize: 128
-      ReservedConcurrentExecutions: 1
+      ReservedConcurrentExecutions: 2
       Environment:
         Variables:
           TOKEN_SECRET_ARN: !Ref DashboardToken
@@ -471,13 +430,16 @@ Resources:
               supplied = event.get("authorizationToken", "")
               token = supplied[7:] if supplied.startswith("Bearer ") else supplied
               effect = "Allow" if token == _secret else "Deny"
+              method_arn = event["methodArn"]
+              arn_parts = method_arn.split("/")
+              resource = f"{arn_parts[0]}/{arn_parts[1]}/*/*" if effect == "Allow" else method_arn
               return {
                   "principalId": "dashboard",
                   "usageIdentifierKey": _secret,
                   "policyDocument": {
                       "Version": "2012-10-17",
                       "Statement": [{"Action": "execute-api:Invoke", "Effect": effect,
-                                     "Resource": event["methodArn"]}],
+                                     "Resource": resource}],
                   },
               }
 
@@ -500,7 +462,7 @@ Resources:
       RestApiId: !Ref DashboardApi
       Type: TOKEN
       IdentitySource: method.request.header.Authorization
-      AuthorizerResultTtlInSeconds: 0
+      AuthorizerResultTtlInSeconds: 300
       AuthorizerUri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthorizerFunction.Arn}/invocations
 
   # /metrics/{metric} is the aggregate dashboard read route.
@@ -811,7 +773,7 @@ Resources:
             method.response.header.Access-Control-Allow-Origin: true
 
   # A distinct deployment and stage make the URL stable for cross-stack export.
-  ApiDeployment:
+  ApiDeploymentV2:
     Type: AWS::ApiGateway::Deployment
     DependsOn:
       - MetricsGetMethod
@@ -828,14 +790,14 @@ Resources:
       - InsightWeeklyOptionsMethod
     Properties:
       RestApiId: !Ref DashboardApi
-      Description: Dashboard API deployment for the implemented proxy routes.
+      Description: Dashboard API deployment with five-minute TOKEN authorizer caching.
 
   ApiStage:
     # Production stage adds low per-second throttles without a billable API cache.
     Type: AWS::ApiGateway::Stage
     Properties:
       RestApiId: !Ref DashboardApi
-      DeploymentId: !Ref ApiDeployment
+      DeploymentId: !Ref ApiDeploymentV2
       StageName: prod
       MethodSettings:
         - ResourcePath: '/*'

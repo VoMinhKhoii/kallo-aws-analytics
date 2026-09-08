@@ -111,7 +111,9 @@ Also confirm `aws sts get-caller-identity` returns account `902339462666`.
 
 This is 59 resources: S3, DynamoDB, Glue database and job, Athena workgroup,
 17 Lambdas, API Gateway with a Lambda authorizer, EventBridge schedule, and
-three Secrets Manager secrets. It is serverless and near-free at rest.
+three persistent Secrets Manager secrets. The Supabase secret JSON contains
+separate `url`, `analytics_jwt`, and `api_key` keys. It is serverless and
+near-free at rest.
 
 ```
 scripts/deploy-data-stack.sh --glue-script-s3-uri s3://kallo-lab-scratch-902339462666/glue/job.py
@@ -129,6 +131,19 @@ one function shows a code size greater than the template's placeholder.
 Invoke the extract Lambda manually and follow the chain. Expect: objects under
 `raw/` in the analytics bucket, a manifest, one Glue run reaching `Succeeded`,
 `curated/` Parquet, and items in the DynamoDB table.
+
+The current extractor requires a caller-generated correlation ID for an
+on-demand run. Generate a lowercase UUID and include it in the payload:
+
+```
+RUN_ID="$(uuidgen | tr '[:upper:]' '[:lower:]')"
+aws lambda invoke \
+  --function-name "$EXTRACT_FUNCTION_NAME" \
+  --payload "$(jq -cn --arg run_id "$RUN_ID" '{mode:"on_demand",run_id:$run_id}')" \
+  --cli-binary-format raw-in-base64-out \
+  --region us-east-1 \
+  /tmp/kallo-first-extract.json
+```
 
 **Verify:** list the S3 prefixes, read the Glue run state, and scan a couple of
 DynamoDB items. Report the actual counts. If the Glue job fails, get its error
@@ -151,6 +166,24 @@ needed, pushes, and records the URI in `.lab-config` (gitignored — keep it tha
 way).
 
 ### 6.6 Presentation stack — only when Khoi is ready to look at it
+
+Export the private-console values in the same shell. Do not print or save their
+values in the repository:
+
+```text
+DASHBOARD_FOUNDER_USERNAME
+DASHBOARD_FOUNDER_PASSWORD       # at least 12 characters
+DASHBOARD_REVIEWER_USERNAME
+DASHBOARD_REVIEWER_PASSWORD      # at least 12 characters
+DASHBOARD_SESSION_SECRET         # at least 32 characters
+```
+
+`lab-up.sh` resolves the existing `kallo-data` Supabase secret ARN and passes
+only the ARN to CloudFormation. The presentation stack creates five disposable
+Secrets Manager resources for the values above and injects all required values
+into ECS. Those five secrets are deleted with the stack. Because the classroom
+ALB is HTTP-only, this deployment alone sets `DASHBOARD_COOKIE_SECURE=false`;
+Vercel and other environments default to a secure session cookie.
 
 ```
 scripts/lab-up.sh

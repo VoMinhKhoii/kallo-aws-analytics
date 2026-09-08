@@ -1,4 +1,5 @@
-import { getCachedDashboardMetrics } from "@/app/lib/api";
+import { getCachedSelectedMetrics } from "@/app/lib/api";
+import { MacroDistributionChart } from "@/components/console/macro-distribution-chart";
 import { BarRow, CHART, Note, PageHeader, StatRow, type Stat } from "@/components/panels/common";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,96 +8,46 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 const number = (value: number) => value.toLocaleString("en-US");
-
-function nutrientLabel(value: string) {
-  return value.replace("_kcal", "").replace("_g", "").replaceAll("_", " ");
-}
+const COVERAGE_METRICS = ["macro_distributions", "ingredient_rank_distribution", "implausible_foods"] as const;
 
 export default async function CoveragePage() {
   const to = new Date().toISOString().slice(0, 10);
-  const { data, errors } = await getCachedDashboardMetrics("2000-01-01", to);
-  const foodSelections = data.top_foods.reduce((sum, row) => sum + row.count, 0);
-  const gapOccurrences = data.coverage_gaps.reduce((sum, row) => sum + row.count, 0);
-  const flaggedReasons = data.implausible_foods.reduce((sum, row) => sum + row.reasons.length, 0);
-  const macroObservations = data.macro_distributions.reduce((sum, row) => sum + row.count, 0);
-  const latestMatch = data.match_rate.at(-1);
+  const bundle = await getCachedSelectedMetrics(COVERAGE_METRICS, "2000-01-01", to);
+  const errors = Object.entries(bundle.errors).map(([metric, error]) => `${metric}: ${error}`);
+  const macros = bundle.data.macro_distributions ?? [];
+  const ranks = bundle.data.ingredient_rank_distribution ?? [];
+  const flags = bundle.data.implausible_foods ?? [];
+  const macroObservations = macros.filter((row) => row.nutrient === "calories_kcal").reduce((sum, row) => sum + row.count, 0);
+  const acceptedSelections = ranks.reduce((sum, row) => sum + row.count, 0);
+  const firstChoice = ranks.filter((row) => row.selected_rank === 1).reduce((sum, row) => sum + row.count, 0);
+  const maxRank = Math.max(...ranks.map((row) => row.count), 1);
 
   const stats: Stat[] = [
-    { label: "Ranked foods", value: number(data.top_foods.length), denom: `${number(foodSelections)} selections` },
-    { label: "Gap queries", value: number(data.coverage_gaps.length), denom: `${number(gapOccurrences)} occurrences` },
-    { label: "Macro buckets", value: number(data.macro_distributions.length), denom: `${number(macroObservations)} observations` },
-    { label: "Flagged foods", value: number(data.implausible_foods.length), denom: `${number(flaggedReasons)} quality reasons` },
-    { label: "Latest ingredients", value: number(latestMatch?.ingredient_count ?? 0), denom: latestMatch?.date ?? "no match rows" },
-    { label: "Unaccounted", value: number(latestMatch?.unaccounted_count ?? 0), denom: "latest match audit" },
+    { label: "Macro observations", value: number(macroObservations), denom: "aggregate meal-output distribution" },
+    { label: "Accepted selections", value: number(acceptedSelections), denom: "valid candidate ranks" },
+    { label: "First-choice share", value: acceptedSelections ? `${((firstChoice / acceptedSelections) * 100).toFixed(1)}%` : "No data", denom: "rank 1 selections" },
+    { label: "Quality flags", value: number(flags.length), denom: "catalogue plausibility" },
   ];
-
-  const foodMax = Math.max(data.top_foods[0]?.count ?? 0, 1);
-  const gapMax = Math.max(data.coverage_gaps[0]?.count ?? 0, 1);
-  const macroRows = [...data.macro_distributions].sort((a, b) => b.count - a.count).slice(0, 16);
-  const macroMax = Math.max(macroRows[0]?.count ?? 0, 1);
 
   return (
     <>
-      <PageHeader title="Coverage & corpus" sub={`AWS-curated food coverage and plausibility controls · ${to}`} />
+      <PageHeader title="Coverage & corpus" sub={`Distribution-first output and catalogue quality review · ${to}`} />
       <StatRow stats={stats} />
       {errors.length > 0 && <div className="mt-3"><Note><b>{errors.length} AWS metric reads failed.</b> {errors.slice(0, 2).join(" · ")}</Note></div>}
 
+      <Card className="mt-3">
+        <CardHeader><div><CardTitle>Macro distribution</CardTitle><CardDescription className="mt-1">Switch nutrient to spot abnormal clusters, empty ranges, and long tails at a glance</CardDescription></div><CardAction><Badge variant="outline">histogram</Badge></CardAction></CardHeader>
+        <CardContent>{macros.length ? <MacroDistributionChart rows={macros} /> : <Note tone="plain">No macro distribution rows were returned.</Note>}</CardContent>
+      </Card>
+
       <div className="mt-3 grid gap-3 xl:grid-cols-2">
         <Card>
-          <CardHeader>
-            <div><CardTitle>Corpus demand</CardTitle><CardDescription className="mt-1">Most frequently resolved ingredient names</CardDescription></div>
-            <CardAction><Badge variant="outline">Top {Math.min(data.top_foods.length, 12)}</Badge></CardAction>
-          </CardHeader>
-          <CardContent>
-            {data.top_foods.slice(0, 12).map((row) => (
-              <BarRow key={`${row.rank}-${row.ingredient_name}`} label={row.ingredient_name} n={number(row.count)}
-                w={`${(row.count / foodMax) * 100}%`} color={CHART[1]} />
-            ))}
-          </CardContent>
+          <CardHeader><div><CardTitle>Candidate rank shape</CardTitle><CardDescription className="mt-1">How often the pipeline accepts each rank within its candidate pool</CardDescription></div></CardHeader>
+          <CardContent>{ranks.map((row) => <BarRow key={`${row.pool_size}-${row.selected_rank}`} label={`Pool ${row.pool_size} · rank ${row.selected_rank}`} sub={`${(row.share * 100).toFixed(1)}% within pool`} n={number(row.count)} w={`${(row.count / maxRank) * 100}%`} color={row.selected_rank === 1 ? CHART[1] : CHART[3]} />)}{ranks.length === 0 ? <Note tone="plain">No accepted candidate-rank rows were returned.</Note> : null}</CardContent>
         </Card>
-
         <Card>
-          <CardHeader>
-            <div><CardTitle>Coverage backlog</CardTitle><CardDescription className="mt-1">Vietnamese queries requiring corpus attention</CardDescription></div>
-            <CardAction><Badge variant="warn">prioritise</Badge></CardAction>
-          </CardHeader>
-          <CardContent>
-            {data.coverage_gaps.slice(0, 12).map((row) => (
-              <BarRow key={`${row.rank}-${row.query_text}`} label={row.query_text} n={number(row.count)}
-                w={`${(row.count / gapMax) * 100}%`} color={CHART[3]} />
-            ))}
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="mt-3 grid gap-3 xl:grid-cols-[1.15fr_0.85fr]">
-        <Card>
-          <CardHeader>
-            <div><CardTitle>Macro distribution</CardTitle><CardDescription className="mt-1">Largest curated nutrient buckets</CardDescription></div>
-            <CardAction><Badge variant="outline">Parquet → DynamoDB</Badge></CardAction>
-          </CardHeader>
-          <CardContent>
-            {macroRows.map((row, index) => (
-              <BarRow key={`${row.nutrient}-${row.bucket_min}-${row.bucket_max ?? "plus"}`}
-                label={`${nutrientLabel(row.nutrient)} · ${row.bucket_min}–${row.bucket_max ?? "+"}`}
-                n={number(row.count)} w={`${(row.count / macroMax) * 100}%`} color={CHART[(index % 5 + 1) as keyof typeof CHART]} labelWidth="w-52" />
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <div><CardTitle>Quality controls</CardTitle><CardDescription className="mt-1">Examples flagged by macro plausibility rules</CardDescription></div>
-            <CardAction><Badge variant="bad">{number(data.implausible_foods.length)} flags</Badge></CardAction>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {data.implausible_foods.slice(0, 10).map((row, index) => (
-              <div key={`${row.id ?? index}`} className="border-b py-2 last:border-0">
-                <p className="truncate text-sm font-medium">{row.name_en ?? "Unnamed food"}</p>
-                <p className="text-muted-foreground mt-0.5 text-xs">{row.type_en ?? "Unknown category"} · {row.reasons.join(", ")}</p>
-              </div>
-            ))}
-          </CardContent>
+          <CardHeader><div><CardTitle>Nutrition plausibility</CardTitle><CardDescription className="mt-1">The histogram shows shape; this list identifies the records causing suspicious values</CardDescription></div><CardAction><Badge variant={flags.length ? "bad" : "good"}>{number(flags.length)} flags</Badge></CardAction></CardHeader>
+          <CardContent className="space-y-2">{flags.slice(0, 12).map((row) => <Note key={String(row.id)} tone="plain"><b>{row.name_en ?? `Food ${row.id ?? "unknown"}`}</b><br />{row.reasons.join(" · ")}</Note>)}{flags.length === 0 ? <Note tone="plain">No nutrition plausibility flags were returned.</Note> : null}</CardContent>
         </Card>
       </div>
     </>

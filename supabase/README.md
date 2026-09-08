@@ -1,8 +1,15 @@
 # Supabase analytics schema
 
 This directory creates a read-only `analytics` API surface over the production
-tables. The `analytics_reader` role can use only the seven allowlisted views; it
+tables. In the final beta-scope state, the `analytics_reader` role can use only
+the six allowlisted operational views; it
 has no permission on the pepper table or on source tables in `public`.
+
+Earlier append-only migrations create the historical analytics surface. The
+ingredient-intelligence migration adds the bounded food-decision view. The
+final `20260905090000_reduce_to_operational_analytics.sql` migration removes
+the behavior-oriented views and RPC functions and narrows app health. Source
+tables remain inaccessible to the extract role.
 
 ## 1. Apply the migration
 
@@ -25,6 +32,28 @@ With the Supabase MCP server, call `apply_migration` for the target project. Use
 `0001_analytics_schema` as the migration name and the complete contents of
 `migrations/0001_analytics_schema.sql` as the SQL. Apply it once to the intended
 project and retain this file as the source of truth.
+
+Then apply `20260830021049_telemetry_analytics_views.sql` as a separate,
+append-only historical migration. It must run only after the Kallo schema
+migration that creates its source columns. Its behavior-oriented views are
+retired by the final reduction migration; do not treat this intermediate state
+as the final read contract.
+
+Then apply `20260830023432_ingredient_intelligence.sql` as a separate,
+append-only migration. It creates only `v_ingredient_decisions` over the
+existing `v_verdict_pool` candidate data. The view uses a domain-separated HMAC
+decision key, a rolling 90-day cutoff, bounded ingredient and catalog labels,
+controlled verdict/reject buckets, and candidate/chosen scalar fields. It never
+exposes request IDs, stage payloads, candidate JSON, nutrition objects, or
+reject text, and grants `SELECT` only to `analytics_reader`.
+
+Finally apply `20260905090000_reduce_to_operational_analytics.sql`. It drops
+`v_product_events`, `v_pipeline_meals`, `v_user_funnel`, `v_meal_items`, and
+`v_unmatched_ingredients`, plus the behavior summary/week RPC functions. It
+recreates `v_app_health` without actor/session hashes, error messages, stack
+traces, or arbitrary payloads. The six final extract sources are
+`v_pipeline_runs`, `v_budget_events`, `v_meals`, `v_food_composition`,
+`v_app_health`, and `v_ingredient_decisions`.
 
 ## 2. Replace the analytics pepper
 
@@ -58,8 +87,9 @@ in older dashboard versions). Add `analytics` to **Exposed schemas** and save.
 This is PostgREST's `db-schemas` setting: it must include `analytics`, or a
 request using `Accept-Profile: analytics` returns `PGRST106`.
 
-Exposing a schema does not grant database access. The migration grants the
-`analytics_reader` role schema usage and read access only to the seven views.
+Exposing a schema does not grant database access. The migrations grant the
+`analytics_reader` role schema usage and read access only to the six final
+views.
 
 ## 4. Mint the restricted JWT
 

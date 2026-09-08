@@ -30,6 +30,13 @@ class ViewConfig:
     name: str
     columns: tuple[str, ...]
     order_column: str
+    tie_breaker_columns: tuple[str, ...] = ()
+
+    @property
+    def order_columns(self) -> tuple[str, ...]:
+        """Return the complete deterministic ordering used by PostgREST."""
+
+        return (self.order_column, *self.tie_breaker_columns)
 
 
 VIEW_CONFIGS: tuple[ViewConfig, ...] = (
@@ -50,6 +57,7 @@ VIEW_CONFIGS: tuple[ViewConfig, ...] = (
             "cache_hit_l4",
         ),
         "created_at",
+        ("id",),
     ),
     ViewConfig(
         "v_budget_events",
@@ -67,6 +75,7 @@ VIEW_CONFIGS: tuple[ViewConfig, ...] = (
             "error_category",
         ),
         "created_at",
+        ("id",),
     ),
     ViewConfig(
         "v_meals",
@@ -74,47 +83,13 @@ VIEW_CONFIGS: tuple[ViewConfig, ...] = (
             "id",
             "user_hash",
             "logged_at",
-            "meal_slot",
-            "entry_mode",
-            "confidence_overall",
             "calories_kcal",
             "protein_g",
             "carbohydrate_g",
             "fat_g",
-            "fiber_g",
         ),
         "logged_at",
-    ),
-    ViewConfig(
-        "v_meal_items",
-        (
-            "id",
-            "meal_id",
-            "ingredient_name",
-            "food_composition_id",
-            "estimated_grams",
-            "match_confidence",
-            "cooking_method",
-            "created_at",
-        ),
-        "created_at",
-    ),
-    ViewConfig(
-        "v_unmatched_ingredients",
-        ("id", "query_text", "created_at"),
-        "created_at",
-    ),
-    ViewConfig(
-        "v_user_funnel",
-        (
-            "user_hash",
-            "created_at",
-            "onboarding_step",
-            "onboarding_completed_at",
-            "goal",
-            "preferred_locale",
-        ),
-        "created_at",
+        ("id",),
     ),
     ViewConfig(
         "v_food_composition",
@@ -132,6 +107,54 @@ VIEW_CONFIGS: tuple[ViewConfig, ...] = (
             "fiber_g",
         ),
         "id",
+    ),
+    ViewConfig(
+        "v_app_health",
+        (
+            "event_id",
+            "occurred_at",
+            "platform",
+            "app_version",
+            "event_name",
+            "route",
+            "metric",
+            "check",
+            "status_code",
+            "duration_ms",
+            "fatal",
+        ),
+        "occurred_at",
+        ("event_id",),
+    ),
+    ViewConfig(
+        "v_ingredient_decisions",
+        (
+            "decision_key",
+            "occurred_on",
+            "ingredient_query",
+            "verdict",
+            "pool_size",
+            "selected_rank",
+            "reject_bucket",
+            "candidate_1_food_id",
+            "candidate_1_name",
+            "candidate_1_source",
+            "candidate_1_similarity",
+            "candidate_2_food_id",
+            "candidate_2_name",
+            "candidate_2_source",
+            "candidate_2_similarity",
+            "candidate_3_food_id",
+            "candidate_3_name",
+            "candidate_3_source",
+            "candidate_3_similarity",
+            "chosen_food_id",
+            "chosen_name",
+            "chosen_source",
+            "chosen_similarity",
+        ),
+        "occurred_on",
+        ("decision_key",),
     ),
 )
 
@@ -223,7 +246,7 @@ def _request_url(base_url: str, config: ViewConfig) -> str:
     # Range pagination is deterministic across pages.
     query: list[tuple[str, str]] = [
         ("select", ",".join(config.columns)),
-        ("order", f"{config.order_column}.asc"),
+        ("order", ",".join(f"{column}.asc" for column in config.order_columns)),
     ]
     path = f"{base_url.rstrip('/')}/rest/v1/{quote(config.name, safe='')}"
     return f"{path}?{urlencode(query)}"

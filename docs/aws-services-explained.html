@@ -461,7 +461,7 @@
         <div>
           <p class="kicker">Kallo Analytics Plane</p>
           <h1>AWS services, explained from zero</h1>
-          <p class="hero-copy">This system copies a small, sanitized slice of Kallo's production data from Supabase into AWS once a day, transforms it into dashboard-ready metrics, and serves a Next.js analytics dashboard. The data side stays running cheaply; the public dashboard side is created only for a work session or demo.</p>
+          <p class="hero-copy">This system copies a small, sanitized slice of Kallo's production data from Supabase into AWS once a day, transforms it into dashboard-ready metrics, and serves a private Next.js analytics dashboard continuously on Vercel. The AWS data side stays running cheaply; the ALB/Fargate presentation side is created only for assessment evidence or a live demo.</p>
         </div>
         <aside class="hero-stamp" aria-label="Project constraints at a glance">
           <strong>$50</strong>
@@ -470,7 +470,7 @@
       </div>
 
       <figure class="architecture">
-        <img src="doc_images/kallo-analytics-architecture.png" alt="Runtime architecture showing Supabase data entering AWS through Lambda, S3, Glue, EventBridge and DynamoDB, with a dashboard on ECS Fargate behind an ALB and API Gateway.">
+        <img src="doc_images/kallo-analytics-architecture.png" alt="Runtime architecture showing Supabase data entering AWS through Lambda, S3, Glue, EventBridge and DynamoDB, with continuous Vercel dashboard hosting plus a disposable ECS Fargate and ALB assessment path.">
         <figcaption>Runtime architecture. Read the top path left to right for the daily data pipeline, and the bottom path left to right for a dashboard request.</figcaption>
       </figure>
 
@@ -496,7 +496,7 @@
             <tr><td>Lambda</td><td>Runs seven short Python functions for extraction, loading, API work and authorization.</td><td>A function that runs on demand, with no server kept on.</td></tr>
             <tr><td>API Gateway</td><td>Exposes and protects the dashboard's metrics, run, Athena and insight routes.</td><td>An API router, bouncer and rate limiter.</td></tr>
             <tr><td>S3</td><td>Holds raw JSONL, manifests, curated Parquet, aggregates and Athena results.</td><td>A practically infinite network disk organized by object keys.</td></tr>
-            <tr><td>DynamoDB</td><td>Stores metric-by-date payloads, extraction watermarks and run status.</td><td>A managed key-value database.</td></tr>
+            <tr><td>DynamoDB</td><td>Stores metric-by-date payloads, the manual-run guard and run status.</td><td>A managed key-value database.</td></tr>
             <tr><td>Glue</td><td>Rents Spark for one short ETL run, then gives it back.</td><td>A temporary data-processing cluster plus a schema catalog.</td></tr>
             <tr><td>Athena</td><td>Runs three fixed SQL templates directly over curated S3 files.</td><td>A SQL console attached to files instead of a database server.</td></tr>
             <tr><td>EventBridge</td><td>Starts the daily extract and reacts when the exact Glue job succeeds.</td><td><code>cron</code> plus an event router.</td></tr>
@@ -526,7 +526,7 @@
           <h4>What it does in this project</h4>
           <p>The deployed data stack has <strong>seven</strong> Python 3.12 Lambdas. Six do application work and one is the API authorizer:</p>
           <ul>
-            <li><code>ExtractFunction</code> reads seven allowlisted Supabase views in pages of 1,000, writes JSONL to S3, writes the manifest, and starts Glue exactly once.</li>
+            <li><code>ExtractFunction</code> reads six allowlisted Supabase views in pages of 1,000, writes JSONL to S3, writes the manifest, and starts Glue exactly once.</li>
             <li><code>LoaderFunction</code> runs only after the named Glue job reports <code>SUCCEEDED</code>. It validates every aggregate, writes deterministic metric/date items, and marks manual runs complete.</li>
             <li><code>ApiMetricsFunction</code> validates a metric and date range, then performs a DynamoDB <code>Query</code>, never a table scan.</li>
             <li><code>ApiRunsFunction</code> starts the extractor asynchronously and returns a UUID, or reads one run's status.</li>
@@ -542,15 +542,16 @@
 
           <h4>Config we chose and why</h4>
           <ul>
-            <li>All seven functions use <code>ReservedConcurrentExecutions: 1</code>. The lab allows only 10 concurrent Lambda executions account-wide, so each function gets a conservative lane.</li>
-            <li>Extractor: <code>512 MB</code>, <code>300 seconds</code>. It may need multiple HTTPS pages from seven views.</li>
+            <li>Five functions use <code>ReservedConcurrentExecutions: 1</code>; the read-only metrics function and TOKEN authorizer use <code>2</code> so a page bundle and its health probe do not throttle at either Lambda. Total reserved concurrency is <code>9</code>, below the lab's 10-concurrent-execution ceiling.</li>
+            <li>API Gateway caches each static bearer authorization result for <code>300 seconds</code>. The Allow policy is wildcarded only inside the current API stage, so one cached decision covers its configured routes. This matches the dashboard aggregate-cache window and removes a Lambda authorizer call from every individual metric read; a rotated token can take up to five minutes to invalidate.</li>
+            <li>Extractor: <code>512 MB</code>, <code>300 seconds</code>. It may need multiple HTTPS pages from six views.</li>
             <li>Loader: <code>512 MB</code>, <code>120 seconds</code>. It reads and validates all aggregate files before writing.</li>
             <li>Metrics, runs and Athena APIs: <code>256 MB</code>, <code>30 seconds</code>. Their work is small and mostly remote I/O.</li>
             <li>Insight: <code>512 MB</code>, <code>120 seconds</code>, with its Gemini HTTP call capped at 25 seconds.</li>
             <li>Authorizer: <code>128 MB</code>, <code>10 seconds</code>, result cache TTL <code>0</code>. Every request is checked against the current token.</li>
             <li>Every role is the pre-existing <code>LabRole</code> because the Learner Lab forbids creating IAM roles.</li>
           </ul>
-          <p class="qa">“I used Lambda for bounded, event-driven control work. Each function has reserved concurrency one, and the heavy data transform and persistent web server are deliberately placed elsewhere.”</p>
+          <p class="qa">“I used Lambda for bounded, event-driven control work. Mutating and expensive functions keep one reserved lane; the read-only metrics function has two, while API Gateway still enforces the spend boundary.”</p>
         </article>
 
         <article class="service-card" id="api-gateway">
@@ -579,7 +580,8 @@
             <li>No API cache, which avoids another billable feature and avoids stale run status.</li>
             <li>Lambda proxy integration keeps request parsing in the handlers and returns normal status/body objects.</li>
           </ul>
-          <div class="warning"><strong>Known load-test question:</strong> the dashboard currently starts 12 metric requests in parallel, while the API burst limit is 5. <code>Promise.allSettled</code> preserves successful panels, but this needs deployed validation or client-side batching before claiming the entire page load is reliable.</div>
+          <div class="warning"><strong>Intentional first-load trade-off:</strong> dashboard pages request only their required metric subset and space calls by 500 ms. This avoids exceeding the Learner Lab's single-Lambda-execution and API rate limits. Four metrics add a 1.5-second spacing floor; the 12-contract Trace page adds 5.5 seconds before network and cold-start latency. Route loading states keep the shell responsive.</div>
+          <div class="gap"><strong>Deployment boundary:</strong> the source-controlled six-view, thirteen-metric reduction must be deployed as one coordinated Supabase, extractor, Glue, loader and API revision before production is expected to serve the new contract. Historical E2E findings remain documented separately.</div>
           <p class="qa">“The ALB publishes the website; API Gateway protects operations that can consume AWS or Gemini budget. The static token, 2-request-per-second throttle and 10,000-request monthly quota fit a single-operator university demo.”</p>
         </article>
 
@@ -589,15 +591,15 @@
             <div><h3>Amazon S3</h3><p>The data lake and handoff boundary</p></div>
           </div>
           <h4>What it is</h4>
-          <p>S3 stores objects, not mounted disk blocks and not database rows. An object is bytes plus a key such as <code>raw/v_meals/dt=2026-08-13/part-0.jsonl</code>. Prefixes look like folders, but the full key is the real address.</p>
+          <p>S3 stores objects, not mounted disk blocks and not database rows. An object is bytes plus a key such as <code>raw/v_meals/dt=2026-08-13/run=&lt;run-id&gt;/part-0.jsonl</code>. Prefixes look like folders, but the full key is the real address.</p>
 
           <h4>What it does in this project</h4>
           <p><code>AnalyticsBucket</code> separates pipeline stages by prefix:</p>
           <ul>
-            <li><code>raw/&lt;view&gt;/dt=YYYY-MM-DD/part-&lt;page&gt;.jsonl</code> contains exactly the rows returned by each 1,000-row PostgREST page.</li>
-            <li><code>raw/_manifests/dt=YYYY-MM-DD/manifest.json</code> lists the files and row count for all seven views. Glue reads only this declared set.</li>
-            <li><code>curated/&lt;view&gt;/dt=YYYY-MM-DD/*.parquet</code> contains typed, compressed columnar data written by Spark.</li>
-            <li><code>aggregates/dt=YYYY-MM-DD/&lt;metric&gt;.json</code> contains 12 dashboard payloads.</li>
+            <li><code>raw/&lt;view&gt;/dt=YYYY-MM-DD/run=&lt;run-id&gt;/part-&lt;page&gt;.jsonl</code> contains exactly the rows returned by each 1,000-row PostgREST page.</li>
+            <li><code>raw/_manifests/dt=YYYY-MM-DD/run=&lt;run-id&gt;/manifest.json</code> lists the files and row count for all six views. Glue reads only this declared set.</li>
+            <li><code>curated/&lt;view&gt;/*.parquet</code> contains the latest complete typed, compressed snapshot written by Spark.</li>
+            <li><code>aggregates/dt=YYYY-MM-DD/run=&lt;run-id&gt;/&lt;metric&gt;.json</code> contains thirteen dashboard payloads.</li>
             <li><code>athena-results/</code> receives query output generated by Athena.</li>
           </ul>
 
@@ -613,7 +615,7 @@
             <li>Athena results expire after <code>7 days</code>; incomplete result uploads abort after 1 day.</li>
             <li>Raw and curated incomplete multipart uploads abort after <code>7 days</code>.</li>
             <li>Raw, curated, aggregates and manifests currently have no object-expiration rule, so they persist until the stack or objects are removed.</li>
-            <li>The same-date keys are overwritten by another run on that date. This behaves like “latest run for the UTC date,” not an immutable audit archive.</li>
+            <li>Raw, manifest and aggregate keys include the run ID, so same-day runs remain disjoint. Curated Parquet is intentionally overwritten to prevent Athena from counting one source row once per full snapshot.</li>
             <li>No EBS volume or <code>gp2</code> disk is needed. S3 is the persistent storage.</li>
           </ul>
           <p class="qa">“S3 is the durable boundary between stages. JSONL preserves the landing data, Parquet makes analytical scans efficient, and the manifest stops Glue from accidentally reading half-written or unrelated files.”</p>
@@ -630,11 +632,11 @@
           <h4>What it does in this project</h4>
           <p><code>AnalyticsTable</code> has partition key <code>metric</code> and sort key <code>date</code>, both strings. It stores three shapes:</p>
           <ul>
-            <li>Aggregate: <code>metric=meal_volume</code>, <code>date=2026-08-13</code>, plus a canonical JSON payload.</li>
-            <li>Watermark: <code>metric=_watermark#v_meals</code>, <code>date=latest</code>, plus the last source timestamp.</li>
-            <li>Run status: <code>metric=_run#&lt;uuid&gt;</code>, <code>date=latest</code>, plus <code>extracting</code>, <code>transform_started</code> or <code>completed</code>.</li>
+            <li>Aggregate: <code>metric=ai_latency</code>, <code>date=2026-08-13</code>, plus a canonical JSON payload.</li>
+            <li>Run guard: <code>metric=_run_guard#pipeline</code>, <code>date=latest</code>, plus the owner and 30-minute guard horizon.</li>
+            <li>Run status: <code>metric=_run#&lt;uuid&gt;</code>, <code>date=latest</code>, plus phases such as <code>queued</code>, <code>extracting</code>, <code>transform_started</code>, <code>completed</code> or <code>failed</code>.</li>
           </ul>
-          <p>The metrics API queries one metric across a date range. Watermarks and run states use exact-key reads. The loader writes the same metric/date key on replay, so the result is idempotent.</p>
+          <p>The metrics API queries one metric across a date range. Run guards and run states use exact-key reads. The loader writes the same metric/date key on replay, so the result is idempotent.</p>
 
           <div class="tradeoff">
             <h4>Why DynamoDB instead of RDS Postgres?</h4>
@@ -649,7 +651,7 @@
             <li>No secondary indexes and no TTL. The two-key design covers the implemented requests.</li>
             <li>No VPC configuration, subnet or security group is needed for the Lambda clients.</li>
           </ul>
-          <p class="qa">“DynamoDB fits because every online read is known in advance: metric plus date range, watermark by view, or run by ID. We traded away relational joins and moved them into the batch transform.”</p>
+          <p class="qa">“DynamoDB fits because every online read is known in advance: metric plus date range, the shared run guard, or run by ID. We traded away relational joins and moved them into the batch transform.”</p>
         </article>
 
         <article class="service-card" id="glue">
@@ -661,8 +663,8 @@
           <p>Glue ETL starts managed Apache Spark workers for a job, runs PySpark, and releases them when the job ends. Spark is a distributed data-processing engine. The Glue Data Catalog is a separate metadata registry that tells query tools what tables exist and where their S3 files live.</p>
 
           <h4>What it does in this project</h4>
-          <p><code>AnalyticsGlueJob</code> receives <code>--run_id</code> and <code>--manifest_key</code>. It reads only the manifest-listed JSONL files, verifies expected row counts, writes each view as date-partitioned Parquet under <code>curated/</code>, and writes 12 JSON aggregates under <code>aggregates/</code>. The business transformations live in pure Python functions so pytest can run them without Spark.</p>
-          <p><code>AnalyticsGlueDatabase</code> creates the catalog namespace intended for Athena.</p>
+          <p><code>AnalyticsGlueJob</code> receives <code>--run_id</code> and <code>--manifest_key</code>. It reads only the manifest-listed JSONL files, verifies expected row counts, overwrites each curated view with the latest complete Parquet snapshot, and writes thirteen run-scoped JSON aggregates under <code>aggregates/</code>. The business transformations live in pure Python functions so pytest can run them without Spark.</p>
+          <p><code>AnalyticsGlueDatabase</code> creates the catalog namespace, and CloudFormation registers the two external Parquet tables used by Athena.</p>
 
           <div class="tradeoff">
             <h4>Why Glue instead of EMR?</h4>
@@ -675,10 +677,10 @@
             <li>Glue <code>4.0</code>, command <code>glueetl</code>, Python <code>3</code>.</li>
             <li><code>WorkerType: G.1X</code>, <code>NumberOfWorkers: 2</code>. This is the lab minimum chosen for the job.</li>
             <li><code>Timeout: 10</code> minutes, <code>MaxRetries: 0</code>, <code>MaxConcurrentRuns: 1</code>. These are cost fuses.</li>
-            <li>Dynamic partition overwrite and <code>dt=YYYY-MM-DD</code> Parquet partitions.</li>
+            <li>Overwrite-mode curated snapshots; no extraction-date partition is retained because every extraction is already a full snapshot.</li>
             <li><code>LabRole</code> is the job role because custom IAM roles are blocked.</li>
           </ul>
-          <div class="gap"><strong>Catalog implementation:</strong> CloudFormation creates <code>AWS::Glue::Table</code> resources for <code>v_meals</code>, <code>v_user_funnel</code> and <code>v_pipeline_runs</code>. Each table projects its <code>dt</code> date partition and maps it directly to the matching S3 prefix, so Athena can discover date partitions without a crawler or repeated <code>MSCK REPAIR TABLE</code> commands.</div>
+          <div class="gap"><strong>Catalog implementation:</strong> CloudFormation creates <code>AWS::Glue::Table</code> resources for <code>v_meals</code> and <code>v_pipeline_runs</code>. Each external table maps directly to the corresponding latest-snapshot Parquet prefix, so no crawler, partition projection or <code>MSCK REPAIR TABLE</code> step is required.</div>
           <p class="qa">“Glue gives us disposable Spark rather than a managed EMR cluster. It is intentionally bounded to two G.1X workers, one concurrent run, zero retries and ten minutes, and I acknowledge that Spark is educational rather than necessary at our current row count.”</p>
         </article>
 
@@ -707,7 +709,7 @@
             <li>CloudWatch workgroup metrics are enabled.</li>
             <li>Only fixed SQL templates are exposed; dates become validated <code>DATE</code> literals.</li>
           </ul>
-          <div class="gap"><strong>Partition projection trade-off:</strong> the clean stack creates all three catalog tables and derives <code>dt</code> partitions from configured date ranges and S3 location templates. This removes crawler cost, scheduling and catalog-update lag, and avoids manual <code>MSCK REPAIR TABLE</code> maintenance; the trade-off is that the projection rules must continue to match the actual S3 partition layout.</div>
+          <div class="gap"><strong>Latest-snapshot trade-off:</strong> the clean stack creates all three catalog tables over fixed curated prefixes. This removes crawler cost, partition-update lag and duplicate counts across full snapshots; the trade-off is that Athena exposes the latest successful curated state rather than historical extraction versions.</div>
           <p class="qa">“Athena is our bounded exploratory SQL path, not the normal dashboard database. We pay only when a fixed query scans Parquet, and the enforced workgroup stops any query above 1 GiB.”</p>
         </article>
 
@@ -903,10 +905,10 @@
           <h3>The unattended daily pipeline</h3>
           <ol>
             <li><strong>EventBridge invokes the extractor</strong> once every 24 hours with <code>rate(1 day)</code>.</li>
-            <li><strong>The extract Lambda reads Supabase over HTTPS.</strong> It reads only seven sanitized analytics views, asks for explicit columns, pages 1,000 rows at a time, and uses a DynamoDB watermark for incremental views. <code>v_food_composition</code> is a full refresh.</li>
-            <li><strong>S3 receives raw JSONL.</strong> Each page becomes <code>raw/&lt;view&gt;/dt=&lt;date&gt;/part-&lt;n&gt;.jsonl</code>. If all seven views finish, Lambda writes one manifest containing file names and row counts.</li>
+            <li><strong>The extract Lambda reads Supabase over HTTPS.</strong> It reads only six sanitized operational views, asks for explicit columns, and pages each complete snapshot 1,000 rows at a time in deterministic order. It keeps no DynamoDB watermark.</li>
+            <li><strong>S3 receives raw JSONL.</strong> Each page becomes <code>raw/&lt;view&gt;/dt=&lt;date&gt;/run=&lt;run-id&gt;/part-&lt;n&gt;.jsonl</code>. If all six views finish, Lambda writes one run-scoped manifest containing file names and row counts.</li>
             <li><strong>Lambda starts Glue exactly once.</strong> It passes the run ID and manifest key. A partial extraction never produces a manifest and never intentionally starts Glue.</li>
-            <li><strong>Glue transforms the declared files.</strong> Two G.1X workers validate counts, write partitioned Parquet, and compute 12 aggregate JSON files.</li>
+            <li><strong>Glue transforms the declared files.</strong> Two G.1X workers validate counts, overwrite the latest complete curated Parquet snapshot, and compute thirteen run-scoped aggregate JSON files.</li>
             <li><strong>Glue emits success; EventBridge filters it.</strong> Only <code>SUCCEEDED</code> for this exact job invokes the loader.</li>
             <li><strong>The loader writes DynamoDB idempotently.</strong> Each payload goes to <code>(metric, date)</code>. Replaying the same date replaces the same keys rather than duplicating records.</li>
           </ol>
@@ -915,19 +917,19 @@
         <article class="flow">
           <h3>A page load and “Run now” click</h3>
           <ol>
-            <li><strong>The browser requests the ALB URL.</strong> The ALB should forward to the one healthy Fargate task. First acknowledge that the current 80-versus-3000 port mismatch must be fixed before this path works.</li>
-            <li><strong>Next.js renders the latest 90-day dashboard.</strong> Server-side code starts 12 metric requests for nine panels. The bearer token remains server-side.</li>
+            <li><strong>The browser normally requests the Vercel production URL.</strong> For assessment evidence, the disposable ALB listener on port 80 forwards to the Fargate target and container on port 3000.</li>
+            <li><strong>Next.js renders the product and diagnostic console.</strong> Each route requests only its allowlisted metric subset through a same-origin proxy, selects the newest full snapshot, and keeps the bearer token server-side.</li>
             <li><strong>API Gateway authorizes and throttles.</strong> The TOKEN Lambda checks the bearer secret, then the metrics Lambda queries DynamoDB by metric and date range.</li>
-            <li><strong>Next.js merges daily payloads.</strong> <code>Promise.allSettled</code> keeps available panels if one metric fails. Mention that the 12-call fan-out needs testing against burst 5.</li>
+            <li><strong>Next.js selects the newest complete payload.</strong> It never merges multiple loader dates, because every aggregate object is already a full snapshot. Per-metric errors remain independent from successful empty results.</li>
             <li><strong>The operator selects Run pipeline now.</strong> The browser calls the same-origin Next.js route, which calls <code>POST /runs</code> through API Gateway.</li>
-            <li><strong>The runs Lambda returns quickly.</strong> It creates a UUID and asynchronously invokes the extractor. The browser receives HTTP 202 instead of waiting minutes.</li>
-            <li><strong>The browser polls every 5 seconds.</strong> <code>GET /runs/{run_id}</code> reads <code>_run#&lt;uuid&gt;/latest</code> from DynamoDB until the loader changes the phase to <code>completed</code>. An immediate first poll can briefly return 404 before the asynchronous extractor creates the record.</li>
+            <li><strong>The runs Lambda returns quickly.</strong> It atomically claims the 30-minute shared DynamoDB guard, records a queued UUID, and asynchronously invokes the extractor. The browser receives HTTP 202 instead of waiting minutes; competing starts receive HTTP 429.</li>
+            <li><strong>The browser polls every 5 seconds.</strong> <code>GET /runs/{run_id}</code> reads <code>_run#&lt;uuid&gt;/latest</code> from DynamoDB until the loader changes the phase to <code>completed</code>. The runs Lambda writes the initial <code>queued</code> record before asynchronous invocation, so the first poll has a stable item.</li>
           </ol>
         </article>
       </div>
 
       <figure class="architecture topology">
-        <img src="doc_images/kallo-cross-platform-topology.png" alt="Deployment topology showing two Git repositories on a developer laptop, production on GCP and Supabase, and the analytics project in AWS Learner Lab.">
+        <img src="doc_images/kallo-cross-platform-topology.png" alt="Deployment topology showing two Git repositories on a developer laptop, production on GCP and Supabase, the continuous Vercel dashboard, and the data and disposable presentation stacks in AWS Learner Lab.">
         <figcaption>Two repositories, three platforms. The product repository deploys the live Kallo app to GCP Cloud Run and adds sanitized views to Supabase. This assignment repository deploys only the read-only analytics plane to AWS. The browser reaches AWS for the tutor demo; AWS reads production analytics views over HTTPS but does not replace or write to the production application.</figcaption>
       </figure>
     </section>
@@ -954,7 +956,7 @@
           <div><dt>Default VPC and public subnets</dt><dd>The VPC is the private network boundary for ALB and ECS. <code>lab-up.sh</code> discovers the existing default VPC and two public subnets in different Availability Zones.</dd></div>
           <div><dt>Security groups</dt><dd>Stateful virtual firewalls. One allows the public to reach ALB port 80; the other allows task traffic only when its source is the ALB security group.</dd></div>
           <div><dt>CloudWatch</dt><dd>AWS logging and metrics. The dashboard has a 7-day ECS log group, and metrics are enabled for API Gateway, Athena and Glue. There are no alarms, dashboards or explicit Lambda log-retention resources.</dd></div>
-          <div><dt>Glue Data Catalog</dt><dd>The schema directory Athena needs to map table names to S3 Parquet. The database exists, but table definitions or a crawler are the known missing piece.</dd></div>
+          <div><dt>Glue Data Catalog</dt><dd>The schema directory Athena needs to map table names to S3 Parquet. CloudFormation creates the database and the three fixed external tables used by the Athena templates.</dd></div>
           <div><dt>EC2</dt><dd>No EC2 instance is created. Fargate supplies container compute, Lambda supplies function compute, and Glue supplies Spark compute. That removes server patching and EBS volume choices.</dd></div>
         </dl>
       </div>
@@ -972,7 +974,7 @@
         <div><dt>Stack</dt><dd>A group of resources created, updated and deleted together by CloudFormation.</dd></div>
         <div><dt>Workgroup</dt><dd>An Athena policy boundary that enforces query output, monitoring and byte-scan limits.</dd></div>
         <div><dt>DPU</dt><dd>Data Processing Unit, Glue's compute unit. A G.1X worker provides 1 DPU.</dd></div>
-        <div><dt>Watermark</dt><dd>The last successfully extracted source cursor, used to request only newer rows next time.</dd></div>
+        <div><dt>Full snapshot</dt><dd>A complete bounded copy of every allowlisted source view for one run. This project deliberately keeps no extraction watermark.</dd></div>
         <div><dt>Manifest</dt><dd>A small JSON contract listing exactly which raw files and row counts belong to one pipeline run.</dd></div>
         <div><dt>Idempotent</dt><dd>Safe to repeat with the same input. The loader overwrites the same metric/date key rather than creating duplicates.</dd></div>
         <div><dt>Cold start</dt><dd>The extra first-invocation time while Lambda creates a fresh runtime environment.</dd></div>

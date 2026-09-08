@@ -46,37 +46,53 @@ Glue: `NumberOfWorkers: 2`, `WorkerType: G.1X`, `Timeout: 10` (minutes), `MaxRet
 
 ## Source data (Supabase → `analytics` schema sanitized views)
 
-The extract Lambda reads ONLY these views (chunk 2 creates them). Field allowlists are exact — no `SELECT *` anywhere:
+The extract Lambda reads ONLY these views (the analytics migrations create them). Field allowlists are exact — no `SELECT *` anywhere:
 
 | View | Source table | Columns (allowlist) |
 |---|---|---|
 | `analytics.v_pipeline_runs` | `pipeline_runs` | id, created_at, pipeline_version, model_call1, model_call2, total_ms, ingredient_count, matched_count, unmatched_count, retry_count, escalated, cache_hit_l4 |
 | `analytics.v_budget_events` | `analysis_model_budget_events` | id, created_at, request_id, route, work_kind, provider, model, request_count, input_tokens, output_tokens, error_category |
-| `analytics.v_meals` | `meals` | id, user_hash (HMAC of user_id, computed in view with a dedicated analytics pepper), logged_at (truncated to hour), meal_slot, entry_mode, confidence_overall, calories_kcal, protein_g, carbohydrate_g, fat_g, fiber_g |
-| `analytics.v_meal_items` | `meal_items` | id, meal_id, ingredient_name, food_composition_id, estimated_grams, match_confidence, cooking_method, created_at |
-| `analytics.v_unmatched_ingredients` | `unmatched_ingredients` | id, query_text, created_at |
-| `analytics.v_user_funnel` | `user_profiles` | user_hash (HMAC), created_at (date-truncated), onboarding_step, onboarding_completed_at (date-truncated), goal, preferred_locale |
+| `analytics.v_meals` | `meals` | id, user_hash (HMAC of user_id), logged_at (truncated to hour), calories_kcal, protein_g, carbohydrate_g, fat_g |
 | `analytics.v_food_composition` | `vietnamese_food_composition` | id, name_en, type_en, state, source_id, serving_size_g, calories_kcal, protein_g, carbohydrate_g, fat_g, fiber_g |
+| `analytics.v_app_health` | `product_telemetry_events` | event_id, occurred_at, platform, app_version, event_name, route (stable key), metric, check, status_code, duration_ms, fatal |
+| `analytics.v_ingredient_decisions` | `v_verdict_pool` + candidate pool JSON | decision_key (domain-separated HMAC), occurred_on, ingredient_query, verdict, pool_size, selected_rank, reject_bucket, candidate ranks 1–3 (canonical food id/name/source/similarity), chosen canonical food id/name/source/similarity |
 
-Excluded everywhere: `raw_input`, emails, free-text feedback, exact timestamps where truncation suffices, raw `user_id`. `ingredient_name`/`query_text` are food names (needed for top-foods/coverage panels) — they stay, but any view must filter rows where the app flagged PII (none currently do; keep the note).
+Excluded everywhere: raw input, emails, free-text feedback, stack traces, error messages, raw user IDs, actor/session/anonymous identifiers in health data, onboarding state, screen journeys, meal entry mode, meal slot, and request-to-meal correlation. The only person-related field retained is the HMAC `user_hash` used inside Glue to compute aggregate DAU/WAU; it is never emitted in an aggregate or shown in the dashboard.
 
-Extraction: **every view is a full snapshot** — no watermarks, no cursors, no cross-run state. Each run pages the complete view (page size 1000 via PostgREST `Range` headers, ordered by `order_column` for deterministic paging) and recomputes every aggregate from the whole dataset. After ALL views extracted, write `raw/_manifests/dt=<date>/manifest.json` listing files+row counts, then exactly one `glue.start_job_run(Arguments={"--run_id": ..., "--manifest": ...})`.
+Extraction: **every view is a full snapshot** — no watermarks, no cursors, no cross-run state. Each run pages the complete view (page size 1000 via PostgREST `Range` headers, ordered by each view's configured primary timestamp/key plus an opaque tie-breaker for deterministic paging) and recomputes every aggregate from the whole dataset. After ALL views extracted, write `raw/_manifests/dt=<date>/manifest.json` listing files and row counts, then exactly one `glue.start_job_run(Arguments={"--run_id": ..., "--manifest": ...})`.
+
+The final reduction migration retires the product-event, user-funnel,
+meal-item, unmatched-query, and pipeline-to-meal views. `v_app_health` remains
+as a controlled operational source without actor/session identifiers or raw
+diagnostic payloads. `v_ingredient_decisions` retains bounded food-domain labels
+and catalogue identifiers because those fields are the object of the quality
+analysis. These operational views enforce a rolling 90-day source cutoff in
+SQL before extraction. Athena results expire after seven days; raw and curated
+S3 retention remains a separate operational policy.
 
 Rationale (decided 2026-08-22): incremental watermarking was removed because it was unsafe at this scale and silently lossy. A `gt.<watermark>` cursor skips every row sharing the watermark's value (fatal on any coarsened timestamp); watermarks committed per-view before the run completed, so a later-view failure stranded earlier rows permanently; and a second same-day run produced an empty delta whose aggregates overwrote the good ones, blanking the dashboard while reporting success. The full relevant dataset is a few MB (~10-20 pages), so a snapshot costs nothing and removes the entire failure class. Reintroduce incremental only if a single view exceeds roughly 100k rows, and only with a composite keyset cursor plus staged watermarks committed after a successful load.
 
-## Dashboard panels (9, all served from DynamoDB aggregates unless noted)
+## Dashboard scope (13 aggregates, all served from DynamoDB unless noted)
 
-1. DAU/WAU + retention cohorts — engagement-defined (a user is active on a day they logged a meal). State this definition in UI + doc.
-2. Meal-log volume over time (by slot, entry_mode).
-3. Macro distributions (calories/protein/carb/fat histograms).
-4. Top logged foods (from meal_items.ingredient_name; food_composition join for names).
-5. AI latency by model + failure rate (failure from budget-event error_category; latency p50/p95 from pipeline_runs.total_ms).
-6. Token cost per day, stacked by model (budget_events tokens × per-model price table in code).
-7. Match-rate trend (matched_count vs unmatched_count).
-8. Onboarding funnel (step 0→3 conversion).
-9. Coverage gaps: unmatched_ingredients ranked by frequency + implausible-nutrition table (rules: kcal>0 but all macros 0; carb-staple types with carbohydrate_g=0; 4/4/9 macro-vs-calorie mismatch >40%). No new anomaly framework.
+1. `dau_wau`: aggregate usage context; an actor is active on a UTC day when they logged a meal. Display both the latest values and a line chart.
+2. `macro_distributions`: calorie, protein, carbohydrate, and fat histograms for detecting abnormal clusters at a glance.
+3. `ai_latency`: daily model call count and p50/p95/p99 latency, displayed as lines over time.
+4. `ai_failure_rate`: daily provider/model failure observations and a weighted-rate line.
+5. `token_cost_daily`: daily input/output token trends plus exact known-price estimates.
+6. `match_rate`: daily ingredient match-quality line.
+7. `implausible_foods`: food catalogue records violating the three fixed plausibility rules.
+8. `app_health`: controlled hourly crash, API failure, performance, and health-check buckets.
+9–13. `ingredient_demand`, `ingredient_mappings`, `corpus_reverse_lookup`, `ingredient_gaps`, and `ingredient_rank_distribution`: bounded catalogue demand, decision, reverse-lookup, gap, and candidate-rank diagnostics.
+
+Funnels, retention cohorts, journey transitions, feature adoption, onboarding,
+meal-slot/entry-mode trends, top-food reporting, and pipeline-to-meal conversion
+are deliberately outside the beta assignment scope.
 
 Plus: "Weekly summary" panel calling the Gemini endpoint, and a "Run pipeline now" button → POST /runs → run_id → poll GET /runs/{id}.
+
+The complete operational contract is recorded in
+`docs/product-analytics-aggregates.md`. Metrics are descriptive and do not
+interpret beyond observed counts.
 
 ## Conventions
 

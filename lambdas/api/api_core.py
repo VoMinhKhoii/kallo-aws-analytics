@@ -14,27 +14,30 @@ from typing import Any, Protocol
 # Keep this import-free list in sync with glue/transforms.py AGGREGATE_NAMES.
 AGGREGATE_NAMES: tuple[str, ...] = (
     "dau_wau",
-    "retention_cohorts",
-    "meal_volume",
     "macro_distributions",
-    "top_foods",
     "ai_latency",
     "ai_failure_rate",
     "token_cost_daily",
     "match_rate",
-    "onboarding_funnel",
-    "coverage_gaps",
     "implausible_foods",
+    "app_health",
+    "ingredient_demand",
+    "ingredient_mappings",
+    "corpus_reverse_lookup",
+    "ingredient_gaps",
+    "ingredient_rank_distribution",
 )
 
 INSIGHT_METRICS: tuple[str, ...] = (
     "dau_wau",
-    "meal_volume",
+    "macro_distributions",
+    "app_health",
     "ai_latency",
     "ai_failure_rate",
     "token_cost_daily",
     "match_rate",
-    "coverage_gaps",
+    "ingredient_gaps",
+    "implausible_foods",
 )
 
 ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
@@ -260,4 +263,3 @@ def compact_json(value: Any) -> str:
         separators=(",", ":"),
         allow_nan=False,
     )
-

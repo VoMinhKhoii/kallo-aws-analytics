@@ -1,0 +1,6 @@
+[
+  { "rank": 1, "ingredient_query": "chicken breast", "count": 84 },
+  { "rank": 2, "ingredient_query": "jasmine rice", "count": 67 },
+  { "rank": 3, "ingredient_query": "morning glory", "count": 39 },
+  { "rank": 4, "ingredient_query": "mystery herb", "count": 18 }
+]

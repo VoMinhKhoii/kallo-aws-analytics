@@ -17,6 +17,34 @@ Parameters:
   DataStackName:
     Type: String
     Description: Deployed data-stack name whose API and secret exports are imported.
+  SupabaseCredsSecretArn:
+    Type: String
+    Description: Existing data-stack secret ARN containing url, analytics_jwt, and api_key JSON keys.
+  DashboardFounderUsername:
+    Type: String
+    NoEcho: true
+    MinLength: 1
+    Description: Founder username stored only in a disposable presentation secret.
+  DashboardFounderPassword:
+    Type: String
+    NoEcho: true
+    MinLength: 12
+    Description: Founder password stored only in a disposable presentation secret.
+  DashboardReviewerUsername:
+    Type: String
+    NoEcho: true
+    MinLength: 1
+    Description: Reviewer username stored only in a disposable presentation secret.
+  DashboardReviewerPassword:
+    Type: String
+    NoEcho: true
+    MinLength: 12
+    Description: Reviewer password stored only in a disposable presentation secret.
+  DashboardSessionSecret:
+    Type: String
+    NoEcho: true
+    MinLength: 32
+    Description: Session-signing secret stored only in a disposable presentation secret.
 
 Resources:
   # Public ALB security group exposes only the required HTTP demonstration port.
@@ -114,6 +142,49 @@ Resources:
         - Key: Project
           Value: kallo-analytics
 
+  # These secrets are owned by the disposable stack and disappear with it.
+  # Separate resources avoid serialising credential values into JSON strings.
+  DashboardFounderUsernameSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Disposable founder username for the presentation dashboard.
+      SecretString: !Ref DashboardFounderUsername
+      Tags:
+        - Key: Project
+          Value: kallo-analytics
+  DashboardFounderPasswordSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Disposable founder password for the presentation dashboard.
+      SecretString: !Ref DashboardFounderPassword
+      Tags:
+        - Key: Project
+          Value: kallo-analytics
+  DashboardReviewerUsernameSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Disposable reviewer username for the presentation dashboard.
+      SecretString: !Ref DashboardReviewerUsername
+      Tags:
+        - Key: Project
+          Value: kallo-analytics
+  DashboardReviewerPasswordSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Disposable reviewer password for the presentation dashboard.
+      SecretString: !Ref DashboardReviewerPassword
+      Tags:
+        - Key: Project
+          Value: kallo-analytics
+  DashboardSessionSecretResource:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Disposable session-signing secret for the presentation dashboard.
+      SecretString: !Ref DashboardSessionSecret
+      Tags:
+        - Key: Project
+          Value: kallo-analytics
+
   # Smallest Fargate size and X86_64 match the locked image and lab cost ceiling.
   DashboardTaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -140,11 +211,30 @@ Resources:
               Value:
                 Fn::ImportValue:
                   Fn::Sub: ${DataStackName}-ApiUrl
+            # The classroom ALB has no certificate; Vercel keeps the secure default.
+            - Name: DASHBOARD_COOKIE_SECURE
+              Value: 'false'
           Secrets:
             - Name: DASHBOARD_TOKEN
               ValueFrom:
                 Fn::ImportValue:
                   Fn::Sub: ${DataStackName}-DashboardTokenSecretArn
+            - Name: DASHBOARD_FOUNDER_USERNAME
+              ValueFrom: !Ref DashboardFounderUsernameSecret
+            - Name: DASHBOARD_FOUNDER_PASSWORD
+              ValueFrom: !Ref DashboardFounderPasswordSecret
+            - Name: DASHBOARD_REVIEWER_USERNAME
+              ValueFrom: !Ref DashboardReviewerUsernameSecret
+            - Name: DASHBOARD_REVIEWER_PASSWORD
+              ValueFrom: !Ref DashboardReviewerPasswordSecret
+            - Name: DASHBOARD_SESSION_SECRET
+              ValueFrom: !Ref DashboardSessionSecretResource
+            - Name: SUPABASE_URL
+              ValueFrom: !Sub '${SupabaseCredsSecretArn}:url::'
+            - Name: SUPABASE_ANALYTICS_JWT
+              ValueFrom: !Sub '${SupabaseCredsSecretArn}:analytics_jwt::'
+            - Name: SUPABASE_PUBLISHABLE_KEY
+              ValueFrom: !Sub '${SupabaseCredsSecretArn}:api_key::'
           LogConfiguration:
             LogDriver: awslogs
             Options:
