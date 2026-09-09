@@ -8,7 +8,7 @@ import type {
 import {
   BarList, ConsolePage, formatDecimal, formatNumber, formatPercent, InlineNote,
   MetricRibbon, MetricState, PageIntro, Panel, RangeControl, SimpleTable,
-  SourceTag, TableCell, TableRow, rangeWindow, type ConsoleRange,
+  SourceTag, TableCell, TablePager, TableRow, rangeWindow, type ConsoleRange,
 } from "@/components/console/console";
 import { MacroDistributionChart } from "@/components/console/macro-distribution-chart";
 import { TimeSeriesChart } from "@/components/console/time-series-chart";
@@ -97,15 +97,28 @@ function aggregateMacros(rows: MacroRow[]) {
   return [...groups.values()];
 }
 
-function mappingSummary(row: IngredientMappingRow | undefined) {
-  if (!row) return "No mapping observation";
-  const chosen = row.chosen?.name ?? row.chosen?.food_id ?? "No chosen food";
-  const candidates = row.candidates.map((candidate) => `${candidate.rank}. ${candidate.name ?? candidate.food_id ?? "Unknown"}${candidate.similarity == null ? "" : ` (${formatDecimal(candidate.similarity, 3)})`}`).join(" · ");
-  return `${chosen}${candidates ? ` — ${candidates}` : ""}`;
+function MappingDetails({ row }: { row: IngredientMappingRow | undefined }) {
+  if (!row) return <span>No mapping observation</span>;
+  const chosen = row.chosen?.name ?? row.chosen?.food_id;
+  return (
+    <ul className="min-w-[24rem] space-y-1.5 py-0.5 text-[11px] leading-4">
+      <li className="flex gap-2"><span aria-hidden="true" className="text-[var(--console-green)]">●</span><span><span className="font-semibold text-[var(--console-ink)]">Chosen:</span> {chosen ?? "No chosen food"}{row.chosen?.source ? <span className="text-[var(--console-muted)]"> · {row.chosen.source}</span> : null}</span></li>
+      {row.candidates.map((candidate) => (
+        <li key={`${candidate.rank}-${candidate.food_id ?? candidate.name}`} className="flex gap-2 text-[var(--console-muted)]">
+          <span aria-hidden="true">•</span>
+          <span><span className="font-mono text-[var(--console-ink)]">c{candidate.rank}</span> {candidate.name ?? candidate.food_id ?? "Unknown candidate"}{candidate.similarity == null ? "" : ` · ${formatDecimal(candidate.similarity, 3)}`}</span>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 export default function IngredientsPage() {
   const [range, setRange] = React.useState<ConsoleRange>("30d");
+  const [mappingPage, setMappingPage] = React.useState(1);
+  const [corpusPage, setCorpusPage] = React.useState(1);
+  const mappingPageSize = 15;
+  const corpusPageSize = 12;
   const window = React.useMemo(() => rangeWindow(range), [range]);
   const bundle = useMetricBundle(INGREDIENT_METRICS, window.from, window.to);
   const demand = aggregateDemand((bundle.data?.ingredient_demand ?? []) as IngredientDemandRow[]);
@@ -122,9 +135,24 @@ export default function IngredientsPage() {
   const unresolved = gaps.reduce((sum, row) => sum + row.count, 0);
   const acceptedRanks = ranks.reduce((sum, row) => sum + row.count, 0);
   const firstRanks = ranks.filter((row) => row.selected_rank === 1).reduce((sum, row) => sum + row.count, 0);
+  const visibleDemand = demand.slice((mappingPage - 1) * mappingPageSize, mappingPage * mappingPageSize);
+  const visibleCorpus = reverse.slice((corpusPage - 1) * corpusPageSize, corpusPage * corpusPageSize);
+
+  React.useEffect(() => {
+    setMappingPage(1);
+    setCorpusPage(1);
+  }, [range]);
+
+  React.useEffect(() => {
+    setMappingPage((page) => Math.min(page, Math.max(1, Math.ceil(demand.length / mappingPageSize))));
+  }, [demand.length]);
+
+  React.useEffect(() => {
+    setCorpusPage((page) => Math.min(page, Math.max(1, Math.ceil(reverse.length / corpusPageSize))));
+  }, [reverse.length]);
 
   return <ConsolePage>
-    <PageIntro eyebrow="Ingredients" title="Ingredients" description="Demand, retrieval quality, corpus coverage, output distributions, and catalog checks."><RangeControl value={range} onChange={setRange} label="Window" options={["7d", "30d", "90d"]} /></PageIntro>
+    <PageIntro eyebrow="Ingredients" title="Ingredients" description="Demand, retrieval quality, corpus coverage, output distributions, and catalog checks."><RangeControl value={range} onChange={setRange} label="Window" /></PageIntro>
     <div className="mt-3 grid gap-3">
       <MetricRibbon items={[
         { label: "Decisions", value: formatNumber(decisions || undefined), detail: "selected window", loading: bundle.loading, error: metricError(bundle, "ingredient_mappings") },
@@ -135,7 +163,7 @@ export default function IngredientsPage() {
 
       <Panel title="Match rate over time" description="Matched ingredients divided by every ingredient observed by the pipeline." source={<SourceTag>AWS aggregate</SourceTag>}><MetricState loading={bundle.loading} error={metricError(bundle, "match_rate")} empty={matches.length === 0} emptyMessage="No matching rows were returned for this window."><div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={matches} series={[{ key: "match_rate", label: "Match rate", color: "var(--console-green)" }]} ariaLabel="Ingredient match rate over time" format="percent" /></div></MetricState></Panel>
 
-      <Panel title="Demand and chosen mappings" description="One ranked view replaces separate demand and mapping panels." source={<SourceTag>AWS aggregate</SourceTag>}><MetricState loading={bundle.loading} error={metricError(bundle, "ingredient_demand") || metricError(bundle, "ingredient_mappings")} empty={demand.length === 0} emptyMessage="No ingredient decisions were returned for this window."><SimpleTable columns={["Query", "Demand", "Accepted", "Chosen and candidates"]} caption="Ingredient demand and mappings">{demand.slice(0, 30).map((row) => { const mapping = mappingByQuery.get(row.ingredient_query); return <TableRow key={row.ingredient_query}><TableCell><span className="font-mono text-[11px]">{row.ingredient_query}</span></TableCell><TableCell numeric>{formatNumber(row.count)}</TableCell><TableCell numeric muted>{mapping ? `${mapping.accepted_count}/${mapping.decision_count}` : "—"}</TableCell><TableCell className="max-w-[36rem] truncate" muted>{mappingSummary(mapping)}</TableCell></TableRow>; })}</SimpleTable></MetricState></Panel>
+      <Panel title="Demand and chosen mappings" description="One ranked view replaces separate demand and mapping panels." source={<SourceTag>AWS aggregate</SourceTag>}><MetricState loading={bundle.loading} error={metricError(bundle, "ingredient_demand") || metricError(bundle, "ingredient_mappings")} empty={demand.length === 0} emptyMessage="No ingredient decisions were returned for this window."><SimpleTable columns={["Query", { label: "Demand", align: "right" }, { label: "Accepted", align: "right" }, "Chosen and candidates"]} caption="Ingredient demand and mappings">{visibleDemand.map((row) => { const mapping = mappingByQuery.get(row.ingredient_query); return <TableRow key={row.ingredient_query}><TableCell className="align-top"><span className="font-mono text-[11px]">{row.ingredient_query}</span></TableCell><TableCell numeric className="align-top">{formatNumber(row.count)}</TableCell><TableCell numeric muted className="align-top">{mapping ? `${mapping.accepted_count}/${mapping.decision_count}` : "—"}</TableCell><TableCell muted className="align-top"><MappingDetails row={mapping} /></TableCell></TableRow>; })}</SimpleTable><TablePager page={mappingPage} pageSize={mappingPageSize} total={demand.length} onPageChange={setMappingPage} label="ingredient mappings" /></MetricState></Panel>
 
       <Panel title="Meal-output macro distribution" description="Distribution buckets are summed only across the selected observation window." source={<SourceTag>AWS aggregate</SourceTag>}><MetricState loading={bundle.loading} error={metricError(bundle, "macro_distributions")} empty={macros.length === 0} emptyMessage="No meal-output rows were returned for this window."><div className="px-3 py-4 sm:px-5"><MacroDistributionChart rows={macros} /></div></MetricState></Panel>
 
@@ -144,10 +172,9 @@ export default function IngredientsPage() {
         <Panel title="Accepted candidate ranks" description="Selected rank within each candidate-pool size." source={<SourceTag>AWS aggregate</SourceTag>}><MetricState loading={bundle.loading} error={metricError(bundle, "ingredient_rank_distribution")} empty={ranks.length === 0} emptyMessage="No accepted candidate-rank rows were returned for this window."><BarList items={ranks.map((row) => ({ label: `Pool ${row.pool_size} · rank ${row.selected_rank}`, value: row.count, detail: `${formatPercent(row.share)} within pool`, tone: row.selected_rank === 1 ? "green" : "blue" }))} /></MetricState></Panel>
       </div>
 
-      <div className="grid gap-3 xl:grid-cols-2">
-        <Panel title="Corpus coverage" description="Canonical foods reached by accepted decisions, with bounded query examples." source={<SourceTag>AWS aggregate</SourceTag>}><MetricState loading={bundle.loading} error={metricError(bundle, "corpus_reverse_lookup")} empty={reverse.length === 0} emptyMessage="No accepted corpus mappings were returned for this window."><SimpleTable columns={["Food", "Decisions", "Queries", "Examples"]} caption="Corpus reverse lookup">{reverse.slice(0, 20).map((row) => <TableRow key={row.food_id ?? `${row.food_name}-${row.source}`}><TableCell><p className="font-medium">{row.food_name ?? row.food_id ?? "Unknown"}</p><p className="text-[10px] text-[var(--console-muted)]">{row.source ?? "No source"}</p></TableCell><TableCell numeric>{row.decision_count}</TableCell><TableCell numeric>{row.query_count}</TableCell><TableCell className="max-w-64 truncate" muted>{row.query_examples.join(" · ")}</TableCell></TableRow>)}</SimpleTable></MetricState></Panel>
-        <Panel title="Current catalog checks" description="Current-state nutrition plausibility checks; this inventory is not time-filtered." source={<SourceTag>Current snapshot</SourceTag>}><MetricState loading={bundle.loading} error={metricError(bundle, "implausible_foods")} empty={flags.length === 0} emptyMessage="No current catalog plausibility flags were returned."><div className="divide-y divide-[var(--console-rule)]">{flags.slice(0, 16).map((row) => <div key={String(row.id)} className="px-4 py-3 text-xs sm:px-5"><p className="font-medium text-[var(--console-ink)]">{row.name_en ?? `Food ${row.id ?? "unknown"}`}</p><p className="mt-1 text-[var(--console-muted)]">{row.reasons.join(" · ")}</p></div>)}</div></MetricState></Panel>
-      </div>
+      <Panel title="Corpus coverage" description="Canonical foods reached by accepted decisions, with bounded query examples." source={<SourceTag>AWS aggregate</SourceTag>}><MetricState loading={bundle.loading} error={metricError(bundle, "corpus_reverse_lookup")} empty={reverse.length === 0} emptyMessage="No accepted corpus mappings were returned for this window."><SimpleTable columns={["Food", { label: "Decisions", align: "right" }, { label: "Queries", align: "right" }, "Examples"]} caption="Corpus reverse lookup">{visibleCorpus.map((row) => <TableRow key={row.food_id ?? `${row.food_name}-${row.source}`}><TableCell className="align-top"><p className="font-medium">{row.food_name ?? row.food_id ?? "Unknown"}</p><p className="text-[10px] text-[var(--console-muted)]">{row.source ?? "No source"}</p></TableCell><TableCell numeric className="align-top">{row.decision_count}</TableCell><TableCell numeric className="align-top">{row.query_count}</TableCell><TableCell muted className="align-top"><ul className="min-w-[18rem] space-y-1">{row.query_examples.map((example) => <li key={example} className="flex gap-2"><span aria-hidden="true">•</span><span>{example}</span></li>)}</ul></TableCell></TableRow>)}</SimpleTable><TablePager page={corpusPage} pageSize={corpusPageSize} total={reverse.length} onPageChange={setCorpusPage} label="corpus rows" /></MetricState></Panel>
+
+      <Panel title="Current catalog checks" description="Current-state nutrition plausibility checks; this inventory is not time-filtered." source={<SourceTag>Current snapshot</SourceTag>}><MetricState loading={bundle.loading} error={metricError(bundle, "implausible_foods")} empty={flags.length === 0} emptyMessage="No current catalog plausibility flags were returned."><div className="divide-y divide-[var(--console-rule)]">{flags.slice(0, 16).map((row) => <div key={String(row.id)} className="px-4 py-3 text-xs sm:px-5"><p className="font-medium text-[var(--console-ink)]">{row.name_en ?? `Food ${row.id ?? "unknown"}`}</p><p className="mt-1 text-[var(--console-muted)]">{row.reasons.join(" · ")}</p></div>)}</div></MetricState></Panel>
       <InlineNote>The selected window is applied to dated Glue aggregates. Current catalog checks intentionally describe the newest food-composition snapshot.</InlineNote>
     </div>
   </ConsolePage>;

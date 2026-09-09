@@ -50,7 +50,7 @@ export const configProblem: string | null =
     ? "SUPABASE_ANALYTICS_JWT is set but SUPABASE_PUBLISHABLE_KEY is missing — the restricted JWT cannot be used as the apikey"
   : null;
 
-export const RANGES = ["7d", "30d", "90d", "all"] as const;
+export const RANGES = ["24h", "7d", "30d", "90d", "all"] as const;
 export type RangeKey = (typeof RANGES)[number];
 export const isRange = (v: string): v is RangeKey => (RANGES as readonly string[]).includes(v);
 

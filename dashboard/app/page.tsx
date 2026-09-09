@@ -15,6 +15,7 @@ import {
   RangeControl,
   SourceTag,
   InlineNote,
+  rangeWindow,
   type ConsoleRange,
 } from "@/components/console/console";
 import { useMetricBundle } from "@/lib/use-metric-bundle";
@@ -28,12 +29,7 @@ function metricError(bundle: { error: string | null; errors: Partial<Record<stri
 
 export default function TodayPage() {
   const [range, setRange] = React.useState<ConsoleRange>("30d");
-  const pipelineWindow = React.useMemo(() => {
-    const to = new Date().toISOString().slice(0, 10);
-    const from = new Date(`${to}T00:00:00Z`);
-    from.setUTCDate(from.getUTCDate() - Number(range.slice(0, -1)) + 1);
-    return { from: from.toISOString().slice(0, 10), to };
-  }, [range]);
+  const pipelineWindow = React.useMemo(() => rangeWindow(range), [range]);
   const pipeline = useMetricBundle(OVERVIEW_METRICS, pipelineWindow.from, pipelineWindow.to);
 
   const usage = (pipeline.data?.dau_wau ?? []) as DauWauRow[];
@@ -50,6 +46,16 @@ export default function TodayPage() {
   const cost = costs.some((row) => row.pricing_known)
     ? costs.filter((row) => row.pricing_known).reduce((total, row) => total + row.cost_usd, 0)
     : undefined;
+  const costByDate = new Map<string, { date: string; cost: number; models: string[] }>();
+  for (const row of costs.filter((item) => item.pricing_known)) {
+    const current = costByDate.get(row.date);
+    costByDate.set(row.date, {
+      date: row.date,
+      cost: (current?.cost ?? 0) + row.cost_usd,
+      models: [...(current?.models ?? []), `${row.model}: $${row.cost_usd.toFixed(4)}`],
+    });
+  }
+  const costTrend = [...costByDate.values()].sort((left, right) => left.date.localeCompare(right.date));
   const latencyByDate = new Map<string, { date: string; p50: number; p95: number; p99?: number }>();
   for (const row of latency) {
     const current = latencyByDate.get(row.date);
@@ -65,7 +71,7 @@ export default function TodayPage() {
     <ConsolePage>
       <PageIntro eyebrow="Operational overview" title="Today" description="High-level DAU/WAU context and AI-pipeline performance. Cloud Run system health lives on the System page.">
         <div className="flex flex-wrap items-center gap-2">
-          <RangeControl value={range} onChange={setRange} label="Pipeline window" options={["7d", "30d", "90d"]} />
+          <RangeControl value={range} onChange={setRange} label="Pipeline window" />
         </div>
       </PageIntro>
 
@@ -94,8 +100,8 @@ export default function TodayPage() {
 
           <Panel title="AI operating cost" description="Known-price token rows only; this is not total AWS infrastructure spend." source={<SourceTag>AWS aggregate</SourceTag>}>
             <MetricState loading={pipeline.loading} error={metricError(pipeline, "token_cost_daily")} empty={costs.length === 0} emptyMessage="No token-use rows were returned for this window.">
-              <div className="px-4 py-5 sm:px-5"><p className="text-3xl font-semibold tracking-[-0.04em]">{cost == null ? "Price unavailable" : `$${cost.toFixed(4)}`}</p><p className="mt-2 text-xs text-[var(--console-muted)]">Latest p95: {formatDuration(latestLatency?.p95_ms)} · {latestLatency?.model ?? "no model row"}</p></div>
-              <InlineNote>{formatNumber(costs.reduce((total, row) => total + row.input_tokens + row.output_tokens, 0))} observed input and output tokens in the selected window.</InlineNote>
+              <div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={costTrend} series={[{ key: "cost", label: "Estimated cost", color: "var(--console-amber)" }]} ariaLabel="Estimated AI operating cost over time" format="currency" tooltipDetails={(point) => <ul className="grid gap-1">{((point?.models ?? []) as string[]).map((model) => <li key={model}>{model}</li>)}</ul>} /></div>
+              <InlineNote>{cost == null ? "Price unavailable" : `$${cost.toFixed(4)} estimated total`} from {formatNumber(costs.reduce((total, row) => total + row.input_tokens + row.output_tokens, 0))} observed tokens in the selected window.</InlineNote>
             </MetricState>
           </Panel>
         </div>

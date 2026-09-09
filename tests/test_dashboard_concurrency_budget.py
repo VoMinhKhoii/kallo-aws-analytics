@@ -45,7 +45,7 @@ def test_observe_pages_use_their_intended_data_paths() -> None:
     assert today.count("useMetricBundle(") == 1
     assert system.count("useCloudMonitoring(") == 1
     assert "useMetricBundle(" not in system
-    assert '"app_health"' in today
+    assert '"app_health"' not in today
     assert '"app_health"' not in system
     assert 'fetch("/api/aws-status"' not in system
 

@@ -6,6 +6,8 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   Check,
+  ChevronLeft,
+  ChevronRight,
   CircleHelp,
   Database,
   Info,
@@ -20,7 +22,7 @@ import { cn } from "@/lib/utils";
 export type ConsoleRange = "24h" | "7d" | "30d" | "90d";
 
 export const RANGE_LABELS: Record<ConsoleRange, string> = {
-  "24h": "Today",
+  "24h": "24 hours",
   "7d": "7 days",
   "30d": "30 days",
   "90d": "90 days",
@@ -109,7 +111,7 @@ export function ConsolePage({ children }: { children: React.ReactNode }) {
 export function RangeControl({
   value,
   onChange,
-  options = ["7d", "30d", "90d"],
+  options = ["24h", "7d", "30d", "90d"],
   label = "Window",
 }: {
   value: ConsoleRange;
@@ -373,7 +375,7 @@ export function SimpleTable({
   children,
   caption,
 }: {
-  columns: string[];
+  columns: Array<string | { label: string; align?: "left" | "right" }>;
   children: React.ReactNode;
   caption?: string;
 }) {
@@ -382,10 +384,42 @@ export function SimpleTable({
       <table className="w-full min-w-[560px] text-left text-xs">
         {caption ? <caption className="sr-only">{caption}</caption> : null}
         <thead className="border-b border-[var(--console-rule)] bg-[var(--console-panel)] text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--console-muted)]">
-          <tr>{columns.map((column) => <th key={column} className="h-9 whitespace-nowrap px-4 font-semibold first:pl-4 last:pr-4 sm:px-5">{column}</th>)}</tr>
+          <tr>{columns.map((column) => {
+            const definition = typeof column === "string" ? { label: column, align: "left" as const } : column;
+            return <th key={definition.label} className={cn("h-9 whitespace-nowrap px-4 font-semibold first:pl-4 last:pr-4 sm:px-5", definition.align === "right" && "text-right")}>{definition.label}</th>;
+          })}</tr>
         </thead>
         <tbody className="divide-y divide-[var(--console-rule)]">{children}</tbody>
       </table>
+    </div>
+  );
+}
+
+export function TablePager({
+  page,
+  pageSize,
+  total,
+  onPageChange,
+  label = "rows",
+}: {
+  page: number;
+  pageSize: number;
+  total: number;
+  onPageChange: (page: number) => void;
+  label?: string;
+}) {
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.min(Math.max(page, 1), pageCount);
+  const first = total ? (safePage - 1) * pageSize + 1 : 0;
+  const last = Math.min(safePage * pageSize, total);
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--console-rule)] px-4 py-3 text-[11px] text-[var(--console-muted)] sm:px-5">
+      <span className="tabular-nums">{first}–{last} of {formatNumber(total)} {label}</span>
+      <div className="flex items-center gap-2">
+        <span className="tabular-nums">Page {safePage} of {pageCount}</span>
+        <button type="button" aria-label={`Previous ${label} page`} onClick={() => onPageChange(safePage - 1)} disabled={safePage <= 1} className="inline-flex size-8 items-center justify-center rounded-md border border-[var(--console-rule)] bg-[var(--console-surface)] text-[var(--console-ink)] hover:bg-[var(--console-panel)] focus-visible:outline-2 focus-visible:outline-[var(--console-blue)] disabled:cursor-not-allowed disabled:opacity-40"><ChevronLeft className="size-3.5" aria-hidden="true" /></button>
+        <button type="button" aria-label={`Next ${label} page`} onClick={() => onPageChange(safePage + 1)} disabled={safePage >= pageCount} className="inline-flex size-8 items-center justify-center rounded-md border border-[var(--console-rule)] bg-[var(--console-surface)] text-[var(--console-ink)] hover:bg-[var(--console-panel)] focus-visible:outline-2 focus-visible:outline-[var(--console-blue)] disabled:cursor-not-allowed disabled:opacity-40"><ChevronRight className="size-3.5" aria-hidden="true" /></button>
+      </div>
     </div>
   );
 }
@@ -415,7 +449,7 @@ export function StateLegend({ label, count, tone = "neutral" }: { label: string;
 
 export function HealthTable({ rows, platform = "all" }: { rows: AppHealthRow[]; platform?: string }) {
   const filtered = platform === "all" ? rows : rows.filter((row) => row.platform === platform);
-  return <SimpleTable columns={["UTC hour", "Platform", "Event", "Dimension", "Count", "p50 / p95"]} caption="Application health buckets">
+  return <SimpleTable columns={["UTC hour", "Platform", "Event", "Dimension", { label: "Count", align: "right" }, { label: "p50 / p95", align: "right" }]} caption="Application health buckets">
     {filtered.map((row) => <TableRow key={`${row.hour}-${row.platform}-${row.event_name}-${row.dimension_value}`}><TableCell muted><span className="font-mono text-[11px]">{row.hour.replace("T", " ").replace(":00:00Z", "Z")}</span></TableCell><TableCell><SourceTag tone="neutral">{row.platform}</SourceTag></TableCell><TableCell><span className="font-mono text-[11px]">{row.event_name}</span></TableCell><TableCell muted>{row.dimension}={row.dimension_value}</TableCell><TableCell numeric>{formatNumber(row.count)}</TableCell><TableCell numeric muted>{row.p50_ms == null && row.p95_ms == null ? "No duration" : `${formatDuration(row.p50_ms)} / ${formatDuration(row.p95_ms)}`}</TableCell></TableRow>)}
   </SimpleTable>;
 }

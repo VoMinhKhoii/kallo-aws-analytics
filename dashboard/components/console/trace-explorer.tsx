@@ -38,7 +38,7 @@ export function TraceExplorer({ initialRequestId }: { initialRequestId?: string 
     <ConsolePage>
       <PageIntro eyebrow="Diagnose" title="Meal analysis traces" description="Inspect one AI meal-analysis request from decomposition through retrieval, model calls, and final nutrition.">
         <div className="flex flex-wrap items-center gap-2">
-          <RangeControl value={range} onChange={setRange} options={["7d", "30d", "90d"]} label="Trace window" />
+          <RangeControl value={range} onChange={setRange} label="Trace window" />
           <RefreshButton refreshing={requests.refreshing} onClick={requests.refresh} />
         </div>
       </PageIntro>
@@ -50,7 +50,7 @@ export function TraceExplorer({ initialRequestId }: { initialRequestId?: string 
           source={<SourceTag tone={requests.error ? "error" : requests.total ? "live" : "neutral"}>{requests.error ? "Supabase unavailable" : `${formatNumber(requests.total)} traces`}</SourceTag>}
         >
           <MetricState loading={requests.loading} error={requests.error} empty={requests.rows.length === 0} emptyMessage="No AI meal traces were recorded in this window.">
-            <SimpleTable columns={["Request", "UTC", "Meal", "Duration", "Ingredients", "Verdicts"]} caption="Recent AI meal-analysis requests">
+            <SimpleTable columns={["Request", "UTC", "Meal", { label: "Duration", align: "right" }, { label: "Ingredients", align: "right" }, "Verdicts"]} caption="Recent AI meal-analysis requests">
               {requests.rows.map((row) => {
                 const selected = row[9] === selectedRequestId;
                 return (

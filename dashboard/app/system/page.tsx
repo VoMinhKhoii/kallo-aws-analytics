@@ -133,7 +133,7 @@ export default function SystemPage() {
 
   return (
     <ConsolePage>
-      <PageIntro eyebrow="System" title="System" description="Normal Cloud Run request latency, traffic, errors, startup, capacity, and resources.">
+      <PageIntro eyebrow="System" title="System" description="Cloud Run request latency, traffic, errors, startup, capacity, and resources.">
         <div className="flex flex-wrap items-center gap-2">
           <RangeControl value={productRange} onChange={setProductRange} label="Window" options={["24h", "7d", "30d", "90d"]} />
           <RefreshButton refreshing={monitoring.refreshing} onClick={monitoring.refresh} />
@@ -142,16 +142,16 @@ export default function SystemPage() {
 
       <div className="mt-3 grid gap-3">
         <MetricRibbon items={[
-          { label: "Normal requests", value: formatNumber(requests || undefined), detail: "Cloud Run traffic", tone: "blue", loading: monitoring.loading, error: monitoring.error },
+          { label: "Cloud Run requests", value: formatNumber(requests || undefined), detail: "all service traffic", tone: "blue", loading: monitoring.loading, error: monitoring.error },
           { label: "5xx rate", value: formatPercent(requests ? errors / requests : undefined), detail: requests ? `${errors} of ${requests}` : "No requests", tone: errors ? "amber" : "green", loading: monitoring.loading, error: monitoring.error },
-          { label: "Latest request p95", value: formatDuration(latest?.p95_ms), detail: "normal API, not AI model latency", tone: "blue", loading: monitoring.loading, error: monitoring.error },
+          { label: "Latest service p95", value: formatDuration(latest?.p95_ms), detail: "container processing", tone: "blue", loading: monitoring.loading, error: monitoring.error },
           { label: "Average instances", value: formatNumber(latest?.instances), detail: source ? `latest aligned window · ${source.service}` : "Cloud Run service", loading: monitoring.loading, error: monitoring.error },
         ]} />
 
-        <Panel title="Normal API request latency" description="Cloud Run request p50/p95/p99 for all requests reaching the service container. This is separate from AI meal-model latency." source={sourceTag}>
+        <Panel title="Cloud Run request latency" description="p50/p95/p99 for every request reaching a running service container, including routes that orchestrate an AI meal analysis." source={sourceTag}>
           <MetricState loading={monitoring.loading} error={monitoring.error} empty={points.length === 0} emptyMessage="Google Cloud Monitoring returned no Cloud Run request-latency points for this window.">
-            <div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={points} series={[{ key: "p50_ms", label: "p50", color: "var(--console-green)" }, { key: "p95_ms", label: "p95", color: "var(--console-blue)" }, { key: "p99_ms", label: "p99", color: "var(--console-brick)" }]} ariaLabel="Normal Cloud Run API request latency" format="duration" connectGaps /></div>
-            <InlineNote>Cloud Run&apos;s GA request-latency metric excludes container startup. Startup p95 is charted separately below.</InlineNote>
+            <div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={points} series={[{ key: "p50_ms", label: "p50", color: "var(--console-green)" }, { key: "p95_ms", label: "p95", color: "var(--console-blue)" }, { key: "p99_ms", label: "p99", color: "var(--console-brick)" }]} ariaLabel="Cloud Run service request latency" format="duration" connectGaps /></div>
+            <InlineNote>This GA metric starts when a request reaches a running container and excludes container startup. Individual Gemini call latency remains separate on the AI page.</InlineNote>
           </MetricState>
         </Panel>
 
