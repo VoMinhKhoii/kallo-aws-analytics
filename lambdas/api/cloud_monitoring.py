@@ -94,7 +94,11 @@ def collect_cloud_run_metrics(
         ("startup_p95_ms", "run.googleapis.com/container/startup_latencies", "ALIGN_PERCENTILE_95", "REDUCE_PERCENTILE_95"),
         ("cpu_p95", "run.googleapis.com/container/cpu/utilizations", "ALIGN_PERCENTILE_95", "REDUCE_PERCENTILE_95"),
         ("memory_p95", "run.googleapis.com/container/memory/utilizations", "ALIGN_PERCENTILE_95", "REDUCE_PERCENTILE_95"),
-        ("instances", "run.googleapis.com/container/instance_count", "ALIGN_MAX", "REDUCE_SUM"),
+        # Instance count is split into active and idle time series. Average each
+        # state inside the display bucket before summing the states/revisions;
+        # taking each state's maximum first can add peaks from different
+        # minutes and report a total that never actually existed.
+        ("instances", "run.googleapis.com/container/instance_count", "ALIGN_MEAN", "REDUCE_SUM"),
     ):
         merge(field, fetch(metric, aligner, reducer, []))
 

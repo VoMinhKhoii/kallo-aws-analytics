@@ -54,7 +54,12 @@ class FakeGoogle:
                         response([("2026-09-08T01:00:00Z", 2)], {"response_code_class": "5xx"})["timeSeries"][0],
                     ]
                 }
-            values = {"ALIGN_PERCENTILE_50": 120, "ALIGN_PERCENTILE_95": 420, "ALIGN_PERCENTILE_99": 900, "ALIGN_MAX": 2}
+            values = {
+                "ALIGN_PERCENTILE_50": 120,
+                "ALIGN_PERCENTILE_95": 420,
+                "ALIGN_PERCENTILE_99": 900,
+                "ALIGN_MEAN": 0.88,
+            }
             return response([("2026-09-08T01:00:00Z", values[aligner])])
 
         return fetch
@@ -98,11 +103,18 @@ def test_collects_request_latency_separately_from_ai_and_caches_result():
             "startup_p95_ms": 420,
             "cpu_p95": 420,
             "memory_p95": 420,
-            "instances": 2,
+            "instances": 0.88,
         }
     ]
     assert len(google.calls) == 8
     assert all(call[0].startswith("run.googleapis.com/") for call in google.calls)
+    assert (
+        "run.googleapis.com/container/instance_count",
+        "ALIGN_MEAN",
+        "REDUCE_SUM",
+        [],
+        {"from_date": "2026-09-01", "to_date": "2026-09-08"},
+    ) in google.calls
     assert table.puts[0]["metric"] == cloud_monitoring.CACHE_METRIC
 
 
