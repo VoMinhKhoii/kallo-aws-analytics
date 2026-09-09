@@ -47,7 +47,7 @@ export type TraceIngredient = {
   userFacingUnit?: string | null;
   foodCompositionId?: string | null;
   foodGroupEn?: string | null;
-  matchConfidence?: string | null;
+  matchConfidence?: string | number | null;
   displayedNutrition?: TraceNutrition;
 };
 

@@ -60,7 +60,7 @@ returns jsonb language sql stable set search_path = public, pg_temp as $$
     'status', (select status from request_row),
     'spans', coalesce((
       select jsonb_agg(jsonb_build_object(
-        'key', stage || '-' || stage_index,
+        'key', id::text,
         'name', stage,
         'index', stage_index,
         'dur', dur,

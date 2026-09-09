@@ -20,6 +20,11 @@ const duration = (milliseconds: number) =>
 const macro = (value: number | null | undefined, unit = "") =>
   value == null || !Number.isFinite(value) ? "—" : `${Math.round(value).toLocaleString("en-US")}${unit}`;
 
+const matchConfidence = (value: string | number | null | undefined) => {
+  if (typeof value === "number" && Number.isFinite(value)) return `${Math.round(value * 100)}% match`;
+  return value ? String(value) : "";
+};
+
 function NutritionRow({ label, nutrition, total = false }: { label: string; nutrition?: TraceNutrition; total?: boolean }) {
   return (
     <tr className={total ? "border-t-2 border-[var(--console-rule)] font-semibold" : "border-t border-[var(--console-rule)]"}>
@@ -61,7 +66,7 @@ function MealAnalysis({ items, total }: { items: TraceMealItem[]; total?: TraceN
                     <span>{ingredient.ingredientName ?? "Unnamed ingredient"}</span>
                     <span className="font-mono text-[11px] text-[var(--console-muted)]">
                       {ingredient.estimatedGrams == null ? "quantity unavailable" : `${macro(ingredient.estimatedGrams, "g")} estimated`}
-                      {ingredient.matchConfidence ? ` · ${ingredient.matchConfidence}` : ""}
+                      {matchConfidence(ingredient.matchConfidence) ? ` · ${matchConfidence(ingredient.matchConfidence)}` : ""}
                     </span>
                   </li>
                 ))}
