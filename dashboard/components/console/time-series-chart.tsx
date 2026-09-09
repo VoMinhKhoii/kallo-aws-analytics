@@ -12,12 +12,14 @@ export function TimeSeriesChart({
   ariaLabel,
   format = "number",
   tooltipDetails,
+  connectGaps = false,
 }: {
   data: Point[];
   series: Series[];
   ariaLabel: string;
   format?: "number" | "duration" | "percent" | "currency";
   tooltipDetails?: (point: Point) => React.ReactNode;
+  connectGaps?: boolean;
 }) {
   const config: ChartConfig = Object.fromEntries(series.map((item) => [item.key, { label: item.label, color: item.color }]));
   const valueFormatter = (value: number) => {
@@ -45,7 +47,7 @@ export function TimeSeriesChart({
         />
         <ChartLegend content={<ChartLegendContent />} />
         {series.map((item) => (
-          <Line key={item.key} type="monotone" dataKey={item.key} name={item.key} stroke={item.color} strokeWidth={2} dot={data.length === 1 ? { r: 3 } : false} activeDot={{ r: 3 }} connectNulls={false} isAnimationActive={false} />
+          <Line key={item.key} type="monotone" dataKey={item.key} name={item.key} stroke={item.color} strokeWidth={2} dot={data.length === 1 ? { r: 3 } : false} activeDot={{ r: 3 }} connectNulls={connectGaps} isAnimationActive={false} />
         ))}
       </LineChart>
     </ChartContainer>
