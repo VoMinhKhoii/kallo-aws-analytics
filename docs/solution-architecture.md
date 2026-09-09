@@ -37,7 +37,7 @@ Glue is useful here because the application has a real batch boundary: several s
 2. The Next.js server calls the authenticated API Gateway route with the server-held bearer token.
 3. API Gateway invokes the Cloud Monitoring collector Lambda.
 4. On a cache miss or explicit refresh, the Lambda uses a service-account credential from Secrets Manager and the narrow `monitoring.read` OAuth scope to query Google Cloud Monitoring.
-5. It requests Cloud Run request count, 5xx count, request-latency p50/p95/p99, startup-latency p95, CPU p95, memory p95, and instance count.
+5. It requests Cloud Run request count, 5xx count, request-latency p50/p95/p99, startup-latency p95, CPU p95, memory p95, and average instance count. Instance-count state and revision series are mean-aligned before summing so active and idle peaks from different minutes are not double-counted.
 6. It stores the compact response in DynamoDB for 120 seconds. Cache hits do not retrieve the Google credential or mint a Google access token.
 
 The Google service account is granted only `roles/monitoring.viewer` in project `cal-487315`. The monitored service is `kallo-prod` in `asia-southeast1`. The key is kept outside the repository with owner-only permissions.
@@ -64,7 +64,7 @@ The active pages are:
 | Today | Glue aggregates in DynamoDB | Daily/weekly context and current aggregate snapshot |
 | AI | Glue aggregates plus exact-trace RPC | AI-call volume, model latency, failures, tokens, estimated cost, and one-call trace detail |
 | Ingredients | Glue aggregates in DynamoDB | Consolidated retrieval, mapping, coverage, corpus, gap, and rank evidence |
-| System | Google Cloud Monitoring via cached Lambda | Normal request latency, traffic, 5xx, startup, CPU, memory, and instances |
+| System | Google Cloud Monitoring via cached Lambda | Normal request latency, traffic, 5xx, startup, CPU, memory, and average instances |
 
 Pipeline Overview is removed. Retrieval and Coverage routes redirect to the consolidated Ingredients page. Line charts always use the full content width. Model-level token and failure details are carried in timeline tooltips instead of separate side-by-side charts. Every chart and summary is filtered to the chosen Today/7d/30d/90d window.
 
