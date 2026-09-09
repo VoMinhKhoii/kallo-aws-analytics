@@ -69,6 +69,22 @@ The first ALB pass was intentionally stopped after it exposed `DEPLOY-02`. After
 
 Evidence screenshots captured from the real ALB deployment are [Today](doc_images/aws-alb-today-2026-09-06.png), [AI](doc_images/aws-alb-ai-2026-09-06.png), and [Ingredients](doc_images/aws-alb-ingredients-2026-09-06.png). The diagrams were regenerated from their source builders and both `.drawio` files validate without errors or warnings.
 
+## 5. Monitoring redesign production verification — 9 September 2026
+
+Revision `3dcd51c` was pushed to `main`, built by Vercel, and deployed to both the permanent host and a short-lived AWS presentation stack. This pass verifies the consolidated page structure, range-aware AWS aggregates, Google Cloud Monitoring source, and retained Supabase exact-trace RPC after the Gemini and pipeline-overview removal.
+
+| Check | Real result |
+|---|---|
+| Vercel production | Deployment `dpl_67V3UKM2dbvGHYozmPBsLPCrRd23` reached **Ready**, owns `https://kallo-aws-analytics.vercel.app`, and returned HTTP 200 at the login route. Founder and reviewer issued-session round trips passed, including Edge/Node verification and both mutation guards. |
+| Versioned container | `linux/amd64` image `kallo-dashboard:3dcd51c` was pushed to ECR with digest `sha256:10419facc1b34664925095bb07288dface1d03ec0d417cf0365d2a2823ac0976`. |
+| ALB and ECS | `kallo-presentation` reached `CREATE_COMPLETE`; the target was **healthy** on application port 3000. The retained routes `/`, `/ai`, `/ingredients`, `/system`, and a real `/trace?request=...` returned HTTP 200 through the ALB. |
+| AWS aggregates | One authenticated 90-day bundle returned all 13 requested metrics with no per-metric errors. The only empty result was `app_health`, which was a valid zero-row response rather than a source failure. |
+| Time-window contract | AI-latency queries for 7, 30, and 90 days returned 6, 26, and 57 dated rows respectively; every returned date remained inside its requested interval. |
+| Google Monitoring | The System proxy returned HTTP 200 with 29 aligned live points for Cloud Run service `kallo-prod`. |
+| Supabase exact traces | `requestsPage` returned 46 available rows; a selected request returned HTTP 200 with four trace stages and six ingredient decisions, and its trace page rendered through the ALB. |
+| Authorization | Founder/reviewer authentication passed on the HTTP-only classroom ALB; reviewer mutation and cross-origin founder mutation both returned HTTP 403 without starting Glue. |
+| Teardown | The presentation stack was deleted after the checks. Independent queries found no matching CloudFormation stack, ALB, ECS cluster, presentation log group, or presentation secret. The permanent Vercel deployment remains live. |
+
 ## Appendix A — historical production E2E result, 2 September 2026
 
 ### Passed boundaries
