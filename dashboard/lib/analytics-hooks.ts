@@ -60,6 +60,10 @@ export type TraceMealItem = {
 export type TraceDetail = {
   requestId: string; startedAt: string | null; total: number; meal: string | null; status: string | null;
   spans: { key: string; name: string; index: number; dur: number; start: number; ok: boolean }[];
+  stageOutputs?: {
+    key: string; name: string; index: number; status: string;
+    durationMs: number; output: unknown;
+  }[];
   counts: { ingredients: number; accepted: number; unmatched: number; rejected: number };
   rows: [string, string, number, string, string][];
   ovr: { ing: string; rank: number; pool: [string, string, string, string, string, string][] } | null;
