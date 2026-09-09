@@ -26,6 +26,7 @@ from transforms import (  # noqa: E402
     pipeline_meal_conversion,
     product_funnel,
     product_retention,
+    token_cost_daily,
 )
 
 
@@ -157,6 +158,28 @@ def test_fixture_golden_ai_and_matching_aggregates() -> None:
             "unaccounted_count": 0,
             "match_rate": 1.0,
         },
+    ]
+
+
+def test_gemini_31_flash_lite_paid_tier_estimate() -> None:
+    assert token_cost_daily(
+        [
+            {
+                "created_at": "2026-09-09T04:19:29Z",
+                "model": "gemini-3.1-flash-lite",
+                "input_tokens": 1_000_000,
+                "output_tokens": 1_000_000,
+            }
+        ]
+    ) == [
+        {
+            "date": "2026-09-09",
+            "model": "gemini-3.1-flash-lite",
+            "input_tokens": 1_000_000,
+            "output_tokens": 1_000_000,
+            "cost_usd": 1.75,
+            "pricing_known": True,
+        }
     ]
 
 

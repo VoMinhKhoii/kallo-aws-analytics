@@ -29,10 +29,11 @@ MACRO_BUCKETS: dict[str, tuple[float, ...]] = {
 # Standard paid-tier text-token prices in USD per one million tokens.  The Pro
 # <=200k prompt tier applies because a single meal-analysis request is far below
 # that boundary.  Pricing data: [1] Google, "Gemini Developer API pricing,"
-# https://ai.google.dev/gemini-api/docs/pricing (accessed Aug. 10, 2026).
+# https://ai.google.dev/gemini-api/docs/pricing (accessed Sep. 9, 2026).
 MODEL_PRICES_USD_PER_MILLION: dict[str, dict[str, float]] = {
     "gemini-2.5-flash": {"input": 0.30, "output": 2.50},
     "gemini-2.5-pro": {"input": 1.25, "output": 10.00},
+    "gemini-3.1-flash-lite": {"input": 0.25, "output": 1.50},
 }
 
 CARB_STAPLE_TYPE_TERMS: tuple[str, ...] = (

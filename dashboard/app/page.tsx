@@ -1,20 +1,18 @@
 "use client";
 
 import * as React from "react";
-import type { AppHealthRow, DauWauRow, FailureRow, LatencyRow, MatchRateRow, TokenCostRow } from "@/app/lib/types";
+import type { DauWauRow, FailureRow, LatencyRow, MatchRateRow, TokenCostRow } from "@/app/lib/types";
 import {
   ConsolePage,
   formatDuration,
   formatNumber,
   formatPercent,
-  HealthTable,
   latestByDate,
   MetricRibbon,
   MetricState,
   PageIntro,
   Panel,
   RangeControl,
-  ScopeControls,
   SourceTag,
   InlineNote,
   type ConsoleRange,
@@ -22,7 +20,7 @@ import {
 import { useMetricBundle } from "@/lib/use-metric-bundle";
 import { TimeSeriesChart } from "@/components/console/time-series-chart";
 
-const OVERVIEW_METRICS = ["dau_wau", "ai_latency", "ai_failure_rate", "token_cost_daily", "match_rate", "app_health"] as const;
+const OVERVIEW_METRICS = ["dau_wau", "ai_latency", "ai_failure_rate", "token_cost_daily", "match_rate"] as const;
 
 function metricError(bundle: { error: string | null; errors: Partial<Record<string, string>> }, name: string) {
   return bundle.errors[name] ?? bundle.error;
@@ -30,7 +28,6 @@ function metricError(bundle: { error: string | null; errors: Partial<Record<stri
 
 export default function TodayPage() {
   const [range, setRange] = React.useState<ConsoleRange>("30d");
-  const [platform, setPlatform] = React.useState("all");
   const pipelineWindow = React.useMemo(() => {
     const to = new Date().toISOString().slice(0, 10);
     const from = new Date(`${to}T00:00:00Z`);
@@ -39,7 +36,6 @@ export default function TodayPage() {
   }, [range]);
   const pipeline = useMetricBundle(OVERVIEW_METRICS, pipelineWindow.from, pipelineWindow.to);
 
-  const healthRows = (pipeline.data?.app_health ?? []) as AppHealthRow[];
   const usage = (pipeline.data?.dau_wau ?? []) as DauWauRow[];
   const latency = (pipeline.data?.ai_latency ?? []) as LatencyRow[];
   const failures = (pipeline.data?.ai_failure_rate ?? []) as FailureRow[];
@@ -65,25 +61,15 @@ export default function TodayPage() {
     });
   }
   const latencyTrend = [...latencyByDate.values()].sort((left, right) => left.date.localeCompare(right.date));
-  const healthByHour = new Map<string, number>();
-  for (const row of healthRows) {
-    if (platform !== "all" && row.platform !== platform) continue;
-    healthByHour.set(row.hour, (healthByHour.get(row.hour) ?? 0) + row.count);
-  }
-  const healthTrend = [...healthByHour]
-    .map(([date, eventCount]) => ({ date: date.replace("T", " ").replace(/:00:00(?:Z)?$/, ":00"), eventCount }))
-    .sort((left, right) => left.date.localeCompare(right.date));
-
   return (
     <ConsolePage>
-      <PageIntro eyebrow="Operational overview" title="Today" description="High-level DAU/WAU context, application health, and AI-pipeline performance. Funnels, retention analysis, journeys, meal trends, and user-level drilldowns are outside this analytics plane.">
-        <div className="grid gap-3 sm:justify-items-end">
+      <PageIntro eyebrow="Operational overview" title="Today" description="High-level DAU/WAU context and AI-pipeline performance. Cloud Run system health lives on the System page.">
+        <div className="flex flex-wrap items-center gap-2">
           <RangeControl value={range} onChange={setRange} label="Pipeline window" options={["7d", "30d", "90d"]} />
-          <ScopeControls values={{ platform }} onChange={(name, value) => name === "platform" && setPlatform(value)} supported={{ platform: true, locale: false, mealMode: false }} />
         </div>
       </PageIntro>
 
-      <div className="mt-6 grid gap-3">
+      <div className="mt-3 grid gap-3">
         <MetricRibbon items={[
           { label: "DAU", value: formatNumber(latestUsage?.dau), detail: latestUsage?.date ?? "No activity row", loading: pipeline.loading, error: metricError(pipeline, "dau_wau") },
           { label: "WAU", value: formatNumber(latestUsage?.wau), detail: "active meal loggers", tone: "blue", loading: pipeline.loading, error: metricError(pipeline, "dau_wau") },
@@ -98,14 +84,7 @@ export default function TodayPage() {
           </MetricState>
         </Panel>
 
-        <Panel title="Application health" description="Controlled crash, API-failure, health-check and performance buckets; no error text, stack traces or actor identifiers." source={<SourceTag tone={healthRows.length ? "live" : "neutral"}>AWS aggregate</SourceTag>}>
-          <MetricState loading={pipeline.loading} error={metricError(pipeline, "app_health")} empty={healthRows.length === 0} emptyMessage="No app-health events were returned for the selected window.">
-            <div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={healthTrend} series={[{ key: "eventCount", label: "Health events", color: "var(--console-brick)" }]} ariaLabel="Application health events by UTC hour" /></div>
-            <HealthTable rows={healthRows.slice().sort((a, b) => b.hour.localeCompare(a.hour)).slice(0, 24)} platform={platform} />
-          </MetricState>
-        </Panel>
-
-        <div className="grid gap-3 xl:grid-cols-2">
+        <div className="grid gap-3">
           <Panel title="Model latency" description="Daily call volume and p50/p95/p99 latency by model." source={<SourceTag>AWS aggregate</SourceTag>}>
             <MetricState loading={pipeline.loading} error={metricError(pipeline, "ai_latency")} empty={latency.length === 0} emptyMessage="No AI latency rows were returned for this window.">
               <div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={latencyTrend} series={[{ key: "p50", label: "p50", color: "var(--console-green)" }, { key: "p95", label: "p95", color: "var(--console-blue)" }, { key: "p99", label: "p99", color: "var(--console-brick)" }]} ariaLabel="AI pipeline p50, p95, and p99 latency over time" format="duration" /></div>
