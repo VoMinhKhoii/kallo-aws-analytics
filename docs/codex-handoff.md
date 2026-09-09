@@ -262,7 +262,10 @@ external dependency.
 Against the **DEV** Supabase project (`[DEV] Kallo`, ref `jqgmcnlfxzzhrvrzpoye`) — *not*
 prod (`oudpzhfzirgjbhrzcett`):
 
-1. Apply `supabase/migrations/0001_analytics_schema.sql`.
+1. From the canonical Kallo repository, review the analytics migrations in
+   `supabase/migrations/` and have Khoi apply them using Kallo's database
+   workflow. Never link or push this assessment repository's mirrored
+   `supabase/` directory to either Supabase project.
 2. Replace the pepper placeholder (`supabase/README.md` §2).
 3. Add `analytics` to **Exposed schemas** in Project Settings → Data API. Without this,
    every request returns `PGRST106`.

@@ -11,49 +11,27 @@ final `20260905090000_reduce_to_operational_analytics.sql` migration removes
 the behavior-oriented views and RPC functions and narrows app health. Source
 tables remain inaccessible to the extract role.
 
-## 1. Apply the migration
+## 1. Canonical deployment boundary
 
-Check that the source tables and columns in `PROJECT_SPEC.md` already exist in
-the target project. Then use one of these methods.
+The Kallo application repository owns the production Supabase migration ledger:
+`Kallo/supabase/migrations/`. Files in this assessment repository are
+byte-for-byte mirrors used by its tests and deployment documentation; they are
+not an independent migration source.
 
-With the Supabase CLI:
+Never link this repository's `supabase/` directory to a Kallo Supabase project,
+run `supabase db push` from this repository, or apply these files independently
+through the dashboard or MCP. Prepare and review database changes in the Kallo
+repository first. The user applies them from that canonical checkout under
+Kallo's database workflow.
 
-```sh
-supabase login
-supabase link --project-ref YOUR_PROJECT_REF
-supabase db push --dry-run
-supabase db push
-```
+The historical analytics-view migrations remain here so the assessment is
+self-contained. Kallo may use different timestamps for older migrations that
+were reconciled before this boundary was documented. The exact canonical files
+for the current trace contract are:
 
-`db push` records the migration in Supabase's migration history and skips it on
-later pushes. Do not use a linked database reset against production.
-
-With the Supabase MCP server, call `apply_migration` for the target project. Use
-`0001_analytics_schema` as the migration name and the complete contents of
-`migrations/0001_analytics_schema.sql` as the SQL. Apply it once to the intended
-project and retain this file as the source of truth.
-
-Then apply `20260830021049_telemetry_analytics_views.sql` as a separate,
-append-only historical migration. It must run only after the Kallo schema
-migration that creates its source columns. Its behavior-oriented views are
-retired by the final reduction migration; do not treat this intermediate state
-as the final read contract.
-
-Then apply `20260830023432_ingredient_intelligence.sql` as a separate,
-append-only migration. It creates only `v_ingredient_decisions` over the
-existing `v_verdict_pool` candidate data. The view uses a domain-separated HMAC
-decision key, a rolling 90-day cutoff, bounded ingredient and catalog labels,
-controlled verdict/reject buckets, and candidate/chosen scalar fields. It never
-exposes request IDs, stage payloads, candidate JSON, nutrition objects, or
-reject text, and grants `SELECT` only to `analytics_reader`.
-
-Finally apply `20260905090000_reduce_to_operational_analytics.sql`. It drops
-`v_product_events`, `v_pipeline_meals`, `v_user_funnel`, `v_meal_items`, and
-`v_unmatched_ingredients`, plus the behavior summary/week RPC functions. It
-recreates `v_app_health` without actor/session hashes, error messages, stack
-traces, or arbitrary payloads. The six final extract sources are
-`v_pipeline_runs`, `v_budget_events`, `v_meals`, `v_food_composition`,
-`v_app_health`, and `v_ingredient_decisions`.
+- `20260909050000_meal_trace_explorer.sql`
+- `20260909071000_supabase_24h_range.sql`
+- `20260909071500_trace_stage_outputs.sql`
 
 ## 2. Replace the analytics pepper
 
@@ -163,12 +141,12 @@ References: [Supabase database migrations](https://supabase.com/docs/guides/depl
 [custom roles and JWTs](https://supabase.com/docs/guides/storage/schema/custom-roles),
 and [PostgREST schema selection](https://docs.postgrest.org/en/latest/references/api/schemas.html).
 
-## Dashboard RPC migrations (2026-08-25/28)
+## Dashboard RPC migration mirror
 
 The `202608*_analytics_plane_*.sql` files are the dashboard read API: three
 JSONB-exploding views, `summary()`/`weeks()`, eight paginated list functions,
 `trace_detail()`, the eleven `public.analytics_*` SECURITY DEFINER wrappers,
-and the `analytics_reader` grants. They are applied to the DEV Supabase
-project and their canonical copies live in the Kallo repo's
-`supabase/migrations/`; the copies here exist so this repo is self-contained
-for assessment. Byte-for-byte identical to the applied migration history.
+and the `analytics_reader` grants. Their canonical copies live in the Kallo
+repo's `supabase/migrations/`; the copies here exist so this repo is
+self-contained for assessment. The three `20260909*` trace migrations are also
+canonical in Kallo and mirrored here byte-for-byte.

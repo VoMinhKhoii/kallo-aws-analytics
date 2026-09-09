@@ -28,7 +28,7 @@ lambdas/     Extraction, loading, API, and authorizer functions
 glue/        PySpark ETL job and pure transformation logic
 dashboard/   Next.js analytics dashboard and local mock data
 scripts/     Learner Lab deployment and teardown helpers
-supabase/    Sanitized analytics-view SQL migrations
+supabase/    Assessment mirror of Kallo's canonical analytics SQL migrations
 docs/        Architecture report and submission documentation
 tests/       Repository-level pytest checks
 ```
