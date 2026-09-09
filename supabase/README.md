@@ -27,11 +27,16 @@ Kallo's database workflow.
 The historical analytics-view migrations remain here so the assessment is
 self-contained. Kallo may use different timestamps for older migrations that
 were reconciled before this boundary was documented. The exact canonical files
-for the current trace contract are:
+recorded in Kallo's production migration ledger for the current trace contract
+are:
 
-- `20260909050000_meal_trace_explorer.sql`
 - `20260909071000_supabase_24h_range.sql`
 - `20260909071500_trace_stage_outputs.sql`
+
+`20260909050000_meal_trace_explorer.sql` remains an assessment-side historical
+step only. Its final function definition is superseded in full by
+`20260909071500_trace_stage_outputs.sql`, and it was never recorded as a
+production migration version, so it must not be copied into Kallo's ledger.
 
 ## 2. Replace the analytics pepper
 
@@ -148,5 +153,5 @@ JSONB-exploding views, `summary()`/`weeks()`, eight paginated list functions,
 `trace_detail()`, the eleven `public.analytics_*` SECURITY DEFINER wrappers,
 and the `analytics_reader` grants. Their canonical copies live in the Kallo
 repo's `supabase/migrations/`; the copies here exist so this repo is
-self-contained for assessment. The three `20260909*` trace migrations are also
-canonical in Kallo and mirrored here byte-for-byte.
+self-contained for assessment. The `20260909071000` and `20260909071500`
+migrations are canonical in Kallo and mirrored here byte-for-byte.
