@@ -137,6 +137,17 @@ async function callRpc(fn: string, args: Record<string, unknown>): Promise<unkno
   return res.json();
 }
 
+function browserSafeResult(name: RpcName, value: unknown): unknown {
+  if (name !== "traceDetail" || !value || typeof value !== "object" || Array.isArray(value)) return value;
+
+  // Older database versions returned a `raw` stage-output map. Never let that
+  // field cross the route boundary, even during a staggered deployment. The
+  // current RPC exposes an explicit, bounded meal-analysis contract instead.
+  const safe = { ...(value as Record<string, unknown>) };
+  delete safe.raw;
+  return safe;
+}
+
 /**
  * Cached, de-duplicated RPC call. Concurrent callers for the same key share a
  * single in-flight request rather than each opening their own.
@@ -153,6 +164,7 @@ export async function query(name: RpcName, args: Record<string, unknown>, refres
   if (pending) return pending;
 
   const p = callRpc(spec.fn, args)
+    .then((value) => browserSafeResult(name, value))
     .then((value) => {
       cacheSet(key, value);
       return value;
