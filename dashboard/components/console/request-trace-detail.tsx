@@ -56,18 +56,67 @@ function scalar(value: unknown) {
   return String(value);
 }
 
-function StructuredOutput({ value, depth = 0 }: { value: unknown; depth?: number }) {
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+const hasValue = (value: unknown) => value !== null && value !== undefined && value !== "";
+
+const MAJOR_NUTRIENTS = new Set(["caloriesKcal", "proteinG", "carbohydrateG", "fatG"]);
+
+function recordTitle(value: unknown, index: number) {
+  if (!isRecord(value)) return `Entry ${index + 1}`;
+  const name = value.matchedName ?? value.ingredientName ?? value.name ?? value.foodCompositionId;
+  return name ? String(name) : `Entry ${index + 1}`;
+}
+
+function ScalarGrid({ entries }: { entries: [string, unknown][] }) {
+  if (!entries.length) return null;
+  return (
+    <dl className="grid grid-cols-2 gap-px overflow-hidden rounded border border-[var(--console-rule)] bg-[var(--console-rule)] md:grid-cols-3 xl:grid-cols-4">
+      {entries.map(([key, value]) => (
+        <div key={key} className="min-w-0 bg-[var(--console-surface)] px-2.5 py-2">
+          <dt className="truncate text-[9px] font-semibold uppercase tracking-[0.07em] text-[var(--console-muted)]">{fieldLabel(key)}</dt>
+          <dd className="mt-0.5 break-words font-mono text-[11px] leading-5 text-[var(--console-ink)]">{scalar(value)}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function NutritionOutput({ value }: { value: Record<string, unknown> }) {
+  const entries = Object.entries(value).filter(([, item]) => hasValue(item));
+  const major = entries.filter(([key]) => MAJOR_NUTRIENTS.has(key));
+  const details = entries.filter(([key]) => !MAJOR_NUTRIENTS.has(key));
+  return (
+    <div className="grid gap-2">
+      <ScalarGrid entries={major} />
+      {details.length ? (
+        <details className="group rounded border border-[var(--console-rule)] bg-[var(--console-surface)]">
+          <summary className="cursor-pointer px-2.5 py-2 text-[10px] font-semibold uppercase tracking-[0.07em] text-[var(--console-muted)] hover:text-[var(--console-ink)] focus-visible:outline-2 focus-visible:outline-[var(--console-blue)]">
+            {details.length} micronutrients and source fields
+          </summary>
+          <div className="border-t border-[var(--console-rule)] p-2"><ScalarGrid entries={details} /></div>
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
+function StructuredOutput({ value, depth = 0, contextKey = "" }: { value: unknown; depth?: number; contextKey?: string }) {
   if (!Array.isArray(value) && (!value || typeof value !== "object")) {
     return <span className="font-mono text-[11px] text-[var(--console-ink)]">{scalar(value)}</span>;
   }
   if (Array.isArray(value)) {
     if (!value.length) return <span className="text-[11px] text-[var(--console-muted)]">No entries</span>;
     return (
-      <ol className={cn("divide-y divide-[var(--console-rule)]", depth > 1 && "border-l border-[var(--console-rule)] pl-3")}>
+      <ol className="divide-y divide-[var(--console-rule)]">
         {value.slice(0, 20).map((item, index) => (
-          <li key={index} className="grid grid-cols-[1.5rem_minmax(0,1fr)] gap-2 py-2 first:pt-0 last:pb-0">
-            <span className="font-mono text-[10px] text-[var(--console-muted)]">{index + 1}</span>
-            <StructuredOutput value={item} depth={depth + 1} />
+          <li key={index} className="py-3 first:pt-0 last:pb-0">
+            <div className="mb-2 flex items-baseline gap-2">
+              <span className="font-mono text-[9px] text-[var(--console-muted)]">{String(index + 1).padStart(2, "0")}</span>
+              <h4 className="text-xs font-semibold text-[var(--console-ink)]">{recordTitle(item, index)}</h4>
+            </div>
+            <StructuredOutput value={item} depth={depth + 1} contextKey={contextKey} />
           </li>
         ))}
         {value.length > 20 ? <li className="py-2 text-[11px] text-[var(--console-muted)]">{value.length - 20} more bounded entries</li> : null}
@@ -75,20 +124,26 @@ function StructuredOutput({ value, depth = 0 }: { value: unknown; depth?: number
     );
   }
 
-  const entries = Object.entries(value as Record<string, unknown>);
+  const record = value as Record<string, unknown>;
+  if (/nutrition/i.test(contextKey)) return <NutritionOutput value={record} />;
+
+  const entries = Object.entries(record).filter(([, item]) => hasValue(item));
   if (!entries.length) return <span className="text-[11px] text-[var(--console-muted)]">No structured fields</span>;
+  const simple = entries.filter(([, item]) => !Array.isArray(item) && !isRecord(item));
+  const composite = entries.filter(([, item]) => Array.isArray(item) || isRecord(item));
   return (
-    <dl className="divide-y divide-[var(--console-rule)]">
-      {entries.map(([key, item]) => {
-        const composite = Array.isArray(item) || Boolean(item && typeof item === "object");
-        return (
-          <div key={key} className={cn("py-2 first:pt-0 last:pb-0", composite ? "grid gap-2" : "grid grid-cols-[minmax(9rem,0.45fr)_minmax(0,1fr)] gap-4")}>
-            <dt className="text-[10px] font-semibold uppercase tracking-[0.07em] text-[var(--console-muted)]">{fieldLabel(key)}</dt>
-            <dd className="min-w-0"><StructuredOutput value={item} depth={depth + 1} /></dd>
+    <div className="grid gap-3">
+      <ScalarGrid entries={simple} />
+      {composite.map(([key, item]) => (
+        <section key={key} className={cn("grid gap-2", depth > 0 && "border-t border-[var(--console-rule)] pt-3")}>
+          <div className="flex items-baseline justify-between gap-3">
+            <h4 className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--console-muted)]">{fieldLabel(key)}</h4>
+            {Array.isArray(item) ? <span className="font-mono text-[9px] text-[var(--console-muted)]">{item.length} entries</span> : null}
           </div>
-        );
-      })}
-    </dl>
+          <StructuredOutput value={item} depth={depth + 1} contextKey={key} />
+        </section>
+      ))}
+    </div>
   );
 }
 
@@ -190,7 +245,7 @@ export function RequestTraceDetail({ requestId }: { requestId: string }) {
               <div><dt className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--console-muted)]">Started</dt><dd className="mt-1 text-sm font-medium tabular-nums">{data.startedAt ? new Date(data.startedAt).toLocaleString("en-GB", { timeZone: "UTC", dateStyle: "medium", timeStyle: "short" }) + " UTC" : "—"}</dd></div>
             </dl>
 
-            {data.meal ? <p className="border-t border-[var(--console-rule)] pt-4 text-sm leading-6"><span className="mr-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--console-muted)]">Analyzed meal</span>{data.meal}</p> : null}
+            {data.rawInput || data.meal ? <div className="border-t border-[var(--console-rule)] pt-4"><p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--console-muted)]">Typed meal</p><p className="mt-1 max-w-4xl text-sm font-medium leading-6 text-[var(--console-ink)]">{data.rawInput ?? data.meal}</p>{data.rawInput && data.meal ? <p className="mt-1 text-[11px] text-[var(--console-muted)]">Returned meal groups: {data.meal}</p> : null}</div> : null}
 
             <section className="border-t border-[var(--console-rule)] pt-5" aria-labelledby="trace-stages-heading">
               <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
@@ -219,7 +274,7 @@ export function RequestTraceDetail({ requestId }: { requestId: string }) {
                   <div><h3 id="trace-output-heading" className="text-sm font-semibold capitalize">{selectedStage.name} output</h3><p className="mt-1 text-[11px] text-[var(--console-muted)]">Structured fields from this stage, with raw prompts, wire responses, and actor identifiers removed.</p></div>
                   <span className="font-mono text-[11px] text-[var(--console-muted)]">#{selectedStage.index} · {duration(selectedStage.durationMs)}</span>
                 </div>
-                <div className="rounded-md border border-[var(--console-rule)] bg-[var(--console-panel)] px-3 py-3 sm:px-4">
+                <div className="rounded-md border border-[var(--console-rule)] bg-[var(--console-surface)] px-3 py-3 shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--console-surface)_75%,transparent)] sm:px-4">
                   <StructuredOutput value={selectedStage.output} />
                 </div>
               </section>

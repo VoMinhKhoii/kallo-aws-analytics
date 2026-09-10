@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { TraceExplorer } from "@/components/console/trace-explorer";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +12,7 @@ export default async function TracePage({
 }) {
   const params = await searchParams;
   const requested = Array.isArray(params.request) ? params.request[0] : params.request;
-  const initialRequestId = requested && REQUEST_ID.test(requested) ? requested : undefined;
+  if (requested && REQUEST_ID.test(requested)) redirect(`/trace/${requested}`);
 
-  return <TraceExplorer initialRequestId={initialRequestId} />;
+  return <TraceExplorer />;
 }

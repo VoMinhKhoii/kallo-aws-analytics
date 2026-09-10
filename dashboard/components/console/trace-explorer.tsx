@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import {
   ConsolePage,
   formatDuration,
@@ -16,23 +17,11 @@ import {
   TableRow,
   type ConsoleRange,
 } from "@/components/console/console";
-import { RequestTraceDetail } from "@/components/console/request-trace-detail";
 import { useRequests } from "@/lib/analytics-hooks";
-import { cn } from "@/lib/utils";
 
-export function TraceExplorer({ initialRequestId }: { initialRequestId?: string }) {
+export function TraceExplorer() {
   const [range, setRange] = React.useState<ConsoleRange>("7d");
-  const [selectedRequestId, setSelectedRequestId] = React.useState(initialRequestId);
   const requests = useRequests(range, 20);
-
-  React.useEffect(() => {
-    if (!selectedRequestId && requests.rows[0]?.[9]) setSelectedRequestId(requests.rows[0][9]);
-  }, [requests.rows, selectedRequestId]);
-
-  const selectRequest = (requestId: string) => {
-    setSelectedRequestId(requestId);
-    window.history.replaceState(null, "", `/trace?request=${encodeURIComponent(requestId)}`);
-  };
 
   return (
     <ConsolePage>
@@ -50,18 +39,17 @@ export function TraceExplorer({ initialRequestId }: { initialRequestId?: string 
           source={<SourceTag tone={requests.error ? "error" : requests.total ? "live" : "neutral"}>{requests.error ? "Supabase unavailable" : `${formatNumber(requests.total)} traces`}</SourceTag>}
         >
           <MetricState loading={requests.loading} error={requests.error} empty={requests.rows.length === 0} emptyMessage="No AI meal traces were recorded in this window.">
-            <SimpleTable columns={["Request", "UTC", "Meal", { label: "Duration", align: "right" }, { label: "Ingredients", align: "right" }, "Verdicts"]} caption="Recent AI meal-analysis requests">
+            <SimpleTable columns={["Request", "UTC", "Typed meal", { label: "Duration", align: "right" }, { label: "Ingredients", align: "right" }, "Verdicts"]} caption="Recent AI meal-analysis requests">
               {requests.rows.map((row) => {
-                const selected = row[9] === selectedRequestId;
                 return (
-                  <TableRow key={row[9]} className={selected ? "bg-[var(--console-panel)]" : undefined}>
+                  <TableRow key={row[9]}>
                     <TableCell>
-                      <button type="button" aria-pressed={selected} onClick={() => selectRequest(row[9])} className={cn("font-mono text-[11px] text-[var(--console-blue)] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--console-blue)]", selected && "font-semibold text-[var(--console-ink)]")}>
+                      <Link href={`/trace/${encodeURIComponent(row[9])}`} className="font-mono text-[11px] text-[var(--console-blue)] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--console-blue)]">
                         {row[0]}
-                      </button>
+                      </Link>
                     </TableCell>
                     <TableCell muted><span className="whitespace-nowrap font-mono text-[11px]">{row[1]} {row[2]}</span></TableCell>
-                    <TableCell className="max-w-72 truncate">{row[3]}</TableCell>
+                    <TableCell className="max-w-96"><Link href={`/trace/${encodeURIComponent(row[9])}`} className="line-clamp-2 font-medium leading-5 text-[var(--console-ink)] hover:text-[var(--console-blue)] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--console-blue)]">{row[3]}</Link></TableCell>
                     <TableCell numeric>{formatDuration(row[4])}</TableCell>
                     <TableCell numeric>{formatNumber(row[5])}</TableCell>
                     <TableCell muted><span className="whitespace-nowrap tabular-nums">{row[6]} accepted · {row[7]} unmatched · {row[8]} rejected</span></TableCell>
@@ -76,8 +64,6 @@ export function TraceExplorer({ initialRequestId }: { initialRequestId?: string 
             ) : null}
           </MetricState>
         </Panel>
-
-        {selectedRequestId ? <RequestTraceDetail requestId={selectedRequestId} /> : null}
       </div>
     </ConsolePage>
   );

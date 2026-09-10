@@ -58,7 +58,7 @@ export type TraceMealItem = {
 };
 
 export type TraceDetail = {
-  requestId: string; startedAt: string | null; total: number; meal: string | null; status: string | null;
+  requestId: string; startedAt: string | null; total: number; meal: string | null; rawInput?: string | null; status: string | null;
   spans: { key: string; name: string; index: number; dur: number; start: number; ok: boolean }[];
   stageOutputs?: {
     key: string; name: string; index: number; status: string;
