@@ -78,8 +78,8 @@ Revision `3dcd51c` was pushed to `main`, built by Vercel, and deployed to both t
 | Vercel production | Deployment `dpl_67V3UKM2dbvGHYozmPBsLPCrRd23` reached **Ready**, owns `https://kallo-aws-analytics.vercel.app`, and returned HTTP 200 at the login route. Founder and reviewer issued-session round trips passed, including Edge/Node verification and both mutation guards. |
 | Versioned container | `linux/amd64` image `kallo-dashboard:3dcd51c` was pushed to ECR with digest `sha256:10419facc1b34664925095bb07288dface1d03ec0d417cf0365d2a2823ac0976`. |
 | ALB and ECS | `kallo-presentation` reached `CREATE_COMPLETE`; the target was **healthy** on application port 3000. The retained routes `/`, `/ai`, `/ingredients`, `/system`, and a real `/trace?request=...` returned HTTP 200 through the ALB. |
-| AWS aggregates | One authenticated 90-day bundle returned all 13 requested metrics with no per-metric errors. The only empty result was `app_health`, which was a valid zero-row response rather than a source failure. |
-| Time-window contract | AI-latency queries for 7, 30, and 90 days returned 6, 26, and 57 dated rows respectively; every returned date remained inside its requested interval. |
+| AWS aggregates | One authenticated 30-day bundle returned all 13 requested metrics with no per-metric errors. The only empty result was `app_health`, which was a valid zero-row response rather than a source failure. |
+| Time-window contract | AI-latency queries for 7 and 30 days returned 6 and 26 dated rows respectively; every returned date remained inside its requested interval. |
 | Google Monitoring | The System proxy returned HTTP 200 with 29 aligned live points for Cloud Run service `kallo-prod`. |
 | Supabase exact traces | `requestsPage` returned 46 available rows; a selected request returned HTTP 200 with four trace stages and six ingredient decisions, and its trace page rendered through the ALB. |
 | Authorization | Founder/reviewer authentication passed on the HTTP-only classroom ALB; reviewer mutation and cross-origin founder mutation both returned HTTP 403 without starting Glue. |
@@ -160,7 +160,7 @@ The Observe panels become populated only when all of these conditions are true:
 4. A new extract → Glue → loader run reaches `completed`.
 5. DynamoDB contains the new metric families for the new loader date.
 6. Vercel/ECS runs the matching dashboard revision and its five-minute metric cache has refreshed.
-7. The selected 7/30/90-day window contains eligible rows. App health requires emitted health events; ingredient intelligence requires persisted decision rows.
+7. The selected 7/30-day window contains eligible rows. App health requires emitted health events; ingredient intelligence requires persisted decision rows.
 
 Until those steps are complete, populated metrics from an older snapshot and empty newer panels can be a valid transitional state.
 

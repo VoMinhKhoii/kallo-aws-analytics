@@ -137,7 +137,7 @@ export default function SystemPage() {
     <ConsolePage>
       <PageIntro eyebrow="System" title="System" description="Cloud Run request latency, traffic, errors, startup, capacity, and resources.">
         <div className="flex flex-wrap items-center gap-2">
-          <RangeControl value={productRange} onChange={setProductRange} label="Window" options={["24h", "7d", "30d", "90d"]} />
+          <RangeControl value={productRange} onChange={setProductRange} label="Window" />
           <RefreshButton refreshing={monitoring.refreshing} onClick={monitoring.refresh} />
         </div>
       </PageIntro>

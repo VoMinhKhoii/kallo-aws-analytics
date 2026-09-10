@@ -66,7 +66,7 @@ The active pages are:
 | Ingredients | Glue aggregates in DynamoDB | Consolidated retrieval, mapping, coverage, corpus, gap, and rank evidence |
 | System | Google Cloud Monitoring via cached Lambda | Separate normal and AI-request latency, traffic, 5xx, startup, CPU, memory, and average instances |
 
-Pipeline Overview is removed. Retrieval and Coverage routes redirect to the consolidated Ingredients page. Line charts always use the full content width. Model-level token and failure details are carried in timeline tooltips instead of separate side-by-side charts. Every chart and summary is filtered to the chosen Today/7d/30d/90d window.
+Pipeline Overview is removed. Retrieval and Coverage routes redirect to the consolidated Ingredients page. Line charts always use the full content width. Model-level token and failure details are carried in timeline tooltips instead of separate side-by-side charts. Every chart and summary is filtered to the chosen Today/7d/30d window.
 
 Direct-API pages expose Refresh. Glue-only views rely on the manual snapshot action because reloading a browser cannot create a newer batch aggregate.
 

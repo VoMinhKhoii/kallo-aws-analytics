@@ -19,13 +19,12 @@ import type {
 } from "@/app/lib/types";
 import { cn } from "@/lib/utils";
 
-export type ConsoleRange = "24h" | "7d" | "30d" | "90d";
+export type ConsoleRange = "24h" | "7d" | "30d";
 
 export const RANGE_LABELS: Record<ConsoleRange, string> = {
   "24h": "24 hours",
   "7d": "7 days",
   "30d": "30 days",
-  "90d": "90 days",
 };
 
 export function rangeWindow(range: ConsoleRange, now = new Date()) {
@@ -111,7 +110,7 @@ export function ConsolePage({ children }: { children: React.ReactNode }) {
 export function RangeControl({
   value,
   onChange,
-  options = ["24h", "7d", "30d", "90d"],
+  options = ["24h", "7d", "30d"],
   label = "Window",
 }: {
   value: ConsoleRange;

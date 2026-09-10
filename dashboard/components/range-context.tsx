@@ -1,8 +1,8 @@
 "use client";
 import * as React from "react";
-export type RangeKey = "24h" | "7d" | "30d" | "90d";
-export const RANGE_KEYS: RangeKey[] = ["24h", "7d", "30d", "90d"];
-export const RANGE_LABEL: Record<RangeKey, string> = { "24h": "24h", "7d": "7d", "30d": "30d", "90d": "90d" };
+export type RangeKey = "24h" | "7d" | "30d";
+export const RANGE_KEYS: RangeKey[] = ["24h", "7d", "30d"];
+export const RANGE_LABEL: Record<RangeKey, string> = { "24h": "24h", "7d": "7d", "30d": "30d" };
 
 const Ctx = React.createContext<{ range: RangeKey; setRange: (r: RangeKey) => void }>({
   range: "30d",

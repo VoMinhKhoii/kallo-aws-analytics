@@ -60,7 +60,7 @@ status indicator has a text label, count, pattern, or table equivalent.
 
 ## Interaction rules
 
-- Range controls are explicit: Today, 7d, 30d, and 90d are labeled by page,
+- Range controls are explicit: Today, 7d, and 30d are labeled by page,
   and every chart and summary is recomputed from the chosen window.
 - Time-series charts always occupy the full content width. Related model
   breakdowns belong in the chart tooltip instead of a second adjacent chart.
