@@ -7,6 +7,7 @@ import re
 import urllib.parse
 from collections.abc import Callable, Mapping
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from typing import Any
 
 
@@ -99,9 +100,9 @@ def _histogram_item(
         "metric": f"{ROUTE_METRIC_PREFIX}{route}",
         "date": _iso(hour),
         "count": len(values),
-        "sum_ms": sum(values),
-        "min_ms": min(values),
-        "max_ms": max(values),
+        "sum_ms": Decimal(str(sum(values))),
+        "min_ms": Decimal(str(min(values))),
+        "max_ms": Decimal(str(max(values))),
         "bucket_counts": counts,
         "ingested_at": _iso(ingested_at),
         "expires_at": int((hour + timedelta(days=RETENTION_DAYS)).timestamp()),

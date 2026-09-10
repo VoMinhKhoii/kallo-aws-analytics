@@ -86,6 +86,7 @@ def test_ingests_all_request_endpoints_into_idempotent_hourly_histograms():
     assert normal["count"] == 2
     assert normal["min_ms"] == 80
     assert normal["max_ms"] == 300
+    assert not any(isinstance(value, float) for item in table.items.values() for value in item.values())
 
 
 def test_merges_hourly_histograms_into_display_percentiles():
