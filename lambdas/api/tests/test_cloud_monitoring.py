@@ -88,6 +88,17 @@ def test_collects_request_latency_separately_from_ai_and_caches_result():
         project="kallo-project",
         service="kallo-api",
         location="asia-southeast1",
+        route_loader=lambda **_window: [{
+            "timestamp": "2026-09-08T01:00:00Z",
+            "ai_request_count": 1,
+            "ai_p50_ms": 120,
+            "ai_p95_ms": 420,
+            "ai_p99_ms": 900,
+            "normal_request_count": 8,
+            "normal_p50_ms": 120,
+            "normal_p95_ms": 420,
+            "normal_p99_ms": 900,
+        }],
         now=lambda: 1_000,
     )
 
@@ -103,9 +114,11 @@ def test_collects_request_latency_separately_from_ai_and_caches_result():
             "ai_p50_ms": 120,
             "ai_p95_ms": 420,
             "ai_p99_ms": 900,
+            "ai_request_count": 1,
             "normal_p50_ms": 120,
             "normal_p95_ms": 420,
             "normal_p99_ms": 900,
+            "normal_request_count": 8,
             "request_count": 10,
             "error_count": 2,
             "error_rate": 0.2,
@@ -115,9 +128,11 @@ def test_collects_request_latency_separately_from_ai_and_caches_result():
             "instances": 0.88,
         }
     ]
-    assert len(google.calls) == 14
+    assert payload["route_source"] == "cloud-logging-dynamodb"
+    assert payload["route_points"] == 1
+    assert len(google.calls) == 8
     assert all(
-        call[0].startswith(("run.googleapis.com/", "logging.googleapis.com/user/"))
+        call[0].startswith("run.googleapis.com/")
         for call in google.calls
     )
     assert (

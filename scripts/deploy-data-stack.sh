@@ -175,7 +175,7 @@ package_and_update ApiMetricsFunctionName lambdas/api/metrics.py lambdas/api/api
 package_and_update ApiRunsFunctionName lambdas/api/runs.py lambdas/api/api_core.py
 package_with_requirements_and_update ApiCloudMonitoringFunctionName \
   lambdas/api/cloud_monitoring.py lambdas/api/requirements-cloud-monitoring.txt \
-  lambdas/api/api_core.py
+  lambdas/api/api_core.py lambdas/api/cloud_logging.py
 package_and_update AuthorizerFunctionName lambdas/authorizer/handler.py
 
 echo "Data stack deployed and application code updated: $STACK_NAME"

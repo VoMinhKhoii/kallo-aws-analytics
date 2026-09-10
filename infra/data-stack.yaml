@@ -99,6 +99,9 @@ Resources:
         PointInTimeRecoveryEnabled: false
       SSESpecification:
         SSEEnabled: true
+      TimeToLiveSpecification:
+        AttributeName: expires_at
+        Enabled: true
       Tags:
         - Key: Project
           Value: kallo-analytics
@@ -260,11 +263,11 @@ Resources:
   ApiInsightFunction:
     Type: AWS::Lambda::Function
     Properties:
-      Description: Reads Cloud Run operations from Google Cloud Monitoring and caches them in DynamoDB.
+      Description: Reads Cloud Run system metrics and persists route-latency histograms from request logs.
       Runtime: python3.12
       Handler: index.handler
       Role: !Sub arn:aws:iam::${AWS::AccountId}:role/LabRole
-      Timeout: 45
+      Timeout: 120
       MemorySize: 512
       ReservedConcurrentExecutions: 1
       Environment:
@@ -657,6 +660,27 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${DashboardApi}/*/GET/cloud-monitoring
 
+  # Incremental request-log ingestion refreshes the current and previous hour.
+  # Replacing complete hourly histogram items makes overlapping runs idempotent.
+  RouteLatencyIngestRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Persists Cloud Run route-latency histograms every five minutes.
+      ScheduleExpression: rate(5 minutes)
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt ApiInsightFunction.Arn
+          Id: RouteLatencyIngestLambda
+          Input: '{"action":"ingest"}'
+
+  RouteLatencyIngestPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ApiInsightFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt RouteLatencyIngestRule.Arn
+
   AuthorizerInvokePermission:
     # Source-scoped permission lets this REST API invoke its TOKEN authorizer.
     Type: AWS::Lambda::Permission
@@ -780,7 +804,7 @@ Outputs:
     Description: Function name used to deploy the runs API code.
     Value: !Ref ApiRunsFunction
   ApiCloudMonitoringFunctionName:
-    Description: Function name used to deploy the Google Cloud Monitoring API code.
+    Description: Function name used for Google system metrics and scheduled request-log ingestion.
     Value: !Ref ApiInsightFunction
   AuthorizerFunctionName:
     Description: Function name used to deploy the API authorizer code.

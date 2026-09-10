@@ -12,6 +12,11 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 try:
+    from cloud_logging import ingest_route_logs, logging_fetcher, stored_route_series
+except ImportError:
+    from .cloud_logging import ingest_route_logs, logging_fetcher, stored_route_series
+
+try:
     from api_core import ApiError, error_response, json_response, query_parameters, request_method, validate_date_range
 except ImportError:
     from .api_core import ApiError, error_response, json_response, query_parameters, request_method, validate_date_range
@@ -22,12 +27,6 @@ CACHE_SECONDS = 120
 SAFE_RESOURCE = re.compile(r"[A-Za-z0-9._-]{1,128}")
 MONITORING_URL = "https://monitoring.googleapis.com/v3/projects/{project}/timeSeries"
 Fetcher = Callable[[str, str, str | None, list[str]], Mapping[str, Any]]
-
-ROUTE_LATENCY_METRICS = {
-    "ai": "logging.googleapis.com/user/kallo_ai_request_latency",
-    "normal": "logging.googleapis.com/user/kallo_normal_request_latency",
-}
-
 
 def _number(value: Any) -> float:
     try:
@@ -84,16 +83,6 @@ def collect_cloud_run_metrics(
             f"p{percentile}_ms",
             fetch("run.googleapis.com/request_latencies", f"ALIGN_PERCENTILE_{percentile}", f"REDUCE_PERCENTILE_{percentile}", []),
         )
-        for route_class, metric in ROUTE_LATENCY_METRICS.items():
-            # Cloud Run request logs expose latency as seconds. The two
-            # low-cardinality distribution metrics split /api/analyze-meal
-            # from every other route; convert their percentile values to ms
-            # to keep the dashboard contract consistent with the GA metric.
-            merge(
-                f"{route_class}_p{percentile}_ms",
-                fetch(metric, f"ALIGN_PERCENTILE_{percentile}", f"REDUCE_PERCENTILE_{percentile}", []),
-                scale=1000,
-            )
 
     count_response = fetch(
         "run.googleapis.com/request_count", "ALIGN_SUM", "REDUCE_SUM",
@@ -179,7 +168,9 @@ def monitoring_fetcher(
 
 def handle(
     event: Mapping[str, Any], table: Any, *, fetch_factory: Callable[..., Fetcher],
-    project: str, service: str, location: str, now: Callable[[], float] = time.time,
+    project: str, service: str, location: str,
+    route_loader: Callable[..., list[dict[str, Any]]] | None = None,
+    now: Callable[[], float] = time.time,
 ) -> dict[str, Any]:
     try:
         if request_method(event) != "GET":
@@ -202,6 +193,18 @@ def handle(
             fetch=fetch_factory(from_date=from_date, to_date=to_date),
             collected_at=collected_at,
         )
+        route_points = route_loader(
+            from_date=from_date,
+            to_date=to_date,
+            alignment_seconds=payload["alignment_seconds"],
+        ) if route_loader else []
+        by_timestamp = {row["timestamp"]: row for row in payload["series"]}
+        for point in route_points:
+            by_timestamp.setdefault(point["timestamp"], {"timestamp": point["timestamp"]}).update(point)
+        payload["series"] = [by_timestamp[key] for key in sorted(by_timestamp)]
+        payload["route_source"] = "cloud-logging-dynamodb"
+        payload["route_points"] = len(route_points)
+        payload["route_retention_days"] = 30
         table.put_item(Item={
             "metric": CACHE_METRIC,
             "date": cache_key,
@@ -218,7 +221,10 @@ def _access_token(secret: Mapping[str, Any]) -> str:
     from google.oauth2 import service_account
 
     credentials = service_account.Credentials.from_service_account_info(
-        dict(secret), scopes=["https://www.googleapis.com/auth/monitoring.read"]
+        dict(secret), scopes=[
+            "https://www.googleapis.com/auth/monitoring.read",
+            "https://www.googleapis.com/auth/logging.read",
+        ]
     )
     credentials.refresh(Request())
     if not credentials.token:
@@ -236,19 +242,46 @@ def handler(event: Mapping[str, Any] | None, context: Any) -> dict[str, Any]:
     location = os.environ.get("GCP_CLOUD_RUN_LOCATION", "")
     if not table_name or not secret_arn:
         return error_response(RuntimeError("Cloud Monitoring Lambda is not configured"))
+    incoming = event or {}
     token: str | None = None
 
-    def fetch_factory(**window: str) -> Fetcher:
+    def access_token() -> str:
         nonlocal token
         if token is None:
             secret_value = boto3.client("secretsmanager").get_secret_value(SecretId=secret_arn)["SecretString"]
             token = _access_token(json.loads(secret_value))
+        return token
+
+    def fetch_factory(**window: str) -> Fetcher:
         return monitoring_fetcher(
-            token=token, project=project, service=service, location=location, **window
+            token=access_token(), project=project, service=service, location=location, **window
+        )
+
+    if incoming.get("action") in {"ingest", "backfill"} or incoming.get("source") == "aws.events":
+        current = datetime.now(timezone.utc)
+        if incoming.get("action") == "backfill":
+            start = datetime.fromisoformat(str(incoming.get("from", "")).replace("Z", "+00:00"))
+            end = datetime.fromisoformat(str(incoming.get("to", "")).replace("Z", "+00:00"))
+            if start.tzinfo is None or end.tzinfo is None or end - start > timedelta(hours=25):
+                return error_response(ValueError("backfill windows must be timezone-aware and at most 25 hours"))
+        else:
+            end = current
+            start = current.replace(minute=0, second=0, microsecond=0) - timedelta(hours=2)
+        return ingest_route_logs(
+            table=boto3.resource("dynamodb").Table(table_name),
+            fetch=logging_fetcher(
+                token=access_token(), project=project, service=service, location=location,
+            ),
+            start=start,
+            end=end,
+            ingested_at=current,
         )
 
     return handle(
-        event or {}, boto3.resource("dynamodb").Table(table_name),
+        incoming, boto3.resource("dynamodb").Table(table_name),
         project=project, service=service, location=location,
         fetch_factory=fetch_factory,
+        route_loader=lambda **window: stored_route_series(
+            table=boto3.resource("dynamodb").Table(table_name), **window,
+        ),
     )
