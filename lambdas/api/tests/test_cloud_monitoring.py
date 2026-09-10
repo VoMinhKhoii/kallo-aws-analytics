@@ -60,7 +60,10 @@ class FakeGoogle:
                 "ALIGN_PERCENTILE_99": 900,
                 "ALIGN_MEAN": 0.88,
             }
-            return response([("2026-09-08T01:00:00Z", values[aligner])])
+            value = values[aligner]
+            if metric.startswith("logging.googleapis.com/"):
+                value /= 1000
+            return response([("2026-09-08T01:00:00Z", value)])
 
         return fetch
 
@@ -97,6 +100,12 @@ def test_collects_request_latency_separately_from_ai_and_caches_result():
             "p50_ms": 120,
             "p95_ms": 420,
             "p99_ms": 900,
+            "ai_p50_ms": 120,
+            "ai_p95_ms": 420,
+            "ai_p99_ms": 900,
+            "normal_p50_ms": 120,
+            "normal_p95_ms": 420,
+            "normal_p99_ms": 900,
             "request_count": 10,
             "error_count": 2,
             "error_rate": 0.2,
@@ -106,8 +115,11 @@ def test_collects_request_latency_separately_from_ai_and_caches_result():
             "instances": 0.88,
         }
     ]
-    assert len(google.calls) == 8
-    assert all(call[0].startswith("run.googleapis.com/") for call in google.calls)
+    assert len(google.calls) == 14
+    assert all(
+        call[0].startswith(("run.googleapis.com/", "logging.googleapis.com/user/"))
+        for call in google.calls
+    )
     assert (
         "run.googleapis.com/container/instance_count",
         "ALIGN_MEAN",

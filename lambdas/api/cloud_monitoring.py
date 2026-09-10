@@ -23,6 +23,11 @@ SAFE_RESOURCE = re.compile(r"[A-Za-z0-9._-]{1,128}")
 MONITORING_URL = "https://monitoring.googleapis.com/v3/projects/{project}/timeSeries"
 Fetcher = Callable[[str, str, str | None, list[str]], Mapping[str, Any]]
 
+ROUTE_LATENCY_METRICS = {
+    "ai": "logging.googleapis.com/user/kallo_ai_request_latency",
+    "normal": "logging.googleapis.com/user/kallo_normal_request_latency",
+}
+
 
 def _number(value: Any) -> float:
     try:
@@ -70,15 +75,25 @@ def collect_cloud_run_metrics(
     alignment = _alignment_seconds(from_date, to_date)
     rows: dict[str, dict[str, Any]] = {}
 
-    def merge(field: str, response: Mapping[str, Any]) -> None:
+    def merge(field: str, response: Mapping[str, Any], *, scale: float = 1.0) -> None:
         for timestamp, value, _labels in _points(response):
-            rows.setdefault(timestamp, {"timestamp": timestamp})[field] = value
+            rows.setdefault(timestamp, {"timestamp": timestamp})[field] = value * scale
 
     for percentile in (50, 95, 99):
         merge(
             f"p{percentile}_ms",
             fetch("run.googleapis.com/request_latencies", f"ALIGN_PERCENTILE_{percentile}", f"REDUCE_PERCENTILE_{percentile}", []),
         )
+        for route_class, metric in ROUTE_LATENCY_METRICS.items():
+            # Cloud Run request logs expose latency as seconds. The two
+            # low-cardinality distribution metrics split /api/analyze-meal
+            # from every other route; convert their percentile values to ms
+            # to keep the dashboard contract consistent with the GA metric.
+            merge(
+                f"{route_class}_p{percentile}_ms",
+                fetch(metric, f"ALIGN_PERCENTILE_{percentile}", f"REDUCE_PERCENTILE_{percentile}", []),
+                scale=1000,
+            )
 
     count_response = fetch(
         "run.googleapis.com/request_count", "ALIGN_SUM", "REDUCE_SUM",

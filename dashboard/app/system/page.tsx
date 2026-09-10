@@ -144,14 +144,20 @@ export default function SystemPage() {
         <MetricRibbon items={[
           { label: "Cloud Run requests", value: formatNumber(requests || undefined), detail: "all service traffic", tone: "blue", loading: monitoring.loading, error: monitoring.error },
           { label: "5xx rate", value: formatPercent(requests ? errors / requests : undefined), detail: requests ? `${errors} of ${requests}` : "No requests", tone: errors ? "amber" : "green", loading: monitoring.loading, error: monitoring.error },
-          { label: "Latest service p95", value: formatDuration(latest?.p95_ms), detail: "container processing", tone: "blue", loading: monitoring.loading, error: monitoring.error },
+          { label: "Latest normal API p95", value: formatDuration(latest?.normal_p95_ms), detail: "excludes AI analysis", tone: "blue", loading: monitoring.loading, error: monitoring.error },
           { label: "Average instances", value: formatNumber(latest?.instances), detail: source ? `latest aligned window · ${source.service}` : "Cloud Run service", loading: monitoring.loading, error: monitoring.error },
         ]} />
 
-        <Panel title="Cloud Run request latency" description="p50/p95/p99 for every request reaching a running service container, including routes that orchestrate an AI meal analysis." source={sourceTag}>
-          <MetricState loading={monitoring.loading} error={monitoring.error} empty={points.length === 0} emptyMessage="Google Cloud Monitoring returned no Cloud Run request-latency points for this window.">
-            <div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={points} series={[{ key: "p50_ms", label: "p50", color: "var(--console-green)" }, { key: "p95_ms", label: "p95", color: "var(--console-blue)" }, { key: "p99_ms", label: "p99", color: "var(--console-brick)" }]} ariaLabel="Cloud Run service request latency" format="duration" connectGaps /></div>
-            <InlineNote>This GA metric starts when a request reaches a running container and excludes container startup. Individual Gemini call latency remains separate on the AI page.</InlineNote>
+        <Panel title="Normal API request latency" description="p50/p95/p99 for Cloud Run requests other than the AI meal-analysis endpoint." source={sourceTag}>
+          <MetricState loading={monitoring.loading} error={monitoring.error} empty={points.every((point) => point.normal_p50_ms == null)} emptyMessage="The normal-route metric has no points in this window. Logs-based metrics only collect requests received after their creation.">
+            <div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={points} series={[{ key: "normal_p50_ms", label: "p50", color: "var(--console-green)" }, { key: "normal_p95_ms", label: "p95", color: "var(--console-blue)" }, { key: "normal_p99_ms", label: "p99", color: "var(--console-brick)" }]} ariaLabel="Normal Cloud Run API request latency" format="duration" connectGaps /></div>
+          </MetricState>
+        </Panel>
+
+        <Panel title="AI meal request latency" description="End-to-end Cloud Run latency for POST /api/analyze-meal, including retrieval, model calls, and assembly." source={sourceTag}>
+          <MetricState loading={monitoring.loading} error={monitoring.error} empty={points.every((point) => point.ai_p50_ms == null)} emptyMessage="No AI meal requests were recorded after the route metric was created.">
+            <div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={points} series={[{ key: "ai_p50_ms", label: "p50", color: "var(--console-green)" }, { key: "ai_p95_ms", label: "p95", color: "var(--console-blue)" }, { key: "ai_p99_ms", label: "p99", color: "var(--console-brick)" }]} ariaLabel="AI meal-analysis Cloud Run request latency" format="duration" connectGaps /></div>
+            <InlineNote>These distributions come from Cloud Run request logs because the built-in route label is empty. They measure the complete HTTP request, while the AI page measures individual Gemini calls inside it. Container startup remains separate.</InlineNote>
           </MetricState>
         </Panel>
 

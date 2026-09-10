@@ -214,6 +214,12 @@ export type CloudRunSystemPoint = {
   p50_ms?: number;
   p95_ms?: number;
   p99_ms?: number;
+  ai_p50_ms?: number;
+  ai_p95_ms?: number;
+  ai_p99_ms?: number;
+  normal_p50_ms?: number;
+  normal_p95_ms?: number;
+  normal_p99_ms?: number;
   startup_p95_ms?: number;
   cpu_p95?: number;
   memory_p95?: number;
