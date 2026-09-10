@@ -244,6 +244,7 @@ def handler(event: Mapping[str, Any] | None, context: Any) -> dict[str, Any]:
         return error_response(RuntimeError("Cloud Monitoring Lambda is not configured"))
     incoming = event or {}
     token: str | None = None
+    table = boto3.resource("dynamodb").Table(table_name)
 
     def access_token() -> str:
         nonlocal token
@@ -268,7 +269,7 @@ def handler(event: Mapping[str, Any] | None, context: Any) -> dict[str, Any]:
             end = current
             start = current.replace(minute=0, second=0, microsecond=0) - timedelta(hours=2)
         return ingest_route_logs(
-            table=boto3.resource("dynamodb").Table(table_name),
+            table=table,
             fetch=logging_fetcher(
                 token=access_token(), project=project, service=service, location=location,
             ),
@@ -278,10 +279,10 @@ def handler(event: Mapping[str, Any] | None, context: Any) -> dict[str, Any]:
         )
 
     return handle(
-        incoming, boto3.resource("dynamodb").Table(table_name),
+        incoming, table,
         project=project, service=service, location=location,
         fetch_factory=fetch_factory,
         route_loader=lambda **window: stored_route_series(
-            table=boto3.resource("dynamodb").Table(table_name), **window,
+            table=table, **window,
         ),
     )
