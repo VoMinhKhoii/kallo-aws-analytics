@@ -2,7 +2,7 @@
 
 ## 1. Purpose and final scope
 
-Kallo Analytics Plane is a private operator dashboard for `kallo.fit`. It explains product-domain aggregates, AI meal-call behavior, exact per-meal traces, and application-wide Cloud Run health without exposing raw user, request, or session identifiers.
+Kallo Analytics Plane is a private operator dashboard for `kallo.fit`. It explains product-domain aggregates, AI meal-call behavior, exact per-meal traces, and application-wide Cloud Run health. A trace may expose only the bounded meal description that the person typed; user/session identifiers, request context, prompts, and model wire responses remain excluded.
 
 The final design deliberately omits Amazon Athena and the generated Gemini weekly-summary feature. Both were technically possible, but neither improved the dashboard enough to justify another service path, permission surface, failure mode, and explanation during assessment. Gemini remains the model used by the Kallo product; its observed model name, token counts, latency, failures, and estimated token cost are analytics data rather than a second summary integration.
 
@@ -37,12 +37,12 @@ Glue is useful here because the application has a real batch boundary: several s
 2. The Next.js server calls the authenticated API Gateway route with the server-held bearer token.
 3. API Gateway invokes the Cloud Monitoring collector Lambda.
 4. On a cache miss or explicit refresh, the Lambda uses a service-account credential from Secrets Manager and the narrow `monitoring.read` OAuth scope to query Google Cloud Monitoring.
-5. It requests Cloud Run request count, 5xx count, request-latency p50/p95/p99, startup-latency p95, CPU p95, memory p95, and average instance count. Instance-count state and revision series are mean-aligned before summing so active and idle peaks from different minutes are not double-counted.
+5. It requests Cloud Run request count, 5xx count, startup-latency p95, CPU p95, memory p95, average instance count, and request-latency distributions. The built-in request metric supplies the application-wide reference. Two low-cardinality, distribution-valued logs-based metrics split `POST /api/analyze-meal` from every other request because Cloud Run leaves the built-in `route` label empty. Instance-count state and revision series are mean-aligned before summing so active and idle peaks from different minutes are not double-counted.
 6. It stores the compact response in DynamoDB for 120 seconds. Cache hits do not retrieve the Google credential or mint a Google access token.
 
 The Google service account is granted only `roles/monitoring.viewer` in project `cal-487315`. The monitored service is `kallo-prod` in `asia-southeast1`. The key is kept outside the repository with owner-only permissions.
 
-Cloud Run request latency is application-wide container request latency. It is intentionally separate from AI model latency, which measures only the external meal-model call inside an application request. Cloud Run's standard request-latency metric excludes container startup, so startup p95 is displayed on its own chart.
+The System page therefore has separate p50/p95/p99 timelines for normal API requests and the complete AI meal HTTP request. The latter includes retrieval, model calls, and assembly. It remains distinct from AI model latency, which measures only an individual Gemini call inside the request. Both Cloud Run request-latency paths exclude container startup, so startup p95 is displayed on its own chart. Logs-based metrics begin collecting only after creation and do not backfill older requests.
 
 ### 2.3 Exact AI-meal trace path
 
@@ -51,7 +51,7 @@ Exact traces answer “what happened in this one AI meal call?” They are not a
 1. The AI page selects a bounded trace identifier from the restricted trace list.
 2. The Next.js server calls one allow-listed Supabase RPC with that identifier.
 3. The RPC returns the ordered pipeline stages and bounded diagnostic fields.
-4. The browser renders stage timing and state but never receives the Supabase credential, raw request/session identifiers, or source payload.
+4. The browser renders stage timing, compact structured output, and the bounded original meal text. It never receives the Supabase credential, user/session identifiers, request context, prompts, or model wire responses.
 
 An empty successful RPC response means no eligible trace rows currently exist; it is not treated as an outage.
 
@@ -64,7 +64,7 @@ The active pages are:
 | Today | Glue aggregates in DynamoDB | Daily/weekly context and current aggregate snapshot |
 | AI | Glue aggregates plus exact-trace RPC | AI-call volume, model latency, failures, tokens, estimated cost, and one-call trace detail |
 | Ingredients | Glue aggregates in DynamoDB | Consolidated retrieval, mapping, coverage, corpus, gap, and rank evidence |
-| System | Google Cloud Monitoring via cached Lambda | Normal request latency, traffic, 5xx, startup, CPU, memory, and average instances |
+| System | Google Cloud Monitoring via cached Lambda | Separate normal and AI-request latency, traffic, 5xx, startup, CPU, memory, and average instances |
 
 Pipeline Overview is removed. Retrieval and Coverage routes redirect to the consolidated Ingredients page. Line charts always use the full content width. Model-level token and failure details are carried in timeline tooltips instead of separate side-by-side charts. Every chart and summary is filtered to the chosen Today/7d/30d/90d window.
 
@@ -100,7 +100,7 @@ The deployed Learner Lab policy explicitly denies both `lambda:CreateFunction` a
 - Exact-trace access is an allow-listed server RPC with bounded input and output.
 - The Google service account is read-only Monitoring Viewer, scoped to monitoring reads.
 - S3 blocks public access and uses server-side encryption. DynamoDB and Secrets Manager are reached through AWS APIs rather than public browser credentials.
-- No raw user/session identifiers, prompts, images, or unrestricted source payloads are rendered.
+- Only bounded meal text is rendered for an exact trace. No user/session identifiers, request context, prompts, images, model wire responses, or unrestricted source payloads are rendered.
 
 AWS Academy requires the pre-existing `LabRole`, so the stack cannot create a purpose-built least-privilege AWS role. Least privilege is therefore enforced as far as the lab permits through separate functions, bounded routes, secrets, allow-listed metrics/RPCs, and the narrow Google IAM grant. In a production AWS account each Lambda would receive a distinct execution role.
 

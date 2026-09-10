@@ -9,13 +9,18 @@ const d = new Diagram("pipeline");
 const tree = phantom("root", "", { dir: "row", gap: 48, align: "center", header: 0, pad: 10 }, [
   phantom("external", "", { dir: "col", gap: 56, align: "center", header: 0, pad: 0 }, [
     onpremFrame("production", "PRODUCTION — GOOGLE CLOUD + SUPABASE", [
-      grid("prod_grid", null, "", { cols: 3, gap: 18, pad: 4 }, [
+      grid("prod_grid", null, "", { cols: 4, gap: 18, pad: 4 }, [
         icon("cloudrun", "gcp_cloud_run", "Kallo app\nCloud Run"),
         icon("supabase", "supabase", "Supabase\nPostgres + RPC"),
-        icon("gcm", "gcp_cloud_monitoring", "Cloud Monitoring\nrequest + runtime metrics"),
+        icon("logging", "gcp_cloud_logging", "Cloud Logging\nrequest logs"),
+        icon("gcm", "gcp_cloud_monitoring", "Cloud Monitoring\nbuilt-in + route metrics"),
       ]),
-      box("privacy", "Restricted analytics views · bounded exact-trace RPC\nNo raw request, session, or user identifiers in the console", { fs: 10, bold: true }),
+      box("privacy", "Restricted analytics views · bounded exact-trace RPC\nRaw meal text only; no user/session identifiers, context, prompts, or wire responses", { fs: 10, bold: true }),
     ], { dir: "col", gap: 16, align: "center" }),
+    frame("permanent", "PERMANENT LINK", { dir: "col", gap: 16, align: "center", stroke: "#232F3E" }, [
+      ossBox("vercel", "Vercel production\ncontinuous Next.js dashboard", { bold: true }),
+      box("host_contract", "Same server-side AWS API path\nDirect Supabase RPC for exact traces + raw meal text", { fs: 10 }),
+    ]),
     icon("operator", "user", "Operator / tutor"),
   ]),
 
@@ -33,8 +38,8 @@ const tree = phantom("root", "", { dir: "row", gap: 48, align: "center", header:
     frame("serving", "DASHBOARD SERVING + EXTERNAL METRICS", { dir: "row", gap: 38, align: "center" }, [
       group("vpc", "group_vpc", "Default VPC", { dir: "row", gap: 18, align: "center" }, [
         group("public", "group_subnet", "Public subnets", { dir: "row", gap: 40, align: "center" }, [
-          icon("alb", "application_load_balancer", "ALB\nassessment URL"),
-          icon("fargate", "fargate", "ECS Fargate\nNext.js dashboard"),
+          icon("alb", "application_load_balancer", "ALB\ndisposable · off"),
+          icon("fargate", "fargate", "ECS Fargate\nassessment dashboard"),
         ]),
       ]),
       icon("apigw", "api_gateway", "API Gateway\nTOKEN authorizer"),
@@ -50,11 +55,6 @@ const tree = phantom("root", "", { dir: "row", gap: 48, align: "center", header:
       icon("cloudwatch", "cloudwatch_2", "CloudWatch\nlogs + AWS metrics"),
       box("guardrails", "Reserved Lambda concurrency 8 / 10 · API rate 2 r/s, burst 5\nGlue 2 × G.1X, 10 min, no retries · Monitoring cache 120 s", { fs: 10, bold: true }),
     ]),
-  ]),
-
-  frame("permanent", "PERMANENT LINK", { dir: "col", gap: 16, align: "center", stroke: "#232F3E" }, [
-    ossBox("vercel", "Vercel production\ncontinuous Next.js dashboard", { bold: true }),
-    box("host_contract", "Same server-side AWS API path\nDirect Supabase RPC only for exact traces", { fs: 10 }),
   ]),
 ]);
 
@@ -79,9 +79,12 @@ d.link("apigw", "api_functions", "authorize + invoke");
 d.link("metrics", "ddb", "aggregate reads");
 d.link("monitoring", "gcm", "Monitoring API read", { dash: true });
 d.link("monitoring", "ddb", "120 s cache");
-d.link("cloudrun", "gcm", "emits operations", { dash: true });
+d.link("cloudrun", "logging", "automatic request logs", { dash: true });
+d.link("logging", "gcm", "AI / non-AI latency distributions", { flow: true });
+d.link("cloudrun", "gcm", "built-in runtime metrics", { dash: true });
 d.link("fargate", "supabase", "exact-trace RPC", { dash: true });
 d.link("vercel", "supabase", "exact-trace RPC", { dash: true });
+d.link("operator", "vercel", "permanent link");
 
 d.link("ecr", "fargate", "image pull", { dash: true });
 d.link("secrets", "api_functions", "runtime secrets", { dash: true });

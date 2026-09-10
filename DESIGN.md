@@ -122,7 +122,8 @@ by its trusted proxy. Logout is a same-origin POST that expires the cookie.
   volume, 5xx counts, startup latency, CPU, memory, and instance data on the
   System page. Its request latency is explicitly separate from AI model call
   latency.
-- One bounded Supabase RPC provides exact AI-meal trace details. Raw
-  user/session identifiers and source payloads never render.
+- One bounded Supabase RPC provides exact AI-meal trace details. The original
+  meal description may render; user/session identifiers, request context,
+  prompts, model wire responses, and unrestricted source payloads never do.
 - Consent/default-deny absence is an honest no-data state. It is distinct from
   an unavailable API or an invalid configuration.
