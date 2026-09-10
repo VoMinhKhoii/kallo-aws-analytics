@@ -129,9 +129,9 @@ export default function SystemPage() {
   const latest = points.at(-1);
   const requests = points.reduce((sum, point) => sum + (point.request_count ?? 0), 0);
   const errors = points.reduce((sum, point) => sum + (point.error_count ?? 0), 0);
-  const hasNormalRouteContract = points.some((point) => "normal_p50_ms" in point || "normal_p95_ms" in point || "normal_p99_ms" in point);
-  const hasAiRouteContract = points.some((point) => "ai_p50_ms" in point || "ai_p95_ms" in point || "ai_p99_ms" in point);
+  const hasRouteStore = source?.route_source === "cloud-logging-dynamodb";
   const sourceTag = <SourceTag tone={points.length ? "live" : "neutral"}>Google Monitoring</SourceTag>;
+  const routeSourceTag = <SourceTag tone={hasRouteStore ? "live" : "neutral"}>Logging → DynamoDB</SourceTag>;
 
   return (
     <ConsolePage>
@@ -146,20 +146,20 @@ export default function SystemPage() {
         <MetricRibbon items={[
           { label: "Cloud Run requests", value: formatNumber(requests || undefined), detail: "all service traffic", tone: "blue", loading: monitoring.loading, error: monitoring.error },
           { label: "5xx rate", value: formatPercent(requests ? errors / requests : undefined), detail: requests ? `${errors} of ${requests}` : "No requests", tone: errors ? "amber" : "green", loading: monitoring.loading, error: monitoring.error },
-          { label: "Latest normal API p95", value: formatDuration(latest?.normal_p95_ms), detail: "excludes AI analysis", tone: "blue", loading: monitoring.loading, error: monitoring.error },
+          { label: "Latest non-AI p95", value: formatDuration(latest?.normal_p95_ms), detail: "all requests except meal analysis", tone: "blue", loading: monitoring.loading, error: monitoring.error },
           { label: "Average instances", value: formatNumber(latest?.instances), detail: source ? `latest aligned window · ${source.service}` : "Cloud Run service", loading: monitoring.loading, error: monitoring.error },
         ]} />
 
-        <Panel title="Normal API request latency" description="p50/p95/p99 for Cloud Run requests other than the AI meal-analysis endpoint. Route-specific history begins when this metric was created; Google does not backfill it." source={sourceTag}>
-          <MetricState loading={monitoring.loading} error={monitoring.error} empty={points.every((point) => point.normal_p50_ms == null)} emptyMessage={hasNormalRouteContract ? "The normal-route metric has no points in this window. Logs-based metrics only collect requests received after their creation." : "Google has normal-route latency data, but the deployed AWS collector does not yet return this series."}>
-            <div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={points} series={[{ key: "normal_p50_ms", label: "p50", color: "var(--console-green)" }, { key: "normal_p95_ms", label: "p95", color: "var(--console-blue)" }, { key: "normal_p99_ms", label: "p99", color: "var(--console-brick)" }]} ariaLabel="Normal Cloud Run API request latency" format="duration" connectGaps /></div>
+        <Panel title="Non-AI application request latency" description="p50/p95/p99 for every Cloud Run request except POST /api/analyze-meal, including pages, assets, redirects, and normal APIs." source={routeSourceTag}>
+          <MetricState loading={monitoring.loading} error={monitoring.error} empty={points.every((point) => point.normal_p50_ms == null)} emptyMessage={hasRouteStore ? "No non-AI Cloud Run requests were stored in this window." : "The deployed AWS collector does not yet expose persisted route history."}>
+            <div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={points} series={[{ key: "normal_p50_ms", label: "p50", color: "var(--console-green)" }, { key: "normal_p95_ms", label: "p95", color: "var(--console-blue)" }, { key: "normal_p99_ms", label: "p99", color: "var(--console-brick)" }]} ariaLabel="Non-AI Cloud Run application request latency" format="duration" connectGaps /></div>
           </MetricState>
         </Panel>
 
-        <Panel title="AI meal request latency" description="End-to-end Cloud Run latency for POST /api/analyze-meal, including retrieval, model calls, and assembly. Route-specific history begins when this metric was created; Google does not backfill it." source={sourceTag}>
-          <MetricState loading={monitoring.loading} error={monitoring.error} empty={points.every((point) => point.ai_p50_ms == null)} emptyMessage={hasAiRouteContract ? "No AI meal requests were recorded after the route metric was created." : "Google has AI meal latency data, but the deployed AWS collector does not yet return this series."}>
+        <Panel title="AI meal request latency" description="End-to-end latency for POST /api/analyze-meal, including retrieval, model calls, and assembly." source={routeSourceTag}>
+          <MetricState loading={monitoring.loading} error={monitoring.error} empty={points.every((point) => point.ai_p50_ms == null)} emptyMessage={hasRouteStore ? "No AI meal requests were stored in this window." : "The deployed AWS collector does not yet expose persisted route history."}>
             <div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={points} series={[{ key: "ai_p50_ms", label: "p50", color: "var(--console-green)" }, { key: "ai_p95_ms", label: "p95", color: "var(--console-blue)" }, { key: "ai_p99_ms", label: "p99", color: "var(--console-brick)" }]} ariaLabel="AI meal-analysis Cloud Run request latency" format="duration" connectGaps /></div>
-            <InlineNote>These distributions come from Cloud Run request logs because the built-in route label is empty. They measure the complete HTTP request, while the AI page measures individual Gemini calls inside it. Container startup remains separate.</InlineNote>
+            <InlineNote>Every five minutes, AWS reads the latest Cloud Run request logs and replaces bounded hourly histogram buckets in DynamoDB. Raw request logs and URLs are not stored. The AI page still measures individual Gemini calls inside this complete HTTP request.</InlineNote>
           </MetricState>
         </Panel>
 
