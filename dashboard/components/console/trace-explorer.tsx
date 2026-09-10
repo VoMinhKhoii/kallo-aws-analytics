@@ -39,7 +39,7 @@ export function TraceExplorer() {
           source={<SourceTag tone={requests.error ? "error" : requests.total ? "live" : "neutral"}>{requests.error ? "Supabase unavailable" : `${formatNumber(requests.total)} traces`}</SourceTag>}
         >
           <MetricState loading={requests.loading} error={requests.error} empty={requests.rows.length === 0} emptyMessage="No AI meal traces were recorded in this window.">
-            <SimpleTable columns={["Request", "UTC", "Typed meal", { label: "Duration", align: "right" }, { label: "Ingredients", align: "right" }, "Verdicts"]} caption="Recent AI meal-analysis requests">
+            <SimpleTable columns={["Request", "UTC", "Meal", { label: "Duration", align: "right" }, { label: "Ingredients", align: "right" }, "Verdicts"]} caption="Recent AI meal-analysis requests">
               {requests.rows.map((row) => {
                 return (
                   <TableRow key={row[9]}>

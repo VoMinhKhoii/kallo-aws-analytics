@@ -129,6 +129,8 @@ export default function SystemPage() {
   const latest = points.at(-1);
   const requests = points.reduce((sum, point) => sum + (point.request_count ?? 0), 0);
   const errors = points.reduce((sum, point) => sum + (point.error_count ?? 0), 0);
+  const hasNormalRouteContract = points.some((point) => "normal_p50_ms" in point || "normal_p95_ms" in point || "normal_p99_ms" in point);
+  const hasAiRouteContract = points.some((point) => "ai_p50_ms" in point || "ai_p95_ms" in point || "ai_p99_ms" in point);
   const sourceTag = <SourceTag tone={points.length ? "live" : "neutral"}>Google Monitoring</SourceTag>;
 
   return (
@@ -149,13 +151,13 @@ export default function SystemPage() {
         ]} />
 
         <Panel title="Normal API request latency" description="p50/p95/p99 for Cloud Run requests other than the AI meal-analysis endpoint." source={sourceTag}>
-          <MetricState loading={monitoring.loading} error={monitoring.error} empty={points.every((point) => point.normal_p50_ms == null)} emptyMessage="The normal-route metric has no points in this window. Logs-based metrics only collect requests received after their creation.">
+          <MetricState loading={monitoring.loading} error={monitoring.error} empty={points.every((point) => point.normal_p50_ms == null)} emptyMessage={hasNormalRouteContract ? "The normal-route metric has no points in this window. Logs-based metrics only collect requests received after their creation." : "Google has normal-route latency data, but the deployed AWS collector does not yet return this series."}>
             <div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={points} series={[{ key: "normal_p50_ms", label: "p50", color: "var(--console-green)" }, { key: "normal_p95_ms", label: "p95", color: "var(--console-blue)" }, { key: "normal_p99_ms", label: "p99", color: "var(--console-brick)" }]} ariaLabel="Normal Cloud Run API request latency" format="duration" connectGaps /></div>
           </MetricState>
         </Panel>
 
         <Panel title="AI meal request latency" description="End-to-end Cloud Run latency for POST /api/analyze-meal, including retrieval, model calls, and assembly." source={sourceTag}>
-          <MetricState loading={monitoring.loading} error={monitoring.error} empty={points.every((point) => point.ai_p50_ms == null)} emptyMessage="No AI meal requests were recorded after the route metric was created.">
+          <MetricState loading={monitoring.loading} error={monitoring.error} empty={points.every((point) => point.ai_p50_ms == null)} emptyMessage={hasAiRouteContract ? "No AI meal requests were recorded after the route metric was created." : "Google has AI meal latency data, but the deployed AWS collector does not yet return this series."}>
             <div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={points} series={[{ key: "ai_p50_ms", label: "p50", color: "var(--console-green)" }, { key: "ai_p95_ms", label: "p95", color: "var(--console-blue)" }, { key: "ai_p99_ms", label: "p99", color: "var(--console-brick)" }]} ariaLabel="AI meal-analysis Cloud Run request latency" format="duration" connectGaps /></div>
             <InlineNote>These distributions come from Cloud Run request logs because the built-in route label is empty. They measure the complete HTTP request, while the AI page measures individual Gemini calls inside it. Container startup remains separate.</InlineNote>
           </MetricState>

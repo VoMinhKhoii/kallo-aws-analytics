@@ -245,7 +245,7 @@ export function RequestTraceDetail({ requestId }: { requestId: string }) {
               <div><dt className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--console-muted)]">Started</dt><dd className="mt-1 text-sm font-medium tabular-nums">{data.startedAt ? new Date(data.startedAt).toLocaleString("en-GB", { timeZone: "UTC", dateStyle: "medium", timeStyle: "short" }) + " UTC" : "—"}</dd></div>
             </dl>
 
-            {data.rawInput || data.meal ? <div className="border-t border-[var(--console-rule)] pt-4"><p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--console-muted)]">Typed meal</p><p className="mt-1 max-w-4xl text-sm font-medium leading-6 text-[var(--console-ink)]">{data.rawInput ?? data.meal}</p>{data.rawInput && data.meal ? <p className="mt-1 text-[11px] text-[var(--console-muted)]">Returned meal groups: {data.meal}</p> : null}</div> : null}
+            {data.rawInput || data.meal ? <div className="border-t border-[var(--console-rule)] pt-4"><p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--console-muted)]">{data.rawInput ? "Typed meal" : "Parsed meal summary"}</p><p className="mt-1 max-w-4xl text-sm font-medium leading-6 text-[var(--console-ink)]">{data.rawInput ?? data.meal}</p>{data.rawInput && data.meal ? <p className="mt-1 text-[11px] text-[var(--console-muted)]">Returned meal groups: {data.meal}</p> : null}</div> : null}
 
             <section className="border-t border-[var(--console-rule)] pt-5" aria-labelledby="trace-stages-heading">
               <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
