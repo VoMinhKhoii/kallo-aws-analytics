@@ -22,6 +22,10 @@ export function TimeSeriesChart({
   connectGaps?: boolean;
 }) {
   const config: ChartConfig = Object.fromEntries(series.map((item) => [item.key, { label: item.label, color: item.color }]));
+  const observedPoints = Object.fromEntries(series.map((item) => [
+    item.key,
+    data.filter((point) => typeof point[item.key] === "number" && Number.isFinite(point[item.key])).length,
+  ]));
   const valueFormatter = (value: number) => {
     if (format === "duration") return value >= 1000 ? `${(value / 1000).toFixed(1)} s` : `${Math.round(value)} ms`;
     if (format === "percent") return `${(value * 100).toFixed(1)}%`;
@@ -47,7 +51,7 @@ export function TimeSeriesChart({
         />
         <ChartLegend content={<ChartLegendContent />} />
         {series.map((item) => (
-          <Line key={item.key} type="monotone" dataKey={item.key} name={item.key} stroke={item.color} strokeWidth={2} dot={data.length === 1 ? { r: 3 } : false} activeDot={{ r: 3 }} connectNulls={connectGaps} isAnimationActive={false} />
+          <Line key={item.key} type="monotone" dataKey={item.key} name={item.key} stroke={item.color} strokeWidth={2} dot={observedPoints[item.key] === 1 ? { r: 4, strokeWidth: 2 } : false} activeDot={{ r: 3 }} connectNulls={connectGaps} isAnimationActive={false} />
         ))}
       </LineChart>
     </ChartContainer>
