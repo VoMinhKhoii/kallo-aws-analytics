@@ -38,6 +38,25 @@ scripts/deploy-data-stack.sh
 
 `GOOGLE_SERVICE_ACCOUNT_JSON` may be supplied directly instead of the file variable. The account needs only the Google Cloud `Monitoring Viewer` role and the Lambda credential uses the `monitoring.read` OAuth scope. Keep the JSON key outside this repository with owner-only file permissions.
 
+Cloud Run's built-in request metric does not populate its `route` label. Create
+the two low-cardinality distribution metrics once so the System page can split
+the complete AI meal request from normal API traffic:
+
+```bash
+gcloud logging metrics create kallo_ai_request_latency \
+  --project=YOUR-GCP-PROJECT \
+  --config-from-file=infra/gcp/kallo-ai-request-latency.yaml
+gcloud logging metrics create kallo_normal_request_latency \
+  --project=YOUR-GCP-PROJECT \
+  --config-from-file=infra/gcp/kallo-normal-request-latency.yaml
+```
+
+The filters use automatic Cloud Run request logs and extract
+`httpRequest.latency` into distributions. They add no application middleware
+and require no extra permission for the read-only Monitoring service account.
+They begin collecting only new requests after creation; Google does not
+backfill older logs into a new logs-based metric.
+
 ## Disposable presentation stack
 
 Build and push a Linux/AMD64 dashboard image, then start the AWS presentation tier:
