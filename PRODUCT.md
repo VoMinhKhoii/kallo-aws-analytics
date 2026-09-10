@@ -31,7 +31,7 @@ Avoid AWS marketing language, generic cloud diagrams, unexplained acronyms, deco
 ## Current Product Boundary
 
 - Domain analytics are daily/manual Glue aggregates, not near-real-time telemetry.
-- System telemetry is read from Google Cloud Monitoring and cached briefly in DynamoDB.
+- System telemetry is read from Google Cloud Monitoring; Cloud Run request logs are reduced every five minutes into hourly AI/non-AI latency histograms retained in DynamoDB for the 30-day dashboard window.
 - Exact AI-meal traces are bounded Supabase RPC reads performed by the Next.js server.
 - Athena and the generated Gemini weekly-summary feature are intentionally omitted because they did not add enough operator value.
 - Vercel provides the permanent link; ALB + ECS Fargate remains the disposable AWS assessment path.
