@@ -91,10 +91,10 @@ export default function TodayPage() {
         </Panel>
 
         <div className="grid gap-3">
-          <Panel title="Model latency" description="Daily call volume and p50/p95/p99 latency by model." source={<SourceTag>AWS aggregate</SourceTag>}>
+          <Panel title="Recorded AI pipeline latency" description="Daily p50/p95/p99 of recorded pipeline_runs.total_ms, grouped by terminal model and materialized by the AWS batch pipeline." source={<SourceTag>AWS aggregate</SourceTag>}>
             <MetricState loading={pipeline.loading} error={metricError(pipeline, "ai_latency")} empty={latency.length === 0} emptyMessage="No AI latency rows were returned for this window.">
               <div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={latencyTrend} series={[{ key: "p50", label: "p50", color: "var(--console-green)" }, { key: "p95", label: "p95", color: "var(--console-blue)" }, { key: "p99", label: "p99", color: "var(--console-brick)" }]} ariaLabel="AI pipeline p50, p95, and p99 latency over time" format="duration" /></div>
-              <InlineNote>Each point uses the highest model percentile for that UTC day. p99 appears after the reduced aggregate contract is deployed.</InlineNote>
+              <InlineNote>This is application-recorded pipeline time, not Cloud Run HTTP latency or an individual Gemini call. Each point uses the highest terminal-model percentile for that UTC day; the complete endpoint metric lives on System.</InlineNote>
             </MetricState>
           </Panel>
 

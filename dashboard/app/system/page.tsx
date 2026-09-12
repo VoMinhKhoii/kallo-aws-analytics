@@ -156,10 +156,10 @@ export default function SystemPage() {
           </MetricState>
         </Panel>
 
-        <Panel title="AI meal request latency" description="End-to-end latency for POST /api/analyze-meal, including retrieval, model calls, and assembly." source={routeSourceTag}>
+        <Panel title="Cloud Run AI endpoint latency" description="Complete HTTP latency for POST /api/analyze-meal, including Cloud Run and framework overhead, retrieval, model calls, assembly, and failed requests recorded by request logging." source={routeSourceTag}>
           <MetricState loading={monitoring.loading} error={monitoring.error} empty={points.every((point) => point.ai_p50_ms == null)} emptyMessage={hasRouteStore ? "No AI meal requests were stored in this window." : "The deployed AWS collector does not yet expose persisted route history."}>
             <div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={points} series={[{ key: "ai_p50_ms", label: "p50", color: "var(--console-green)" }, { key: "ai_p95_ms", label: "p95", color: "var(--console-blue)" }, { key: "ai_p99_ms", label: "p99", color: "var(--console-brick)" }]} ariaLabel="AI meal-analysis Cloud Run request latency" format="duration" connectGaps /></div>
-            <InlineNote>Every five minutes, AWS reads the latest Cloud Run request logs and replaces bounded hourly histogram buckets in DynamoDB. Raw request logs and URLs are not stored. The AI page still measures individual Gemini calls inside this complete HTTP request.</InlineNote>
+            <InlineNote>Every five minutes, AWS reads the latest Cloud Run request logs and replaces bounded hourly histogram buckets in DynamoDB. Raw request logs and URLs are not stored. Unlike the recorded pipeline metric on Today and AI, this includes the complete HTTP boundary and can include requests that fail before a pipeline row is persisted.</InlineNote>
           </MetricState>
         </Panel>
 

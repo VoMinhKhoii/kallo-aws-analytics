@@ -43,7 +43,7 @@ Glue is useful here because the application has a real batch boundary: several s
 
 The Google service account is granted only `roles/monitoring.viewer` and `roles/logging.viewer` in project `cal-487315`. The monitored service is `kallo-prod` in `asia-southeast1`. The key is kept outside the repository with owner-only permissions.
 
-The System page therefore has separate p50/p95/p99 timelines for non-AI application traffic and the complete AI meal HTTP request. The latter includes retrieval, model calls, and assembly. It remains distinct from AI model latency, which measures only an individual Gemini call inside the request. Cloud Logging retains the source request entries, so the collector can fetch the chosen historical window while logs remain available; unlike a newly created logs-based metric, this design can backfill retained entries. Container startup remains a separate chart.
+The System page therefore has separate p50/p95/p99 timelines for non-AI application traffic and **Cloud Run AI endpoint latency**. The latter measures the complete `POST /api/analyze-meal` HTTP boundary, including Cloud Run and framework overhead, retrieval, model calls, response assembly, and logged failures. It remains distinct from **Recorded AI pipeline latency** on Today and AI, which is calculated from application-written `pipeline_runs.total_ms`, grouped by UTC day and terminal model, then materialized through S3, Glue, and DynamoDB. Cloud Logging retains the source request entries, so the collector can fetch the chosen historical window while logs remain available; unlike a newly created logs-based metric, this design can backfill retained entries. Container startup remains a separate chart.
 
 ### 2.3 Exact AI-meal trace path
 
@@ -62,14 +62,25 @@ The active pages are:
 
 | Page | Main source | Purpose |
 | --- | --- | --- |
-| Today | Glue aggregates in DynamoDB | Daily/weekly context and current aggregate snapshot |
-| AI | Glue aggregates plus exact-trace RPC | AI-call volume, model latency, failures, tokens, estimated cost, and one-call trace detail |
+| Today | Glue aggregates in DynamoDB | Daily/weekly context and recorded AI pipeline-latency snapshot |
+| AI | Glue aggregates plus exact-trace RPC | AI-call volume, recorded pipeline latency, failures, tokens, estimated cost, and one-call trace detail |
 | Ingredients | Glue aggregates in DynamoDB | Consolidated retrieval, mapping, coverage, corpus, gap, and rank evidence |
-| System | Google Monitoring plus persisted Cloud Logging histograms | Separate non-AI and AI-request latency, traffic, 5xx, startup, CPU, memory, and average instances |
+| System | Google Monitoring plus persisted Cloud Logging histograms | Separate non-AI application and Cloud Run AI endpoint latency, traffic, 5xx, startup, CPU, memory, and average instances |
 
 Pipeline Overview is removed. Retrieval and Coverage routes redirect to the consolidated Ingredients page. Line charts always use the full content width. Model-level token and failure details are carried in timeline tooltips instead of separate side-by-side charts. Every chart and summary is filtered to the chosen 24h/7d/30d window.
 
 Direct-API pages expose Refresh. Glue-only views rely on the manual snapshot action because reloading a browser cannot create a newer batch aggregate.
+
+### 3.1 Why the two AI latency charts differ
+
+The similarly shaped percentile charts intentionally answer different operational questions:
+
+| Chart | Source and calculation | Boundary | Freshness and windowing |
+| --- | --- | --- | --- |
+| Recorded AI pipeline latency (Today and AI) | Exact percentiles over `pipeline_runs.total_ms`, grouped by UTC day and `model_call2`; the daily overview displays the highest terminal-model percentile | Application-recorded pipeline work for rows that were persisted | Updated only by the full extract → Glue → load snapshot; daily points |
+| Cloud Run AI endpoint latency (System) | Cloud Run request-log durations classified by exact method/path, stored as bounded hourly histograms, then merged and percentile-estimated for the selected display window | Complete HTTP request, including platform/framework overhead and requests that may fail before a pipeline row is written | Incrementally collected every five minutes; hourly source buckets aligned to the selected 24h/7d/30d window |
+
+The values should therefore not be expected to match exactly, even for the same dates. A meaningful comparison first selects the same dashboard window, then interprets the gap as HTTP/platform overhead plus population differences—not as a data inconsistency.
 
 ## 4. AWS service responsibilities
 
