@@ -8,15 +8,13 @@ This report is written so that a reader can understand the product before seeing
 
 ## 1. Submission links
 
-**Live AWS application.** [Insert the Application Load Balancer URL used during the assessed demonstration.]
-
-**Permanent testing link.** [Insert the stable testing URL.] This link is a continuity workaround for short-lived AWS Academy Learner Lab sessions. It is not part of the assessed architecture or evidence for an AWS service.
-
-**Source repository.** [Insert the accessible repository URL. Credentials and private production data are excluded.]
-
-**Public datasets.** Kallo uses food-composition records derived from authoritative sources such as the United States Department of Agriculture (USDA) and the Food and Agriculture Organization (FAO). [Insert the final dataset URLs or state why production data is not redistributed.]
-
-**Architecture assets.** The editable diagram is stored at `docs/doc_images/kallo-analytics-architecture.drawio`; the exported image is in the same folder.
+| Item | Submission |
+| --- | --- |
+| Live AWS application | [Insert the Application Load Balancer URL used during the assessed demonstration.] |
+| Permanent testing link | [Insert the stable testing URL.] This is a continuity workaround for short-lived AWS Academy Learner Lab sessions, not evidence for an assessed AWS service. |
+| Source repository | [Insert the accessible repository URL. Credentials and private production data are excluded.] |
+| Public datasets | [Insert the final USDA/FAO-derived dataset URLs or state why production data is not redistributed.] |
+| Architecture diagram | [Editable diagrams.net source](https://app.diagrams.net/#G1TqQk6uwBnSJZzMt_e5K5YvQTOjBnv7mE%23%7B%22pageId%22%3A%22d%22%7D) |
 
 ## 2. From meal data to an operator view
 
@@ -34,7 +32,13 @@ The founder uses the dashboard to monitor reliability, adoption, and model cost.
 
 ### 2.3 What the operator sees
 
-The **Today** page gives a short operational summary from the latest completed product snapshot. The **AI** page shows AI call volume, recorded pipeline latency, failures, token use, and estimated cost over 24-hour, 7-day, or 30-day windows. **Ingredients** combines retrieval demand, mappings, catalogue coverage, rejected or unmatched queries, and rank behaviour. **System** presents Cloud Run traffic, 5xx responses, route-separated latency, startup time, CPU, memory, and instance count. **Trace Viewer** lists bounded original meal descriptions and opens each request on a separate page with ordered stage outputs.
+| Page | Main source | Operator question |
+| --- | --- | --- |
+| Today | Latest completed DynamoDB snapshot | Is anything unusual across product activity, application health, or AI cost? |
+| AI | DynamoDB product aggregates | How are calls, pipeline latency, failures, tokens, and estimated cost changing? |
+| Ingredients | DynamoDB product aggregates | Which ingredients are requested, matched, rejected, or missing from the catalogue? |
+| System | Google Monitoring plus DynamoDB route histograms | Is Cloud Run healthy, and are normal or AI requests slow? |
+| Trace Viewer | Restricted Supabase RPCs | What did a person type, and what happened at each stage of that meal request? |
 
 This sequence is intentionally simple: Today answers "Is anything unusual?", the domain pages answer "Where is it happening?", and Trace Viewer answers "What happened in this request?" A shared time-window control keeps comparisons consistent. Line charts use the full content width, while tables paginate dense ingredient and trace data.
 
@@ -48,7 +52,7 @@ The scope deliberately excludes Amazon Athena and an additional Gemini summary f
 
 ## 4. Architecture and automated client operations
 
-[[ARCHITECTURE_FIGURE]]
+![Full Kallo Analytics Plane architecture](doc_images/kallo-analytics-architecture-drive.png)
 
 *Figure 1. Kallo Analytics Plane assessed runtime architecture.*
 
@@ -60,33 +64,71 @@ This server facade keeps AWS and external-service credentials out of browser Jav
 
 ### 4.2 Product analytics: Supabase to S3, Glue, and DynamoDB
 
-Amazon EventBridge invokes the extract Lambda approximately once every 24 hours, or a founder starts the same operation through `POST /runs`. The function reads six sanitised Supabase views through HTTPS/PostgREST and writes JSON Lines plus a manifest to a run-specific S3 prefix. It then starts one Glue job with the manifest location. Glue reads only that generation, performs deterministic PySpark transformations, writes curated Parquet, and materialises thirteen bounded aggregate JSON contracts.
+![Product analytics batch flow](doc_images/kallo-architecture-product-flow.png)
 
-An EventBridge rule reacts only when the named Glue job succeeds. The loader Lambda then validates the generation and replaces the corresponding DynamoDB metric/date snapshots idempotently. Failed Glue jobs update run state but never publish partial aggregates. API Gateway later invokes the metrics Lambda, which accepts only allow-listed metric names and filters the newest complete snapshot to the chosen display window.
+*Figure 2. Product-analytics batch flow extracted from the full architecture.*
+
+The product snapshot follows one automated publication boundary:
+
+1. EventBridge invokes the extract Lambda approximately every 24 hours, or a founder starts the same operation through `POST /runs`.
+2. The extractor reads six sanitised Supabase views through HTTPS/PostgREST and writes JSON Lines plus a manifest to a run-specific S3 prefix.
+3. The extractor starts one Glue job with that exact manifest location.
+4. Glue performs deterministic PySpark transformations, writes curated Parquet, and materialises thirteen bounded aggregate JSON contracts.
+5. A success-only EventBridge rule invokes the loader Lambda, which validates and idempotently replaces the corresponding DynamoDB snapshots.
+6. API Gateway invokes the metrics Lambda, which accepts only allow-listed metric names and filters the newest complete snapshot to the chosen display window.
+
+Failed Glue jobs update run state but never publish partial aggregates.
 
 Glue is more than a Data Transfer Object (DTO) mapper in this path. A DTO could rename one response, but it would not join several source views, preserve immutable run manifests, produce reusable Parquet, or enforce a success-only publication boundary. Glue would be excessive for one small display-ready response; it is appropriate here because the report needs a repeatable multi-source analytics job. S3 provides the durable raw and curated boundary, while DynamoDB gives the dashboard predictable reads.
 
 ### 4.3 System telemetry: Google APIs to bounded AWS storage
 
-The System page calls `/cloud-monitoring` through the same Next.js, API Gateway, and Lambda path. On a cache miss or explicit refresh, the observability Lambda uses a read-only Google service account from Secrets Manager to query Cloud Monitoring. It requests Cloud Run request count, 5xx count, request latency, container startup latency, CPU, memory, and instance count with explicit intervals, aligners, and reducers. Responses are cached for 120 seconds to limit external calls.
+![System telemetry flow](doc_images/kallo-architecture-system-flow.png)
 
-Cloud Run's built-in route label is empty for this service, so it cannot separate the meal-analysis endpoint from ordinary application traffic. EventBridge therefore invokes a bounded Cloud Logging collector every five minutes. The collector reads retained request-log entries, classifies exact `POST /api/analyze-meal` requests as AI and other valid application paths as normal, then replaces hourly histogram summaries in DynamoDB. AWS stores only counts, latency bounds, sums, bucket counts, ingestion time, and expiry. It does not copy URLs, request bodies, users, sessions, or raw log entries.
+*Figure 3. System-telemetry flow extracted from the full architecture.*
+
+The System page follows two coordinated paths:
+
+- On a cache miss or explicit refresh, the observability Lambda uses a read-only Google service account from Secrets Manager to query Cloud Monitoring for Cloud Run traffic, 5xx responses, request latency, startup latency, CPU, memory, and instance count.
+- Every five minutes, EventBridge invokes a bounded Cloud Logging collector that classifies exact `POST /api/analyze-meal` entries as AI traffic and other valid application paths as normal traffic.
+- Monitoring responses are cached for 120 seconds; hourly route histograms are retained in DynamoDB for 32 days.
+- The response merges provider-native Monitoring series with route-separated histogram summaries.
+
+Cloud Run's built-in route label is empty for this service, which is why the bounded Logging collector performs the AI-versus-normal classification. AWS stores only counts, latency bounds, sums, bucket counts, ingestion time, and expiry; it does not copy URLs, request bodies, users, sessions, or raw log entries.
 
 The System response merges provider-native Monitoring series with these route histograms. A one-time bounded backfill populated retained history, and subsequent collection overlaps recent hours so late logs are included. A 32-day Time to Live (TTL) safely covers the 30-day dashboard window.
 
 ### 4.4 Exact meal diagnosis through a restricted RPC
 
-Trace Viewer does not use the batch pipeline. It calls the allow-listed Supabase function `analytics_requests_page` to list bounded requests for the selected window. Selecting a meal opens `/trace/{requestId}`, where the server calls `analytics_trace_detail` and renders ordered stages, timings, and compact structured outputs. The table displays what the person typed, not an aggregation of extracted meal items.
+![Exact meal trace flow](doc_images/kallo-architecture-trace-flow.png)
+
+*Figure 4. Exact trace path extracted from the full architecture.*
+
+Trace Viewer does not use the batch pipeline:
+
+1. The list page calls the allow-listed Supabase function `analytics_requests_page` for the selected window.
+2. The table displays the bounded original meal description rather than an aggregation of extracted items.
+3. Selecting a meal opens `/trace/{requestId}`.
+4. The server calls `analytics_trace_detail` and renders ordered stages, timings, and compact structured outputs on a dedicated page.
 
 This direct path is intentional. Request-level diagnosis needs current detail, while S3 and Glue produce delayed aggregates. The browser never receives the Supabase credential, user or session identifiers, request context, prompts, images, wire responses, or unrestricted rows.
 
 ## 5. Purpose of the cloud components
 
-The presentation and control layer contains **ALB**, **ECS/Fargate**, **ECR**, **API Gateway**, and **Lambda**. ALB is the assessed HTTP ingress and target-health boundary. ECS/Fargate runs the Linux container without a user-managed EC2 server, and ECR stores its versioned image. API Gateway provides the authenticated REST boundary with throttling, quota, CORS, and Lambda proxy integration. Lambda separates extraction, loading, metric reads, run control, Google telemetry collection, and authorization into small event-driven handlers.
+| Service | Implemented responsibility | Why it is justified |
+| --- | --- | --- |
+| ALB | Routes assessed HTTP traffic and checks ECS target health. | Provides the visible AWS ingress and separates public routing from the container task. |
+| ECS/Fargate and ECR | Runs the versioned Next.js Linux image without a user-managed EC2 server. | Keeps deployment reproducible while avoiding server maintenance. |
+| API Gateway | Exposes authenticated REST routes with throttling, quota, CORS, and Lambda proxy integration. | Creates one controlled API boundary for the dashboard. |
+| Lambda | Implements authorization, extraction, loading, aggregate reads, run control, and Google telemetry collection. | Fits short, event-driven operations with separate responsibilities. |
+| S3 | Stores raw JSONL, immutable manifests, curated Parquet, aggregate JSON, and Glue code. | Creates a durable and auditable boundary between pipeline stages. |
+| Glue | Joins and transforms sanitised sources into reusable curated and aggregate outputs. | Makes the multi-source transformation repeatable and success-gated. |
+| DynamoDB | Serves thirteen aggregate contracts, run state, guards, short caches, and route histograms. | Provides predictable keyed reads without scanning production data. |
+| EventBridge | Schedules daily snapshots and five-minute log ingestion; routes Glue completion events. | Automates the system without keeping a worker running. |
+| Secrets Manager | Stores Supabase, Google, API, and dashboard secrets outside code and images. | Centralises secret handling at runtime. |
+| CloudWatch | Records Lambda/ECS logs and native AWS metrics. | Provides evidence and diagnosis for the assessed AWS runtime. |
 
-The data layer contains **S3**, **Glue**, and **DynamoDB**. S3 stores raw JSONL, manifests, curated Parquet, aggregate JSON, and Glue code. Glue implements the repeatable analytics transformation. DynamoDB serves thirteen aggregate contracts, manual run state and guard records, short Monitoring caches, and hourly route histograms. On-demand capacity and TTL reduce operational work for a low-traffic assessment system.
-
-The automation and operations layer contains **EventBridge**, **Secrets Manager**, and **CloudWatch**. EventBridge schedules the daily snapshot and five-minute log ingestion, and it routes Glue success or failure events. Secrets Manager stores Supabase credentials, the Google service-account JSON, the API bearer token, and dashboard login secrets outside code and container images. CloudWatch records Lambda and ECS logs and native AWS metrics. AWS Academy requires the shared `LabRole`; in a normal account, each Lambda would receive a separate least-privilege role.
+AWS Academy requires the shared `LabRole`; in a normal account, each Lambda would receive a separate least-privilege role.
 
 ## 6. Data structures and API usage
 
@@ -96,11 +138,23 @@ The six Supabase analytics views cover meal activity, AI calls, ingredient decis
 
 S3 paths are run-specific: `raw/<source>/dt=<date>/run=<id>/`, `raw/_manifests/`, `curated/<dataset>/`, and `aggregates/<metric>.json`. This structure prevents files from different generations from being mixed. The manifest, rather than a "latest file" lookup, is the hand-off contract between extraction, Glue, and loading.
 
-DynamoDB uses `metric` as the partition key and an observation date or UTC hour as the sort key. Aggregate items hold one of thirteen bounded payloads, including activity, AI latency, model failures, token cost, ingredient demand, mappings, gaps, rank distribution, and implausible foods. Separate keys store run state, a 30-minute global run guard, the short Cloud Monitoring cache, and route histograms. This design lets the dashboard query small known keys instead of scanning raw production data.
+| Store | Key or layout | Purpose |
+| --- | --- | --- |
+| S3 raw | `raw/<source>/dt=<date>/run=<id>/` plus manifest | Preserves one immutable source generation. |
+| S3 curated | `curated/<dataset>/` and `aggregates/<metric>.json` | Holds reusable Parquet and bounded Glue outputs. |
+| DynamoDB aggregates | `metric` plus observation date | Serves product charts and tables by known key. |
+| DynamoDB operations | Run IDs, a 30-minute run guard, cache keys, and UTC histogram hours | Coordinates runs, refresh caching, and route-latency history. |
 
 ### 6.2 AWS and external API contracts
 
-API Gateway exposes four assessed contracts: `GET /metrics/{metric}` returns one allow-listed aggregate; `POST /runs` starts a founder-only snapshot or returns the shared guard boundary; `GET /runs/{run_id}` reports extract, Glue, and load state; and `GET /cloud-monitoring` returns cached or refreshed Monitoring series merged with stored route histograms. The exact trace RPC remains behind a same-origin Next.js route because it is already restricted at the database function and server layer. Adding another proxy would add latency without improving the aggregate API boundary.
+| Route | Method | Result |
+| --- | --- | --- |
+| `/metrics/{metric}` | GET | Returns one allow-listed DynamoDB aggregate filtered to the requested window. |
+| `/runs` | POST | Starts a founder-only snapshot or returns the active global run guard. |
+| `/runs/{run_id}` | GET | Reports extract, Glue, load, success, or failure state. |
+| `/cloud-monitoring` | GET | Returns cached or refreshed Monitoring series merged with stored route histograms. |
+
+The exact trace RPC remains behind a same-origin Next.js route because it is already restricted at the database-function and server layers. Adding another proxy would add latency without improving the aggregate API boundary.
 
 The first external integration is **Supabase PostgREST/RPC**. PostgREST supplies sanitised views to the extractor, while two migration-controlled database functions provide bounded trace list and detail results. The second integration is **Google Cloud Monitoring and Logging APIs**. The Monitoring API supplies provider-generated time series; the Logging API supplies retained request entries needed for route classification. Both integrations are called automatically by deployed code, which satisfies the assignment definition of an implemented API rather than a manual console export.
 
@@ -108,29 +162,71 @@ The Google reader holds only `roles/monitoring.viewer` and `roles/logging.viewer
 
 ## 7. Metric meaning, freshness, and interpretation
 
-Three latency measures must remain separate. **Normal API latency** is the complete Cloud Run duration for valid application requests other than the exact meal-analysis endpoint. **Cloud Run AI endpoint latency** is the complete HTTP duration for `POST /api/analyze-meal`, including platform and framework overhead, retrieval, model work, response assembly, and logged failures. **Recorded AI pipeline latency** comes from application-written `pipeline_runs.total_ms`, grouped by UTC day and terminal model, then materialised through Glue. The endpoint and pipeline charts do not use the same population or boundary, so they should be compared only after selecting the same time window.
+| Metric | Source and measurement boundary | Freshness |
+| --- | --- | --- |
+| Normal API latency | Cloud Logging duration for valid application requests other than exact `POST /api/analyze-meal`. | Five-minute collector; retained as hourly histograms. |
+| Cloud Run AI endpoint latency | Complete HTTP duration for exact `POST /api/analyze-meal`, including failures and platform/framework overhead. | Five-minute collector; retained as hourly histograms. |
+| Recorded AI pipeline latency | Application-written `pipeline_runs.total_ms`, grouped by UTC day and terminal model. | Latest successful batch snapshot. |
+| Container startup latency | Provider-native Cloud Monitoring distribution for new Cloud Run instances. | Live query, subject to the 120-second cache. |
+
+These charts do not use the same population or boundary, so they should be compared only after selecting the same time window.
 
 Very low AI endpoint points can represent requests rejected early with statuses such as 400, 401, or 429. A fast failure is still a real HTTP request but does not mean the meal pipeline completed quickly. The chart should therefore be interpreted with traffic and response-code data; a future refinement can show successful and failed endpoint latency as separate series. A latency spike may coincide with container startup when minimum instances are zero, but correlation with the startup chart does not prove causation.
 
 Route percentiles use mergeable histograms. Each hourly route summary counts observations in fixed millisecond ranges that double from 1 ms to 128 seconds. To estimate p95 or p99, the collector finds the bucket containing the target rank and interpolates between that bucket's bounds, then clamps the result to the observed minimum and maximum. The exact request value is not retained, so the percentile is an estimate. At low traffic, p95 and p99 often occupy the same top bucket and can overlap. At higher traffic, the estimate becomes statistically steadier, although bucket width still limits precision.
 
-Freshness follows the source, not the login session. **Run snapshot** creates new product aggregates through Supabase, S3, Glue, the loader, and DynamoDB. Clicking Refresh on Today, AI, or Ingredients only re-reads the newest completed snapshot; it cannot create new source data. **System Refresh** bypasses the 120-second cache and queries current Google Monitoring series while re-reading route histograms collected on the five-minute schedule. **Trace Refresh** runs the restricted RPC again. Logging out removes the browser session but does not clear DynamoDB, Google telemetry, Supabase data, or either EventBridge schedule.
+Freshness follows the source, not the login session.
+
+| Action | Source contacted | Can it create newer data? |
+| --- | --- | --- |
+| Run snapshot | Supabase → S3 → Glue → DynamoDB | Yes. It publishes new product aggregates after Glue succeeds. |
+| Refresh on Today, AI, or Ingredients | DynamoDB | No. It re-reads the newest completed snapshot. |
+| Refresh on System | Google Monitoring plus DynamoDB route histograms | Partly. It bypasses the Monitoring cache, but histogram freshness still follows the five-minute collector. |
+| Refresh on Trace Viewer | Restricted Supabase RPC | Yes. It re-queries current bounded trace data. |
+
+Logging out removes only the browser session; it does not clear DynamoDB, Google telemetry, Supabase data, or either EventBridge schedule.
 
 Google alignment is chosen to match the display window. Up to seven days uses one-hour alignment, while 30 days uses six-hour alignment. Counts are summed. Instance count uses mean alignment before cross-series summation because Cloud Run emits active, idle, and revision series separately; summing independent maxima could invent a peak that never occurred at one time.
 
 ## 8. Security, reliability, and cost decisions
 
-Security is enforced through several narrow boundaries. Browser traffic is same-origin, API secrets remain server-side, and founder or reviewer sessions are signed and HttpOnly. Mutating routes require founder permission and a matching origin. Supabase views and RPCs are allow-listed, Google roles are read-only, S3 blocks public access, and secrets remain in Secrets Manager. No raw log body, prompt, image, actor identifier, or unrestricted trace is stored in DynamoDB or rendered in the dashboard.
+### 8.1 Security controls
 
-Reliability comes from immutable manifests, success-only loading, conditional DynamoDB writes, and idempotent replacements. The global run guard stops duplicate manual batches across browsers and devices. Recent log hours are deliberately re-read and replaced to capture late entries. The UI distinguishes loading, empty, unavailable, and stale states rather than showing a misleading zero.
+- Browser traffic remains same-origin; AWS and external-service secrets never enter browser JavaScript.
+- Founder and reviewer sessions are HMAC-signed, HttpOnly, and SameSite=Strict.
+- Mutating routes require founder permission and a matching origin.
+- Supabase views, RPC names, and AWS metric names are allow-listed.
+- Google access is read-only, S3 blocks public access, and secrets remain in Secrets Manager.
+- DynamoDB stores no raw log body, prompt, image, actor identifier, or unrestricted trace.
 
-Cost controls fit the temporary Learner Lab environment. Lambda reserved concurrency totals eight of the ten available lanes. API Gateway is capped at 2 requests per second with a burst of 5 and a monthly quota. Glue uses two G.1X workers, a ten-minute timeout, one concurrent job, and no automatic retry. DynamoDB uses on-demand capacity, Monitoring responses are cached for 120 seconds, and route summaries expire automatically. The ALB/Fargate presentation tier is created for assessment sessions and removed afterward; a stable external testing mirror provides continuity without being claimed as AWS deployment evidence.
+### 8.2 Reliability controls
+
+- Immutable manifests bind every Glue run to one source generation.
+- Success-only loading prevents partial aggregates from becoming visible.
+- Conditional writes and idempotent replacement make retries safe.
+- A global run guard stops duplicate manual batches across browsers and devices.
+- Recent log hours are re-read to capture late entries.
+- The UI distinguishes loading, empty, unavailable, and stale states from a valid zero.
+
+### 8.3 Cost controls
+
+- Lambda reserved concurrency totals eight of the ten available Learner Lab lanes.
+- API Gateway is capped at 2 requests per second, a burst of 5, and a monthly quota.
+- Glue uses two G.1X workers, a ten-minute timeout, one concurrent job, and no automatic retry.
+- DynamoDB uses on-demand capacity; Monitoring results are cached for 120 seconds; route summaries expire through TTL.
+- The ALB/Fargate presentation tier is created for assessment sessions and removed afterward.
+- A stable external testing mirror provides continuity without being claimed as AWS deployment evidence.
 
 ## 9. Validation, limitations, and future direction
 
 The project is defined through CloudFormation as a persistent data stack and a disposable presentation stack. Deployment scripts package Lambda code, upload Glue sources, update the stacks, build and push the dashboard image, and start or stop ECS/ALB. Automated checks cover Python tests, TypeScript, the production Next.js build, CloudFormation linting, shell syntax, and diagram validation. Demonstration evidence should pair each visible dashboard action with the corresponding AWS console page and CloudWatch log, while credentials and account identifiers remain redacted.
 
-The current design is appropriate for assessment traffic, not unlimited growth. Polling retained log entries will become inefficient at high request volume. A larger production system should emit route-labelled OpenTelemetry histograms or use streaming aggregation, while retaining sampled exact traces for diagnosis. Histogram boundaries should be versioned before they are narrowed because summaries with different bucket definitions cannot be merged safely. Longer-term telemetry can be stored at a coarser resolution if a future capacity-planning requirement justifies it.
+The current design is appropriate for assessment traffic, not unlimited growth. Future work should:
+
+- replace retained-log polling with route-labelled OpenTelemetry histograms or streaming aggregation;
+- retain sampled exact traces for diagnosis without copying unrestricted production data;
+- version histogram boundaries before changing them because incompatible bucket definitions cannot be merged safely; and
+- store older telemetry at a coarser resolution only when a capacity-planning requirement justifies it.
 
 ## 10. Conclusion
 
