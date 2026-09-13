@@ -6,6 +6,32 @@ Document status: Condensed foundation for final submission
 
 This report is written so that a reader can understand the product before seeing its cloud implementation. It first explains the operational problem and dashboard experience, then follows each client action through AWS and the two external APIs. Detailed deployment commands and the ten-minute demonstration sequence are maintained separately from the assessed report.
 
+## Table of contents
+
+- [1. Submission links](#1-submission-links)
+- [2. From meal data to an operator view](#2-from-meal-data-to-an-operator-view)
+  - [2.1 Project summary](#21-project-summary)
+  - [2.2 Motivation and beneficiaries](#22-motivation-and-beneficiaries)
+  - [2.3 Operator views](#23-operator-views)
+- [3. Related work and design position](#3-related-work-and-design-position)
+- [4. Architecture and automated client operations](#4-architecture-and-automated-client-operations)
+  - [4.1 Authenticated client path](#41-authenticated-client-path)
+  - [4.2 Product analytics: Supabase to S3, Glue, and DynamoDB](#42-product-analytics-supabase-to-s3-glue-and-dynamodb)
+  - [4.3 System telemetry: Google APIs to bounded AWS storage](#43-system-telemetry-google-apis-to-bounded-aws-storage)
+  - [4.4 Exact meal diagnosis through a restricted RPC](#44-exact-meal-diagnosis-through-a-restricted-rpc)
+- [5. Purpose of the cloud components](#5-purpose-of-the-cloud-components)
+- [6. Data structures and API usage](#6-data-structures-and-api-usage)
+  - [6.1 Data contracts](#61-data-contracts)
+  - [6.2 AWS and external API contracts](#62-aws-and-external-api-contracts)
+- [7. Metric meaning, freshness, and interpretation](#7-metric-meaning-freshness-and-interpretation)
+- [8. Security, reliability, and cost decisions](#8-security-reliability-and-cost-decisions)
+  - [8.1 Security controls](#81-security-controls)
+  - [8.2 Reliability controls](#82-reliability-controls)
+  - [8.3 Cost controls](#83-cost-controls)
+- [9. Validation, limitations, and future direction](#9-validation-limitations-and-future-direction)
+- [10. Conclusion](#10-conclusion)
+- [References](#references)
+
 ## 1. Submission links
 
 | Item | Submission |
@@ -30,7 +56,7 @@ Kallo's main application was already functional, but its operational evidence wa
 
 The founder uses the dashboard to monitor reliability, adoption, and model cost. Product engineers can separate HTTP latency, recorded pipeline latency, model failures, and container startup. Food-data maintainers can inspect frequent ingredient demand, accepted candidates, gaps, and suspicious nutrition records. The architecture also gives an assessor a complete path from a client action to automated AWS processing and an interpretable result.
 
-### 2.3 What the operator sees
+### 2.3 Operator views
 
 | Page | Main source | Operator question |
 | --- | --- | --- |
