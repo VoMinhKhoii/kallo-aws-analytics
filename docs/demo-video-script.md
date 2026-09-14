@@ -18,8 +18,9 @@ The recording should show the product on the left (about 60% width) and AWS Mana
 8. Open the following AWS tabs in this order:
 
    - CloudFormation -> Stacks -> `kallo-presentation` -> Resources
-   - ECS -> Clusters -> the physical ID of `DashboardCluster` -> Services/Tasks
-   - EC2 -> Load Balancers -> the physical ID of `DashboardLoadBalancer`
+   - EC2 -> Load Balancers and Target Groups -> use the physical IDs from `kallo-presentation`
+   - ECS -> Clusters -> the physical ID of `DashboardCluster` -> `DashboardService` -> Tasks
+   - ECR -> Repositories -> the repository containing the image referenced by `DashboardTaskDefinition`
    - CloudFormation -> Stacks -> `kallo-data` -> Resources
    - API Gateway -> `kallo-data-analytics-api` -> Resources
    - DynamoDB -> Tables -> the physical ID of `AnalyticsTable` -> Explore table items
@@ -55,11 +56,11 @@ Use the CloudFormation **Resources** tabs as the directory of truth. Click a res
 
 **Left - Action:** Open the ALB dashboard URL. Briefly sign in as reviewer, show that **Run snapshot** is founder-only, then return to the founder session.
 
-**Right - Action:** In `kallo-presentation` Resources, highlight `DashboardLoadBalancer`, `DashboardCluster`, `DashboardService`, and `DashboardTaskDefinition`. Switch briefly to ECS and show one running Fargate task and healthy service.
+**Right - Action:** In `kallo-presentation` Resources, highlight `DashboardLoadBalancer`, `DashboardCluster`, `DashboardService`, and `DashboardTaskDefinition`. Switch briefly to ECS and show one running Fargate task and healthy service, then show the referenced image in ECR. For login evidence, show only the task definition's secret names and the Secrets Manager list view.
 
 **Say:**
 
-> The browser reaches an Application Load Balancer, which forwards to a Next.js container on ECS Fargate. The image comes from ECR. The target group checks `/api/health`. Reviewer sessions are read-only, while founder access is required for the only mutating dashboard action. Credentials are injected from Secrets Manager rather than stored in the image.
+> The browser reaches an Application Load Balancer, which forwards to a Next.js container on ECS Fargate. The image comes from ECR. The target group checks `/api/health`. Reviewer sessions are read-only, while founder access is required for the only mutating dashboard action. There is intentionally no DynamoDB user table: CloudFormation creates separate founder, reviewer, and session secrets, ECS injects them into Next.js, and the browser receives only an HMAC-signed, HttpOnly, SameSite=Strict session cookie.
 
 **Evidence:** ECS desired/running count `1`, Fargate launch type, healthy ALB target, task definition container named `dashboard`.
 
@@ -168,7 +169,7 @@ Stop recording by **9:30**. Leave the remaining 30 seconds as safety margin.
 | Product page/action | Runtime path | AWS Console evidence page | What it proves |
 | --- | --- | --- | --- |
 | Open AWS dashboard | Browser -> ALB -> ECS Fargate Next.js container | CloudFormation `kallo-presentation`; EC2 Load Balancers/Target Groups; ECS Cluster/Service/Task | AWS client deployment, health-checked ingress, container execution |
-| Login/logout and role check | Next.js signed `HttpOnly` session; secrets injected into task | ECS Task Definition -> Secrets; Secrets Manager list | Server-side authentication configuration without exposing values |
+| Login/logout and role check | Founder/reviewer credentials and session key from Secrets Manager -> ECS task -> signed `HttpOnly` browser cookie; no DynamoDB user table | ECS Task Definition -> Secrets; Secrets Manager list | Server-side authentication and founder-only mutation without exposing values |
 | Today: change window | Next.js -> API Gateway `GET /metrics/{metric}` -> Authorizer -> Metrics Lambda -> DynamoDB | API Gateway Resources; Lambda Metrics function; DynamoDB items | Automated, time-filtered aggregate reads |
 | AI: hover/change window | Same aggregate route for `ai_latency`, `ai_failure_rate`, `token_cost_daily` | DynamoDB items; S3 `aggregates/`; Glue job | AI observations are precomputed, persisted, and interpretable |
 | Ingredients: paginate/filter | Metrics route -> DynamoDB aggregate pages | DynamoDB items; Glue job; S3 raw/curated/aggregates | Batch retrieval/coverage transformation and bounded pagination |
