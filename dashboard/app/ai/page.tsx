@@ -30,9 +30,9 @@ function CallsPanel({ rows, state }: { rows: LatencyRow[]; state: MetricBundleSt
   const trend: TrendPoint[] = [...grouped].map(([date, dayRows]) => ({
     date,
     calls: dayRows.reduce((sum, row) => sum + row.call_count, 0),
-    details: dayRows.map((row) => ({ label: row.model, value: `${formatNumber(row.call_count)} calls` })),
+    details: dayRows.map((row) => ({ label: row.model, value: `${formatNumber(row.call_count)} runs` })),
   })).sort((a, b) => a.date.localeCompare(b.date));
-  return <Panel title="AI calls over time" description="Completed model-call observations per UTC day; hover for the model split." source={<SourceTag>Analytics aggregate</SourceTag>}><MetricState loading={state.loading} error={metricError(state, "ai_latency")} empty={trend.length === 0} emptyMessage="No AI call rows were returned for this window."><div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={trend} series={[{ key: "calls", label: "AI calls", color: "var(--console-blue)" }]} ariaLabel="AI calls over time" tooltipDetails={(point) => detailList((point?.details ?? []) as Detail[])} /></div></MetricState></Panel>;
+  return <Panel title="AI pipeline runs over time" description="Recorded pipeline runs per UTC day; hover for the terminal-model split." source={<SourceTag>Analytics aggregate</SourceTag>}><MetricState loading={state.loading} error={metricError(state, "ai_latency")} empty={trend.length === 0} emptyMessage="No recorded pipeline rows were returned for this window."><div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={trend} series={[{ key: "calls", label: "Pipeline runs", color: "var(--console-blue)" }]} ariaLabel="AI pipeline runs over time" tooltipDetails={(point) => detailList((point?.details ?? []) as Detail[])} /></div></MetricState></Panel>;
 }
 
 function LatencyPanel({ rows, state }: { rows: LatencyRow[]; state: MetricBundleState }) {
@@ -45,7 +45,7 @@ function LatencyPanel({ rows, state }: { rows: LatencyRow[]; state: MetricBundle
     p99: Math.max(...dayRows.map((row) => row.p99_ms ?? 0)),
     details: dayRows.map((row) => ({ label: row.model, value: `p95 ${formatDuration(row.p95_ms)} · n=${row.call_count}` })),
   })).sort((a, b) => a.date.localeCompare(b.date));
-  return <Panel title="Recorded AI pipeline latency" description="Daily pipeline_runs.total_ms percentiles; hover for each terminal model's p95 and sample." source={<SourceTag>Analytics aggregate</SourceTag>}><MetricState loading={state.loading} error={metricError(state, "ai_latency")} empty={trend.length === 0} emptyMessage="No recorded AI pipeline latency rows were returned for this window."><div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={trend} series={[{ key: "p50", label: "p50", color: "var(--console-green)" }, { key: "p95", label: "p95", color: "var(--console-blue)" }, { key: "p99", label: "p99", color: "var(--console-brick)" }]} ariaLabel="Recorded AI pipeline latency percentiles over time" format="duration" tooltipDetails={(point) => detailList((point?.details ?? []) as Detail[])} /></div></MetricState></Panel>;
+  return <Panel title="Recorded AI pipeline latency" description="Highest terminal-model percentile per UTC day; hover for each model’s p95 and sample." source={<SourceTag>Analytics aggregate</SourceTag>}><MetricState loading={state.loading} error={metricError(state, "ai_latency")} empty={trend.length === 0} emptyMessage="No recorded AI pipeline latency rows were returned for this window."><div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={trend} series={[{ key: "p50", label: "Highest model p50", color: "var(--console-green)" }, { key: "p95", label: "Highest model p95", color: "var(--console-blue)" }, { key: "p99", label: "Highest model p99", color: "var(--console-brick)" }]} ariaLabel="Recorded AI pipeline latency percentiles over time" format="duration" tooltipDetails={(point) => detailList((point?.details ?? []) as Detail[])} /></div></MetricState></Panel>;
 }
 
 function FailurePanel({ rows, state }: { rows: FailureRow[]; state: MetricBundleState }) {
@@ -83,14 +83,15 @@ export default function AiPage() {
   const latency = (bundle.data?.ai_latency ?? []) as LatencyRow[];
   const failures = (bundle.data?.ai_failure_rate ?? []) as FailureRow[];
   const costs = (bundle.data?.token_cost_daily ?? []) as TokenCostRow[];
-  const latestLatency = latestByDate(latency);
+  const latestDate = latestByDate(latency)?.date;
+  const latestLatency = latency.filter(row => row.date === latestDate).sort((a,b) => b.p95_ms - a.p95_ms)[0];
   const failureEvents = failures.reduce((sum, row) => sum + row.event_count, 0);
   const failureCount = failures.reduce((sum, row) => sum + row.failure_count, 0);
   const knownCost = costs.filter((row) => row.pricing_known).reduce((sum, row) => sum + row.cost_usd, 0);
   const hasKnownCost = costs.some((row) => row.pricing_known);
 
   return <ConsolePage><PageIntro eyebrow="AI" title="AI" description="AI call volume, latency, failures, tokens, estimated cost, and exact meal-call traces."><div className="flex flex-wrap items-center gap-2"><RangeControl value={range} onChange={setRange} label="Window" /><RefreshButton refreshing={bundle.refreshing || requests.refreshing} onClick={() => { bundle.refresh(); requests.refresh(); }} /></div></PageIntro><div className="mt-3 grid gap-3"><MetricRibbon items={[
-    { label: "Latest p95", value: formatDuration(latestLatency?.p95_ms), detail: latestLatency?.date ?? "No latency row", tone: "blue", loading: bundle.loading, error: metricError(bundle, "ai_latency") },
+    { label: "Latest highest model p95", value: formatDuration(latestLatency?.p95_ms), detail: latestLatency ? `${latestLatency.date} · ${latestLatency.model}` : "No latency row", tone: "blue", loading: bundle.loading, error: metricError(bundle, "ai_latency") },
     { label: "Failure rate", value: formatPercent(failureEvents ? failureCount / failureEvents : undefined), detail: failureEvents ? `${failureCount} of ${failureEvents} events` : "No failure rows", tone: failureCount ? "amber" : "green", loading: bundle.loading, error: metricError(bundle, "ai_failure_rate") },
     { label: "Estimated cost", value: hasKnownCost ? `$${knownCost.toFixed(4)}` : "Price unavailable", detail: "token rate card", loading: bundle.loading, error: metricError(bundle, "token_cost_daily") },
     { label: "Exact traces", value: formatNumber(requests.total || undefined), detail: "Supabase RPC rows", loading: requests.loading, error: requests.error },

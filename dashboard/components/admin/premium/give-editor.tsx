@@ -21,7 +21,7 @@ export function GiveEditor({ onSaved }: { onSaved: () => void }) {
   }
   async function apply() {
     setBusy(true); setError('');
-    try { await api('', { action, input: { who, reason, confirm, mode, length: unit === 'days' ? { unit, days } : { unit, until } } }); onSaved(); }
+    try { await api('', { action, input: { who, reason, confirm, mode, length: unit === 'days' ? { unit, days } : { unit, until } } }); setPreview(null); setConfirm(''); onSaved(); }
     catch(e) { setError((e as Error).message); } finally { setBusy(false); }
   }
   return <div className="grid gap-5">

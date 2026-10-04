@@ -11,15 +11,18 @@ export async function GET(request: Request) {
   const connection = connectAdminDb();
   try {
     const db = connection.db;
+    const today = new Date().toISOString().slice(0, 10);
+    const start = sql`((${today}::date - (${Number(days.data)} - 1))::timestamp AT TIME ZONE 'UTC')`;
+    const end = sql`((${today}::date + 1)::timestamp AT TIME ZONE 'UTC')`;
     const [summary] = await db.execute(sql`SELECT
       (SELECT count(*)::int FROM auth.users) AS accounts,
-      (SELECT count(*)::int FROM auth.users WHERE created_at >= now() - make_interval(days => ${Number(days.data)})) AS signups,
+      (SELECT count(*)::int FROM auth.users WHERE created_at >= ${start} AND created_at < ${end}) AS signups,
       (SELECT count(*)::int FROM public.user_feedback WHERE status = 'open') AS open_feedback,
       count(*)::int AS requests,
       count(*) FILTER (WHERE status = 'error')::int AS errors,
       percentile_disc(0.95) WITHIN GROUP (ORDER BY duration_ms) AS p95_ms
-      FROM public.pipeline_requests WHERE created_at >= now() - make_interval(days => ${Number(days.data)}) AND replay_of_request_id IS NULL`);
-    const trend = await db.execute(sql`WITH dates AS (SELECT generate_series((current_date - (${Number(days.data)} - 1))::timestamp, current_date::timestamp, interval '1 day') AS day)
+      FROM public.pipeline_requests WHERE created_at >= ${start} AND created_at < ${end} AND replay_of_request_id IS NULL`);
+    const trend = await db.execute(sql`WITH dates AS (SELECT generate_series((${today}::date - (${Number(days.data)} - 1))::timestamp, ${today}::date::timestamp, interval '1 day') AS day)
       SELECT to_char(d.day, 'YYYY-MM-DD') AS date, count(r.id)::int AS requests,
       count(r.id) FILTER (WHERE r.status = 'error')::int AS errors
       FROM dates d LEFT JOIN public.pipeline_requests r ON r.created_at >= d.day AT TIME ZONE 'UTC' AND r.created_at < (d.day + interval '1 day') AT TIME ZONE 'UTC' AND r.replay_of_request_id IS NULL

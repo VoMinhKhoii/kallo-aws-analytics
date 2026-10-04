@@ -51,11 +51,11 @@ export async function getDirectMonitoring(from: string, to: string, refresh = fa
     } while (true);
   }
   await Promise.all([
-    ...[50,95,99].map(n => collect(`p${n}_ms` as keyof CloudRunSystemPoint,'run.googleapis.com/request_latencies',`ALIGN_PERCENTILE_${n}`,`REDUCE_PERCENTILE_${n}`)),
+    ...[50,95,99].map(n => collect(`p${n}_ms` as keyof CloudRunSystemPoint,'run.googleapis.com/request_latencies','ALIGN_SUM',`REDUCE_PERCENTILE_${n}`)),
     collect('request_count','run.googleapis.com/request_count','ALIGN_SUM','REDUCE_SUM',true),
-    collect('startup_p95_ms','run.googleapis.com/container/startup_latencies','ALIGN_PERCENTILE_95','REDUCE_PERCENTILE_95'),
-    collect('cpu_p95','run.googleapis.com/container/cpu/utilizations','ALIGN_PERCENTILE_95','REDUCE_PERCENTILE_95'),
-    collect('memory_p95','run.googleapis.com/container/memory/utilizations','ALIGN_PERCENTILE_95','REDUCE_PERCENTILE_95'),
+    collect('startup_p95_ms','run.googleapis.com/container/startup_latencies','ALIGN_SUM','REDUCE_PERCENTILE_95'),
+    collect('cpu_p95','run.googleapis.com/container/cpu/utilizations','ALIGN_SUM','REDUCE_PERCENTILE_95'),
+    collect('memory_p95','run.googleapis.com/container/memory/utilizations','ALIGN_SUM','REDUCE_PERCENTILE_95'),
     collect('instances','run.googleapis.com/container/instance_count','ALIGN_MEAN','REDUCE_SUM'),
   ]);
   const value: CloudMonitoringResponse = { source: 'google-cloud-monitoring', delivery_source: 'cloudflare-direct', project, service, location, from, to, alignment_seconds: alignment, collected_at: new Date().toISOString(), series: [...rows.values()].sort((a,b) => a.timestamp.localeCompare(b.timestamp)).map(row => ({ ...row, error_count: row.error_count || 0, error_rate: row.request_count ? (row.error_count || 0) / row.request_count : 0 })) };

@@ -40,16 +40,48 @@ const search = await request('/api/admin/premium?search='+query,founder); assert
 const account = await request('/api/admin/premium?account='+search.body[0].id,founder); assert.equal(account.status,200); assert.ok(Array.isArray(account.body.grants));
 const preview = await request('/api/admin/premium',founder,{ action:'preview',input:{ kind:'users',userIds:[search.body[0].id] } });assert.equal(preview.status,200);assert.equal(typeof preview.body.accounts,'number');
 console.log('PASS account search, grants, and nonmutating preview.');
+for (const days of [7,30,90]) {
+  const overview = await request('/api/admin/overview?days='+days,founder);
+  assert.equal(overview.status,200);
+  assert.equal(overview.body.trend.length,days);
+  assert.equal(overview.body.summary.requests,overview.body.trend.reduce((n: number,r: { requests: number }) => n+r.requests,0));
+  assert.equal(overview.body.summary.errors,overview.body.trend.reduce((n: number,r: { errors: number }) => n+r.errors,0));
+}
+for (const kind of ['requests','feedback']) {
+  const statuses = kind === 'requests' ? ['success','error','pending'] : ['open','triaged','resolved','wontfix'];
+  for (const status of statuses) {
+    const records = await request(`/api/admin/records?kind=${kind}&status=${status}`,founder);
+    assert.equal(records.status,200);
+    assert.ok(records.body.rows.every((row: { status: string }) => row.status===status));
+    assert.ok(records.body.rows.length<=30);
+  }
+  assert.equal((await request(`/api/admin/records?kind=${kind}&page=2`,founder)).status,200);
+}
+for (const path of ['/','/premium','/requests','/feedback','/analytics','/ai','/ingredients','/system','/trace']) {
+  const page = await request(path,founder);
+  assert.equal(page.status,200,path); assert.ok(String(page.body).includes('Kallo admin'));
+}
+console.log('PASS UTC summary/chart agreement, filters, pagination, and every workspace route.');
 const requests = await request('/api/admin/records?kind=requests',founder);
 if (requests.body.rows.length) { const detail = await request('/api/admin/records?kind=requests&id='+requests.body.rows[0].id,founder);assert.equal(detail.status,200); assert.ok(Array.isArray(detail.body.stages)); }
 const to=new Date().toISOString().slice(0,10);const from=new Date(Date.now()-6*86400000).toISOString().slice(0,10);
 const names='dau_wau,macro_distributions,ai_latency,ai_failure_rate,token_cost_daily,match_rate,implausible_foods,app_health,ingredient_demand,ingredient_mappings,corpus_reverse_lookup,ingredient_gaps,ingredient_rank_distribution';
 const metrics=await request(`/api/metrics?metrics=${names}&from=${from}&to=${to}`,founder);assert.equal(metrics.status,200);assert.deepEqual(metrics.body.errors,{});assert.equal(Object.keys(metrics.body.data).length,13);
+for (const row of metrics.body.data.dau_wau) assert.ok(row.dau>=0 && row.wau>=row.dau);
+for (const row of metrics.body.data.ai_failure_rate) assert.ok(row.failure_count<=row.event_count && row.failure_rate>=0 && row.failure_rate<=1);
+for (const row of metrics.body.data.ai_latency) assert.ok(row.p50_ms<=row.p95_ms && row.p95_ms<=row.p99_ms);
+for (const row of metrics.body.data.ingredient_rank_distribution) assert.ok(row.share>0 && row.share<=1 && row.selected_rank<=row.pool_size);
 const monitoring=await request(`/api/cloud-monitoring?from=${from}&to=${to}`,founder);assert.equal(monitoring.status,200);assert.ok(monitoring.body.series.length);assert.equal(monitoring.body.delivery_source,'cloudflare-direct');
 const rpc=await request('/api/analytics?fn=requestsPage&range=7d',founder);assert.equal(rpc.status,200);
 console.log('PASS all 13 metrics, Google Monitoring, bounded trace RPC, request inspection.');
 const invalid = { action:'give', input:{ who:{kind:'everyone'},length:{unit:'days',days:14},mode:'extend',reason:'Validation only'} };
 assert.equal((await request('/api/admin/premium',founder,invalid)).status,400);
+for (const payload of [{action:'end',input:{who:{kind:'everyone'},reason:'Validation only',confirm:'EVERYONE'}},{action:'offer',input:{enabled:true,days:366,reason:'Validation only'}},{action:'undo',input:{id:'invalid',reason:'Validation only'}}])
+  assert.equal((await request('/api/admin/premium',founder,payload)).status,400);
+assert.equal((await request('/api/admin/records',founder,{id:'00000000-0000-4000-8000-000000000000',status:'triaged'})).status,404);
+assert.equal((await request('/api/admin/records',founder,{id:'invalid',status:'triaged'})).status,400);
+assert.equal((await request(`/api/metrics?metrics=${names}&from=2026-02-30&to=${to}`,founder)).status,400);
+assert.equal((await request(`/api/cloud-monitoring?from=${to}&to=${from}`,founder)).status,400);
 assert.equal((await request('/api/admin/premium',founder,{action:'preview',input:{kind:'everyone'}},'https://attacker.example')).status,403);
 const reviewer=await login('REVIEWER');
 assert.equal((await request('/api/admin/premium',reviewer)).status,403);

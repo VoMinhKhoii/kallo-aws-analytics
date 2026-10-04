@@ -51,7 +51,7 @@ export function Topbar() {
   const [navOpen, setNavOpen] = React.useState(false);
   const health = useHealth(enabled);
   const auth = useSessionRole(enabled);
-  const title = TITLES[pathname] ?? "Kallo analytics";
+  const title = TITLES[pathname] ?? "Kallo admin";
 
   if (!enabled) return null;
 

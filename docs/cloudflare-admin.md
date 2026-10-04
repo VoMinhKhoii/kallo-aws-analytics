@@ -45,6 +45,7 @@ npm ci
 npx wrangler whoami
 npm run typecheck
 npm run test:admin
+npm run test:metrics
 npm run deploy
 ```
 
@@ -86,12 +87,17 @@ business records. It uses public DNS to avoid a cached predeployment DNS failure
 - Founder login, overview, Premium, account search/details, request/feedback lists,
   request inspection, and grant previews.
 - Anonymous/reviewer denial for founder APIs and cross-origin mutation denial.
-- Unit checks for bulk confirmation, bounds, paying-subscriber SQL exclusion,
-  offer expiry, and authorization.
+- Eleven Premium safety and isolated PostgreSQL integration checks for grant,
+  end, undo, targeting, paying-account protection, offer settings, and rollback.
+- Three metric checks cover all thirteen SQL metrics with controlled data,
+  distribution-preserving Monitoring aggregation, and coherent daily mappings.
 - Live reads of thirteen analytics metrics and Google Monitoring.
 
 Validation does not grant/end Premium, change signup settings, or triage real
 feedback. Writes preserve the upstream transaction implementation.
+Historical requests with no stored stage/model-call records show explicit empty
+states; the dashboard does not synthesize missing telemetry. Ingredients rankings
+retain bounded groups, and the UI labels those subsets and summed daily queries.
 
 ## Cloudflare agent setup
 

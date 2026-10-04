@@ -10,7 +10,8 @@
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv --include-runtime=false cloudflare-env.d.ts",
-    "test:admin": "node --import tsx --conditions=react-server --test lib/admin/premium/__tests__/*.test.ts"
+    "test:admin": "node --import tsx --conditions=react-server --test lib/admin/premium/__tests__/*.test.ts",
+    "test:metrics": "node --import tsx --conditions=react-server --test lib/admin/__tests__/*.test.ts"
   },
   "dependencies": {
     "@opennextjs/cloudflare": "^1.20.8",
@@ -35,6 +36,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@tailwindcss/postcss": "4.1.14",
     "@types/node": "22.18.10",
     "@types/react": "19.1.16",

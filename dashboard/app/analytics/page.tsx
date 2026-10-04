@@ -37,7 +37,6 @@ export default function TodayPage() {
   const failures = (pipeline.data?.ai_failure_rate ?? []) as FailureRow[];
   const costs = (pipeline.data?.token_cost_daily ?? []) as TokenCostRow[];
   const matches = (pipeline.data?.match_rate ?? []) as MatchRateRow[];
-  const latestLatency = latestByDate(latency);
   const latestMatch = latestByDate(matches);
   const latestUsage = latestByDate(usage);
   const calls = latency.length ? latency.reduce((total, row) => total + row.call_count, 0) : undefined;
@@ -79,7 +78,7 @@ export default function TodayPage() {
         <MetricRibbon items={[
           { label: "DAU", value: formatNumber(latestUsage?.dau), detail: latestUsage?.date ?? "No activity row", loading: pipeline.loading, error: metricError(pipeline, "dau_wau") },
           { label: "WAU", value: formatNumber(latestUsage?.wau), detail: "active meal loggers", tone: "blue", loading: pipeline.loading, error: metricError(pipeline, "dau_wau") },
-          { label: "AI calls", value: formatNumber(calls), detail: `${range} operational window`, loading: pipeline.loading, error: metricError(pipeline, "ai_latency") },
+          { label: "Recorded AI runs", value: formatNumber(calls), detail: `${range} operational window`, loading: pipeline.loading, error: metricError(pipeline, "ai_latency") },
           { label: "AI failure rate", value: formatPercent(events ? failed / events : undefined), detail: events ? `${formatNumber(failed)} of ${formatNumber(events)} events` : "No failure rows", tone: failed ? "amber" : "green", loading: pipeline.loading, error: metricError(pipeline, "ai_failure_rate") },
           { label: "Latest match rate", value: formatPercent(latestMatch?.match_rate), detail: latestMatch?.date ?? "No matching rows", tone: "blue", loading: pipeline.loading, error: metricError(pipeline, "match_rate") },
         ]} />
@@ -91,9 +90,9 @@ export default function TodayPage() {
         </Panel>
 
         <div className="grid gap-3">
-          <Panel title="Recorded AI pipeline latency" description="Daily p50/p95/p99 of recorded pipeline_runs.total_ms, grouped by terminal model." source={<SourceTag>Analytics aggregate</SourceTag>}>
+          <Panel title="Recorded AI pipeline latency" description="Highest terminal-model p50/p95/p99 per UTC day from recorded pipeline time." source={<SourceTag>Analytics aggregate</SourceTag>}>
             <MetricState loading={pipeline.loading} error={metricError(pipeline, "ai_latency")} empty={latency.length === 0} emptyMessage="No AI latency rows were returned for this window.">
-              <div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={latencyTrend} series={[{ key: "p50", label: "p50", color: "var(--console-green)" }, { key: "p95", label: "p95", color: "var(--console-blue)" }, { key: "p99", label: "p99", color: "var(--console-brick)" }]} ariaLabel="AI pipeline p50, p95, and p99 latency over time" format="duration" /></div>
+              <div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={latencyTrend} series={[{ key: "p50", label: "Highest model p50", color: "var(--console-green)" }, { key: "p95", label: "Highest model p95", color: "var(--console-blue)" }, { key: "p99", label: "Highest model p99", color: "var(--console-brick)" }]} ariaLabel="AI pipeline p50, p95, and p99 latency over time" format="duration" /></div>
               <InlineNote>This is application-recorded pipeline time, not Cloud Run HTTP latency or an individual Gemini call. Each point uses the highest terminal-model percentile for that UTC day; the complete endpoint metric lives on System.</InlineNote>
             </MetricState>
           </Panel>

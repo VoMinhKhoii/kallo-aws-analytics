@@ -7,7 +7,7 @@
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
   "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "kallo-admin" }],
-  "observability": { "enabled": true },
+  "observability": { "enabled": true, "traces": { "enabled": true, "head_sampling_rate": 0.1 } },
   "workers_dev": true,
   "preview_urls": false,
   "vars": { "METRICS_SOURCE": "postgres" },
