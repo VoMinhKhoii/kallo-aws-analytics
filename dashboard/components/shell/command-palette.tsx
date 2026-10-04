@@ -89,7 +89,7 @@ export function MobileNav({ open, onClose, pathname }: { open: boolean; onClose:
   return (
     <div className="fixed inset-0 z-50 bg-black/25 lg:hidden" onClick={onClose} role="dialog" aria-modal="true" aria-label="Navigation">
       <nav className="bg-sidebar h-full w-64 border-r p-3" onClick={(e) => e.stopPropagation()}>
-        <p className="px-2 py-3 text-[15px] font-semibold tracking-tight">✦ Kallo analytics</p>
+        <p className="px-2 py-3 text-[15px] font-semibold tracking-tight">✦ Kallo admin</p>
         {ALL_NAV.map((n) => (
           <button key={n.href} onClick={() => { onClose(); router.push(n.href); }}
                   className={cn("mb-0.5 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-left text-[13px]",

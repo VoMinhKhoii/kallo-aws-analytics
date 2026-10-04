@@ -146,22 +146,25 @@ export default function SystemPage() {
         <MetricRibbon items={[
           { label: "Cloud Run requests", value: formatNumber(requests || undefined), detail: "all service traffic", tone: "blue", loading: monitoring.loading, error: monitoring.error },
           { label: "5xx rate", value: formatPercent(requests ? errors / requests : undefined), detail: requests ? `${errors} of ${requests}` : "No requests", tone: errors ? "amber" : "green", loading: monitoring.loading, error: monitoring.error },
-          { label: "Latest non-AI p95", value: formatDuration(latest?.normal_p95_ms), detail: "all requests except meal analysis", tone: "blue", loading: monitoring.loading, error: monitoring.error },
+          { label: source?.delivery_source ? "Latest HTTP p95" : "Latest non-AI p95", value: formatDuration(source?.delivery_source ? latest?.p95_ms : latest?.normal_p95_ms), detail: source?.delivery_source ? "all Cloud Run traffic" : "all requests except meal analysis", tone: "blue", loading: monitoring.loading, error: monitoring.error },
           { label: "Average instances", value: formatNumber(latest?.instances), detail: source ? `latest aligned window · ${source.service}` : "Cloud Run service", loading: monitoring.loading, error: monitoring.error },
         ]} />
 
+        {source?.delivery_source === 'cloudflare-direct' ? <Panel title="Cloud Run HTTP latency" description="p50, p95 and p99 across all Cloud Run traffic, including meal analysis, pages and assets." source={sourceTag}><MetricState loading={monitoring.loading} error={monitoring.error} empty={points.every(point => point.p95_ms == null)} emptyMessage="No request latency points in this window."><div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={points} series={[{ key: 'p50_ms', label: 'p50', color: 'var(--console-green)' }, { key: 'p95_ms', label: 'p95', color: 'var(--console-blue)' }, { key: 'p99_ms', label: 'p99', color: 'var(--console-brick)' }]} ariaLabel="Cloud Run HTTP latency" format="duration" connectGaps /></div></MetricState></Panel> : <>
         <Panel title="Non-AI application request latency" description="p50/p95/p99 for every Cloud Run request except POST /api/analyze-meal, including pages, assets, redirects, and normal APIs." source={routeSourceTag}>
           <MetricState loading={monitoring.loading} error={monitoring.error} empty={points.every((point) => point.normal_p50_ms == null)} emptyMessage={hasRouteStore ? "No non-AI Cloud Run requests were stored in this window." : "The deployed AWS collector does not yet expose persisted route history."}>
             <div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={points} series={[{ key: "normal_p50_ms", label: "p50", color: "var(--console-green)" }, { key: "normal_p95_ms", label: "p95", color: "var(--console-blue)" }, { key: "normal_p99_ms", label: "p99", color: "var(--console-brick)" }]} ariaLabel="Non-AI Cloud Run application request latency" format="duration" connectGaps /></div>
           </MetricState>
         </Panel>
 
-        <Panel title="AI meal request latency" description="End-to-end latency for POST /api/analyze-meal, including retrieval, model calls, and assembly." source={routeSourceTag}>
+        <Panel title="Cloud Run AI endpoint latency" description="Complete HTTP latency for POST /api/analyze-meal, including Cloud Run and framework overhead, retrieval, model calls, assembly, and failed requests recorded by request logging." source={routeSourceTag}>
           <MetricState loading={monitoring.loading} error={monitoring.error} empty={points.every((point) => point.ai_p50_ms == null)} emptyMessage={hasRouteStore ? "No AI meal requests were stored in this window." : "The deployed AWS collector does not yet expose persisted route history."}>
             <div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={points} series={[{ key: "ai_p50_ms", label: "p50", color: "var(--console-green)" }, { key: "ai_p95_ms", label: "p95", color: "var(--console-blue)" }, { key: "ai_p99_ms", label: "p99", color: "var(--console-brick)" }]} ariaLabel="AI meal-analysis Cloud Run request latency" format="duration" connectGaps /></div>
-            <InlineNote>Every five minutes, AWS reads the latest Cloud Run request logs and replaces bounded hourly histogram buckets in DynamoDB. Raw request logs and URLs are not stored. The AI page still measures individual Gemini calls inside this complete HTTP request.</InlineNote>
+            <InlineNote>Every five minutes, AWS reads the latest Cloud Run request logs and replaces bounded hourly histogram buckets in DynamoDB. Raw request logs and URLs are not stored. Unlike the recorded pipeline metric on Today and AI, this includes the complete HTTP boundary and can include requests that fail before a pipeline row is persisted.</InlineNote>
           </MetricState>
         </Panel>
+
+        </>}
 
         <Panel title="Request and server-error volume" description="Aligned request totals and HTTP 5xx responses from Cloud Monitoring." source={sourceTag}><MetricState loading={monitoring.loading} error={monitoring.error} empty={points.length === 0} emptyMessage="No Cloud Run request-count points were returned."><div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={points} series={[{ key: "request_count", label: "Requests", color: "var(--console-blue)" }, { key: "error_count", label: "5xx", color: "var(--console-brick)" }]} ariaLabel="Cloud Run request and server error volume" /></div></MetricState></Panel>
 
@@ -171,9 +174,7 @@ export default function SystemPage() {
 
         <Panel title="Average container instances" description="Mean active and idle Cloud Run instances in each aligned window, summed across states and revisions to match the Cloud Console trend." source={sourceTag}><MetricState loading={monitoring.loading} error={monitoring.error} empty={points.every((point) => point.instances == null)} emptyMessage="No Cloud Run instance-count points were returned."><div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={points} series={[{ key: "instances", label: "Average instances", color: "var(--console-ink)" }]} ariaLabel="Average Cloud Run container instances" connectGaps /></div></MetricState></Panel>
 
-        <Panel title="Manual snapshot control" description="Operator action against the existing run endpoint. The server-authoritative 30-minute guard is shared across tabs and devices; endpoint authorization remains authoritative." source={<SourceTag tone="warn">Operator action</SourceTag>}>
-          <RunControl />
-        </Panel>
+        {source?.delivery_source === 'cloudflare-direct' ? <InlineNote tone="plain">Analytics reads the production views directly. Refresh loads current data; no AWS snapshot job is required.</InlineNote> : <Panel title="Manual snapshot control" description="Create a new AWS analytics snapshot." source={<SourceTag tone="warn">Operator action</SourceTag>}><RunControl /></Panel>}
         {source ? <InlineNote tone="plain">Monitoring aligned points every {source.alignment_seconds / 3600}h. Google samples Cloud Run metrics about once per minute and can publish them up to roughly two minutes later.</InlineNote> : null}
       </div>
     </ConsolePage>

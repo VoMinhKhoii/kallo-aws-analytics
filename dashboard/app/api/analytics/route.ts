@@ -21,6 +21,8 @@ const EXTRA: Partial<Record<RpcName, { key: string; param: string; kind: "text" 
 const NO_RANGE = new Set<RpcName>(["traceDetail"]);
 
 export async function GET(req: Request) {
+  const access = authorizeRequest(req);
+  if ('response' in access) return access.response;
   const url = new URL(req.url);
   const name = url.searchParams.get("fn") ?? "";
 

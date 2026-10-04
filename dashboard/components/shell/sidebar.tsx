@@ -51,19 +51,19 @@ export function AppSidebar() {
       <div className="flex h-16 items-center gap-2 border-b border-[var(--console-rule)] px-5">
         <span className="grid size-6 place-items-center rounded-md bg-[var(--console-ink)] text-xs text-[var(--console-surface)]">K</span>
         <div>
-          <p className="text-[14px] font-semibold tracking-[-0.02em] text-[var(--console-ink)]">Kallo analytics</p>
+          <p className="text-[14px] font-semibold tracking-[-0.02em] text-[var(--console-ink)]">Kallo admin</p>
           <p className="text-[10px] uppercase tracking-[0.12em] text-[var(--console-muted)]">Operator console</p>
         </div>
       </div>
       <nav className="flex-1 overflow-y-auto px-3 py-5" aria-label="Primary navigation">
-        <NavSection label="Observe" items={NAV.observe} pathname={pathname} />
+        <NavSection label="Manage" items={NAV.observe} pathname={pathname} />
         <Separator className="my-5 bg-[var(--console-rule)]" />
-        <NavSection label="Diagnose" items={NAV.diagnose} pathname={pathname} />
+        <NavSection label="Observe" items={NAV.diagnose} pathname={pathname} />
       </nav>
       <div className="border-t border-[var(--console-rule)] px-5 py-4 text-[10px] leading-5 text-[var(--console-muted)]">
-        AWS analytics plane
+        Production administration
         <br />
-        RMIT Cloud Computing A3
+        kallo.fit
       </div>
     </aside>
   );

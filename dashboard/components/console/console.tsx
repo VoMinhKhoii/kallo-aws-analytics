@@ -344,7 +344,7 @@ export function MetricRibbon({ items }: { items: RibbonItem[] }) {
         <div key={item.label} className={cn("min-h-24 px-4 py-4 sm:px-5", index > 0 && "border-t border-[var(--console-rule)] sm:border-l sm:border-t-0", index > 1 && "xl:border-t-0", index === 2 && "xl:border-l", index === 3 && "xl:border-l")}>
           <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--console-muted)]">{item.label}</p>
           <p className={cn("mt-2 text-2xl font-semibold tracking-[-0.04em]", item.error ? "text-[var(--console-brick)]" : item.tone === "green" ? "text-[var(--console-green)]" : item.tone === "amber" ? "text-[var(--console-amber)]" : item.tone === "brick" ? "text-[var(--console-brick)]" : item.tone === "blue" ? "text-[var(--console-blue)]" : "text-[var(--console-ink)]")}>{item.loading ? "Loading…" : item.error ? "Unavailable" : item.value}</p>
-          {item.loading || item.error || item.detail ? <p className="mt-1 text-xs text-[var(--console-muted)]">{item.loading ? "Reading AWS snapshot" : item.error ? "Metric source unavailable" : item.detail}</p> : null}
+          {item.loading || item.error || item.detail ? <p className="mt-1 text-xs text-[var(--console-muted)]">{item.loading ? "Reading metric data" : item.error ? "Metric source unavailable" : item.detail}</p> : null}
         </div>
       ))}
     </div>

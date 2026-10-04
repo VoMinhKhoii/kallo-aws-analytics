@@ -17,7 +17,7 @@ function useHealth(enabled = true): { state: "checking" | "live" | "down"; detai
   React.useEffect(() => {
     if (!enabled) return;
     let active = true;
-    fetch("/api/aws-status", { cache: "no-store" })
+    fetch("/api/admin/status", { cache: "no-store" })
       .then((response) => response.json())
       .then((body) => active && setHealth(body))
       .catch(() => active && setFailed(true));
@@ -33,7 +33,11 @@ function useHealth(enabled = true): { state: "checking" | "live" | "down"; detai
 }
 
 const TITLES: Record<string, string> = {
-  "/": "Today",
+  "/": "Overview",
+  "/premium": "Premium",
+  "/requests": "Requests",
+  "/feedback": "Feedback",
+  "/analytics": "Analytics",
   "/ai": "AI",
   "/ingredients": "Ingredients",
   "/system": "System",
@@ -47,7 +51,7 @@ export function Topbar() {
   const [navOpen, setNavOpen] = React.useState(false);
   const health = useHealth(enabled);
   const auth = useSessionRole(enabled);
-  const title = TITLES[pathname] ?? "Kallo analytics";
+  const title = TITLES[pathname] ?? "Kallo admin";
 
   if (!enabled) return null;
 

@@ -37,6 +37,11 @@ tests/       Repository-level pytest checks
 
 ## Quickstart
 
+The production admin dashboard is hosted at [admin.kallo.fit](https://admin.kallo.fit)
+on Cloudflare Workers. It includes Kallo's Premium admin console, live account and
+pipeline overview, feedback triage, and direct production analytics. See
+[Cloudflare deployment](docs/cloudflare-admin.md) for setup, sources, and deployment.
+
 Run the Python tests:
 
 ```sh
@@ -53,6 +58,8 @@ MOCK_API=1 npm run dev
 
 For AWS deployment, follow [scripts/README.md](scripts/README.md) and [infra/README.md](infra/README.md).
 
-The continuously hosted Vercel deployment is the permanent submission URL. The ALB + ECS Fargate presentation stack demonstrates the fully implemented AWS container path and is intentionally created only for assessment sessions because an ALB has an hourly baseline cost.
+The historical Vercel deployment is the assessment submission URL. Cloudflare is
+the permanent production admin host. ALB + ECS Fargate remains the assessment
+presentation path and runs only for assessment sessions because of its hourly cost.
 
 [docs/solution-architecture.md](docs/solution-architecture.md) is the graded report.

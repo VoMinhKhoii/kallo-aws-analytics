@@ -2,3 +2,7 @@
 # local secrets
 .env.local
 .vercel
+.dev.vars*
+.open-next/
+.wrangler/
+.secrets.json

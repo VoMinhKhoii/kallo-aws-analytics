@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kallo-admin",
+  "account_id": "26f3d8cb79c027fa0cd34d6c9f152ab3",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-10-04",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+  "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "kallo-admin" }],
+  "observability": { "enabled": true, "traces": { "enabled": true, "head_sampling_rate": 0.1 } },
+  "workers_dev": true,
+  "preview_urls": false,
+  "vars": { "METRICS_SOURCE": "postgres" },
+  "routes": [
+    { "pattern": "admin.kallo.fit", "custom_domain": true },
+    { "pattern": "admin.kallo.fit/*", "zone_name": "kallo.fit" }
+  ]
+}
