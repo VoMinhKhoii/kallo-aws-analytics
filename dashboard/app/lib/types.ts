@@ -227,6 +227,7 @@ export type CloudRunSystemPoint = {
 };
 
 export type CloudMonitoringResponse = {
+  delivery_source?: 'cloudflare-direct';
   source: "google-cloud-monitoring";
   project: string;
   service: string;

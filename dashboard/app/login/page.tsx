@@ -64,16 +64,16 @@ export default function LoginPage() {
           <span className="grid size-9 shrink-0 place-items-center rounded-md bg-[var(--console-ink)] text-sm font-semibold text-[var(--console-surface)]">K</span>
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--console-muted)]">Private operator console</p>
-            <h1 id="login-title" className="mt-1 text-2xl font-semibold tracking-[-0.035em] text-[var(--console-ink)]">Kallo analytics</h1>
+            <h1 id="login-title" className="mt-1 text-2xl font-semibold tracking-[-0.035em] text-[var(--console-ink)]">Kallo admin</h1>
           </div>
         </div>
-        <p className="mt-6 text-sm leading-6 text-[var(--console-muted)]">Sign in to inspect aggregate usage, application health, AI pipeline, and food-data quality. Access is limited to the configured founder and reviewer accounts.</p>
+        <p className="mt-6 text-sm leading-6 text-[var(--console-muted)]">Sign in to manage Premium, review feedback, and inspect Kallo's live analytics. Founder accounts can make changes. Reviewer accounts can read aggregate analytics.</p>
 
         {setupPending ? <p className="mt-6 border-l-2 border-[var(--console-amber)] bg-[color-mix(in_oklab,var(--console-amber)_8%,var(--console-surface))] px-3 py-3 text-xs leading-5 text-[var(--console-ink)]" role="status">Checking dashboard authentication setup…</p> : null}
         {!setupPending && !configured ? (
           <div className="mt-6 border-l-2 border-[var(--console-brick)] bg-[color-mix(in_oklab,var(--console-brick)_7%,var(--console-surface))] px-3 py-3 text-xs leading-5 text-[var(--console-ink)]" role="alert">
             <p className="font-semibold">Dashboard access is unavailable until credentials are configured.</p>
-            <p className="mt-2 text-[var(--console-muted)]">Set these Vercel environment variable names without exposing their values in the client:</p>
+            <p className="mt-2 text-[var(--console-muted)]">Configure these server environment variables:</p>
             <ul className="mt-2 grid gap-1 font-mono text-[10px] text-[var(--console-muted)]">{AUTH_ENV_NAMES.map((name) => <li key={name}>{name}</li>)}</ul>
             {config?.reason && !config.reason.includes("could not") ? <p className="mt-2 text-[var(--console-muted)]">{config.reason}</p> : null}
           </div>
@@ -91,7 +91,7 @@ export default function LoginPage() {
           <button type="submit" disabled={!configured || busy} className="mt-1 min-h-10 rounded-md bg-[var(--console-ink)] px-4 text-xs font-semibold text-[var(--console-surface)] transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-[var(--console-blue)] disabled:cursor-not-allowed disabled:opacity-45">{busy ? "Signing in…" : "Sign in"}</button>
           {message ? <p className="text-xs leading-5 text-[var(--console-brick)]" role="alert">{message}</p> : null}
         </form>
-        <p className="mt-6 border-t border-[var(--console-rule)] pt-4 text-[11px] leading-5 text-[var(--console-muted)]">Sessions use a short-lived, signed HttpOnly cookie. Reviewer access is read-only; founder access includes guarded manual snapshot actions.</p>
+        <p className="mt-6 border-t border-[var(--console-rule)] pt-4 text-[11px] leading-5 text-[var(--console-muted)]">Sessions use a signed HttpOnly cookie and expire after eight hours. Premium management and account-level records require founder access.</p>
       </section>
     </main>
   );

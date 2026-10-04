@@ -1,5 +1,7 @@
 import { getCachedSelectedMetrics, getSelectedMetrics } from "@/app/lib/api";
 import { METRIC_NAMES, type MetricName } from "@/app/lib/types";
+import { getLiveMetrics } from '@/lib/admin/live-metrics';
+import { authorizeRequest } from '@/lib/auth';
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +19,8 @@ function validDate(value: string | null): value is string {
  * subset, keeping a page from serially loading unrelated aggregates.
  */
 export async function GET(request: Request) {
+  const access = authorizeRequest(request);
+  if ('response' in access) return access.response;
   const url = new URL(request.url);
   const requested = [...new Set((url.searchParams.get("metrics") ?? "").split(",").filter(Boolean))];
   if (requested.length === 0 || requested.length > METRIC_NAMES.length) {
@@ -33,7 +37,12 @@ export async function GET(request: Request) {
   }
 
   const refresh = url.searchParams.get("refresh") === "1";
-  const bundle = refresh
+  if (Date.parse(to) - Date.parse(from) > 365 * 86400000) {
+    return Response.json({ error: 'Date windows are limited to one year.' }, { status: 400 });
+  }
+  const bundle = process.env.METRICS_SOURCE === 'postgres'
+    ? await getLiveMetrics(requested as MetricName[], from, to)
+    : refresh
     ? await getSelectedMetrics(requested as MetricName[], from, to)
     : await getCachedSelectedMetrics(requested as MetricName[], from, to);
   return Response.json(bundle, {

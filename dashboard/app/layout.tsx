@@ -5,8 +5,8 @@ import { AppSidebar } from "@/components/shell/sidebar";
 import { Topbar } from "@/components/shell/topbar";
 
 export const metadata: Metadata = {
-  title: "Kallo analytics",
-  description: "Analytics plane for the Kallo AI nutrition pipeline",
+  title: "Kallo admin",
+  description: "Administration and analytics for Kallo",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
