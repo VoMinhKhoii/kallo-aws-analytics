@@ -18,6 +18,12 @@ const WINDOW = ["ai_model_window", "ai_meal_window"] as const;
 
 export default function AiPage() {
   const [win, setWin] = React.useState<WindowDays>(30);
+  // Remount per window so both bundles load the new range together; a kept
+  // bundle would otherwise mix the old range's rows into the new window.
+  return <AiUsage key={win} win={win} setWin={setWin} />;
+}
+
+function AiUsage({ win, setWin }: { win: WindowDays; setWin: (win: WindowDays) => void }) {
   const today = React.useMemo(() => new Date().toISOString().slice(0, 10), []);
   const from = dayRange(today, win)[0];
   // Daily rows span this window and the one before it, for the change badges.
