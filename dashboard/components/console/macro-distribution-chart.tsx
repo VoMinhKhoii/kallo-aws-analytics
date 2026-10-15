@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "@/components/charts/recharts";
 import type { MacroRow } from "@/app/lib/types";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { cn } from "@/lib/utils";

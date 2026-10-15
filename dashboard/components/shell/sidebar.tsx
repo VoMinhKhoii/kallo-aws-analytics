@@ -12,7 +12,7 @@ function NavSection({
   pathname,
 }: {
   label: string;
-  items: typeof NAV.observe;
+  items: typeof NAV.run;
   pathname: string;
 }) {
   return (
@@ -25,7 +25,6 @@ function NavSection({
             <Link
               key={item.href}
               href={item.href}
-              prefetch={false}
               className={cn(
                 "group flex min-h-9 items-center gap-2.5 rounded-md px-2.5 text-[13px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--console-blue)]",
                 active
@@ -56,9 +55,9 @@ export function AppSidebar() {
         </div>
       </div>
       <nav className="flex-1 overflow-y-auto px-3 py-5" aria-label="Primary navigation">
-        <NavSection label="Manage" items={NAV.observe} pathname={pathname} />
+        <NavSection label="Run" items={NAV.run} pathname={pathname} />
         <Separator className="my-5 bg-[var(--console-rule)]" />
-        <NavSection label="Observe" items={NAV.diagnose} pathname={pathname} />
+        <NavSection label="AI" items={NAV.ai} pathname={pathname} /><Separator className="my-5 bg-[var(--console-rule)]" /><NavSection label="Infra" items={NAV.infra} pathname={pathname} />
       </nav>
       <div className="border-t border-[var(--console-rule)] px-5 py-4 text-[10px] leading-5 text-[var(--console-muted)]">
         Production administration

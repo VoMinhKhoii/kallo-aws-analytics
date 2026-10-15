@@ -34,7 +34,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   // Pipeline request ids are UUIDs. Only route complete ids because the
   // trace-detail RPC accepts an exact UUID, not a fuzzy prefix.
   const looksLikeId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(q.trim());
-  const traceHref = `/trace?request=${encodeURIComponent(q.trim())}`;
+  const traceHref = `/traces?request=${encodeURIComponent(q.trim())}`;
 
   const go = (href: string) => { onClose(); router.push(href); };
 

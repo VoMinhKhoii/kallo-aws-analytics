@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import * as Recharts from "recharts";
+import * as Recharts from "@/components/charts/recharts";
 import { cn } from "@/lib/utils";
 
 export type ChartConfig = Record<string, { label?: React.ReactNode; color?: string }>;

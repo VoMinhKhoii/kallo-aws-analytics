@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import { Area, AreaChart, CartesianGrid, ReferenceArea, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, CartesianGrid, ReferenceArea, XAxis, YAxis } from "@/components/charts/recharts";
 import { CalendarDays } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardAction, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

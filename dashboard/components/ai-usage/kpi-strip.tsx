@@ -2,10 +2,12 @@
 
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import * as React from "react";
-import { Area, AreaChart, ResponsiveContainer, Tooltip } from "recharts";
+import { Area, AreaChart, ResponsiveContainer, Tooltip } from "@/components/charts/recharts";
 import type { Kpi, Summary } from "@/lib/ai-usage/aggregate";
 import { compact, delta, pct, usd } from "@/lib/ai-usage/format";
 import { cn } from "@/lib/utils";
+
+import { Cell } from "@/components/shared/kpi-cell";
 
 type Good = "down" | "up";
 
@@ -53,19 +55,6 @@ function DeltaPill({ kpi, good, unit, points }: { kpi: Kpi; good: Good; unit: st
   );
 }
 
-function Cell({ label, value, delta: d, sub, spark }: { label: string; value: string; delta?: React.ReactNode; sub?: React.ReactNode; spark?: React.ReactNode }) {
-  return (
-    <div className="flex min-w-0 flex-col gap-1.5 px-4 py-3">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-muted-foreground truncate text-[12px]">{label}</span>
-        {d}
-      </div>
-      <span className="tabular text-[24px] leading-none font-medium tracking-tight">{value}</span>
-      {sub ? <span className="text-muted-foreground truncate text-[11.5px]">{sub}</span> : null}
-      {spark ? <div className="mt-auto">{spark}</div> : null}
-    </div>
-  );
-}
 
 export function KpiStrip({ summary, unit }: { summary: Summary; unit: string }) {
   const { spend, perKMeals, calls, cacheRate } = summary;

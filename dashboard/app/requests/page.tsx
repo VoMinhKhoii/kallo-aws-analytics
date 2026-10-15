@@ -1,2 +1,2 @@
-import { Records } from '@/components/admin/records';
-export default function RequestsPage() { return <Records kind="requests" />; }
+import { redirect } from 'next/navigation';
+export default function RequestsPage() { redirect('/traces'); }

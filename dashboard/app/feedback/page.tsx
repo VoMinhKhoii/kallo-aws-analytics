@@ -1,2 +1,1 @@
-import { Records } from '@/components/admin/records';
-export default function FeedbackPage() { return <Records kind="feedback" />; }
+export { default } from '@/components/feedback/feedback-page';

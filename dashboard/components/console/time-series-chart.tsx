@@ -1,6 +1,6 @@
 "use client";
 
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "@/components/charts/recharts";
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 
 type Point = { date: string } & Record<string, unknown>;

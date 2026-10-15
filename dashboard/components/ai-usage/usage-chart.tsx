@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Bar, BarChart, CartesianGrid, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "@/components/charts/recharts";
 import { type UsageInput, type VolumeMetric, type VolumeRow, volumeRows } from "@/lib/ai-usage/aggregate";
 import { compact, pct, shortDate, usd } from "@/lib/ai-usage/format";
 import type { ModelMeta } from "@/lib/ai-usage/models";
@@ -66,8 +66,8 @@ export function UsageChart({ input, models }: { input: UsageInput; models: Model
           })}
         </div>
       </div>
-      <div className="flex flex-wrap gap-3 px-2 py-3 sm:flex-nowrap sm:pr-4">
-        <div className="h-[230px] min-w-0 flex-1">
+      <div className="flex flex-col gap-3 px-2 py-3 sm:flex-row sm:pr-4">
+        <div className="h-[230px] w-full min-w-0 sm:flex-1">
           <ResponsiveContainer>
             <BarChart data={rows} margin={{ top: 8, right: 8, bottom: 0, left: 4 }} barCategoryGap={rows.length <= 7 ? "28%" : "14%"} onMouseLeave={() => focus.setHovered(null)}>
               <defs>

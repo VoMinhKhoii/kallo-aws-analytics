@@ -1,6 +1,6 @@
 "use client";
 
-import { CartesianGrid, LabelList, ReferenceArea, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis } from "recharts";
+import { CartesianGrid, LabelList, ReferenceArea, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis } from "@/components/charts/recharts";
 import type { ModelSummary } from "@/lib/ai-usage/aggregate";
 import { compact, ms, pct, usd } from "@/lib/ai-usage/format";
 import { ModelRail, useLocalFocus } from "./model-rail";
@@ -95,8 +95,8 @@ export function CostLatency({ models }: { models: ModelSummary[] }) {
       {points.length === 0 ? (
         <p className="text-muted-foreground px-4 py-10 text-center text-[13px]">No per-call latency in this window yet.</p>
       ) : (
-        <div className="flex flex-wrap gap-3 px-2 pt-1 pb-3 sm:flex-nowrap sm:pr-4">
-          <div className="h-[250px] min-w-0 flex-1">
+        <div className="flex flex-col gap-3 px-2 pt-1 pb-3 sm:flex-row sm:pr-4">
+          <div className="h-[250px] w-full min-w-0 sm:flex-1">
             <ResponsiveContainer>
               <ScatterChart margin={{ top: 16, right: 28, bottom: 18, left: 4 }}>
                 <CartesianGrid stroke="var(--console-rule)" />
