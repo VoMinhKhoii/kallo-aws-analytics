@@ -3,57 +3,68 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Graphite — dark only. */
 :root {
+  color-scheme: dark;
   --radius: 0.75rem;
 
-  --console-bg: oklch(0.985 0.006 90);
-  --console-panel: oklch(0.975 0.008 90);
-  --console-surface: oklch(0.998 0.002 90);
-  --console-ink: oklch(0.22 0.018 70);
-  --console-muted: oklch(0.52 0.018 75);
-  --console-rule: oklch(0.89 0.018 85);
-  --console-green: oklch(0.47 0.12 150);
-  --console-amber: oklch(0.58 0.12 75);
-  --console-brick: oklch(0.52 0.16 32);
-  --console-blue: oklch(0.52 0.13 250);
+  --console-bg: #0b0c0e;
+  --console-panel: #111316;
+  --console-surface: #16191d;
+  --console-ink: #eceef1;
+  --console-muted: #8a909a;
+  --console-rule: #23272d;
+  --console-green: #34c493;
+  --console-amber: #f0a53a;
+  --console-brick: #f2555a;
+  --console-blue: #5cb8ea;
 
-  --background: oklch(0.988 0.002 90);
-  --foreground: oklch(0.19 0.004 90);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.19 0.004 90);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.19 0.004 90);
-  --primary: oklch(0.19 0.004 90);
-  --primary-foreground: oklch(0.985 0.002 90);
-  --secondary: oklch(0.968 0.004 90);
-  --secondary-foreground: oklch(0.19 0.004 90);
-  --muted: oklch(0.968 0.004 90);
-  --muted-foreground: oklch(0.55 0.006 90);
-  --accent: oklch(0.961 0.006 90);
-  --accent-foreground: oklch(0.19 0.004 90);
-  --destructive: oklch(0.5 0.16 28);
-  --border: oklch(0.918 0.005 90);
-  --input: oklch(0.918 0.005 90);
-  --ring: oklch(0.7 0.01 90);
+  --background: #0b0c0e;
+  --foreground: #eceef1;
+  --card: #111316;
+  --card-foreground: #eceef1;
+  --popover: #16191d;
+  --popover-foreground: #eceef1;
+  --primary: #eceef1;
+  --primary-foreground: #0b0c0e;
+  --secondary: #1a1d22;
+  --secondary-foreground: #eceef1;
+  --muted: #1a1d22;
+  --muted-foreground: #8a909a;
+  --accent: #1d2126;
+  --accent-foreground: #eceef1;
+  --destructive: #f2555a;
+  --border: #23272d;
+  --input: #2a2f36;
+  --ring: #5cb8ea;
 
-  /* Validated light series ramp — dataviz validator: all checks pass.
-     Worst all-pairs CVD separation is chart-3 vs chart-1 at 6.1 deutan,
-     which is legal only WITH secondary encoding; every mark in this app
-     ships a direct label and a count. */
-  --chart-1: #16794a;
-  --chart-2: #b8860b;
-  --chart-3: #b3402f;
-  --chart-4: #1f6feb;
-  --chart-5: #8a857a;
+  /* Model series (Okabe-Ito, lifted for dark). lib/ai-usage/models.ts pins
+     known models to a slot so a model keeps its color on every chart. */
+  --model-1: #5cb8ea;
+  --model-2: #f0a53a;
+  --model-3: #34c493;
+  --model-4: #c792ea;
+  --model-5: #e8d36b;
+  --model-6: #ff8f6b;
+  --model-7: #9aa4b2;
 
-  --sidebar: oklch(0.978 0.003 90);
-  --sidebar-foreground: oklch(0.19 0.004 90);
-  --sidebar-accent: oklch(0.94 0.005 90);
-  --sidebar-accent-foreground: oklch(0.19 0.004 90);
-  --sidebar-border: oklch(0.918 0.005 90);
+  --chart-1: #5cb8ea;
+  --chart-2: #f0a53a;
+  --chart-3: #34c493;
+  --chart-4: #c792ea;
+  --chart-5: #8a909a;
+
+  --sidebar: #0e1013;
+  --sidebar-foreground: #eceef1;
+  --sidebar-accent: #1a1d22;
+  --sidebar-accent-foreground: #eceef1;
+  --sidebar-border: #1d2126;
 }
 
 @theme inline {
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  /* No second typeface: `font-mono` renders Geist too. */
+  --font-mono: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -94,6 +105,7 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
     font-feature-settings: "tnum" 1, "ss01" 1;
   }
 }

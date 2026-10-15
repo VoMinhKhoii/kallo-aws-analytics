@@ -5,7 +5,7 @@ import { PgDialect } from 'drizzle-orm/pg-core';
 import { metricQuery } from '../live-metrics';
 import { METRIC_NAMES, type MetricName } from '@/app/lib/types';
 
-test('all thirteen SQL metrics preserve counts, dimensions, UTC bounds, and ranking rules', async () => {
+test('every SQL metric runs; the original thirteen preserve counts, dimensions, UTC bounds, and ranking rules', async () => {
   const pg = new PGlite();
   const dialect = new PgDialect();
   try {
@@ -14,7 +14,9 @@ test('all thirteen SQL metrics preserve counts, dimensions, UTC bounds, and rank
       CREATE SCHEMA analytics;
       CREATE TABLE analytics.v_meals (logged_at timestamptz,user_hash text,calories_kcal float,protein_g float,carbohydrate_g float,fat_g float);
       CREATE TABLE analytics.v_pipeline_runs (created_at timestamptz,model_call2 text,total_ms float,matched_count int,unmatched_count int,ingredient_count int);
-      CREATE TABLE analytics.v_budget_events (created_at timestamptz,provider text,model text,error_category text,input_tokens int,output_tokens int);
+      CREATE TABLE analytics.v_budget_events (created_at timestamptz,provider text,model text,error_category text,input_tokens int,output_tokens int,
+        request_id text,route text,work_kind text DEFAULT 'primary',request_count int DEFAULT 0,cached_tokens int DEFAULT 0,thought_tokens int DEFAULT 0,
+        cache_write_tokens int DEFAULT 0,cost_usd numeric,latency_ms int,fallback_from text);
       CREATE TABLE analytics.v_app_health (occurred_at timestamptz,platform text,event_name text,metric text,"check" text,route text,fatal boolean,duration_ms float);
       CREATE TABLE analytics.v_food_composition (id text,name_en text,type_en text,calories_kcal float,protein_g float,carbohydrate_g float,fat_g float);
       CREATE TABLE analytics.v_ingredient_decisions (occurred_on date,ingredient_query text,verdict text,reject_bucket text,pool_size int,selected_rank int,

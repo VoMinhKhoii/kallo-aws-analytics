@@ -1,99 +1,99 @@
 "use client";
 
 import * as React from "react";
-import type { FailureRow, LatencyRow, TokenCostRow } from "@/app/lib/types";
-import {
-  ConsolePage, formatDuration, formatNumber, formatPercent, InlineNote,
-  latestByDate, MetricRibbon, MetricState, PageIntro, Panel, RangeControl,
-  RefreshButton, SimpleTable, SourceTag, TableCell, TableRow, rangeWindow,
-  type ConsoleRange,
-} from "@/components/console/console";
-import { TimeSeriesChart } from "@/components/console/time-series-chart";
-import { useRequests, type RequestRow } from "@/lib/analytics-hooks";
-import { useMetricBundle, type MetricBundleState } from "@/lib/use-metric-bundle";
+import { CostLatency } from "@/components/ai-usage/cost-latency";
+import { KpiStrip } from "@/components/ai-usage/kpi-strip";
+import { Trends } from "@/components/ai-usage/trends";
+import { UsageChart } from "@/components/ai-usage/usage-chart";
+import { MetricState, RefreshButton } from "@/components/console/console";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import type { AiMealsDailyRow, AiMealsRow, AiModelUsageRow, AiUsageDailyRow } from "@/app/lib/types";
+import { dayRange, modelsOf, summarize, type UsageInput, type WindowDays } from "@/lib/ai-usage/aggregate";
+import { int, shortDate, usd } from "@/lib/ai-usage/format";
+import { useMetricBundle } from "@/lib/use-metric-bundle";
 
-const AI_METRICS = ["ai_latency", "ai_failure_rate", "token_cost_daily"] as const;
-type Detail = { label: string; value: string };
-type TrendPoint = { date: string; details: Detail[] } & Record<string, unknown>;
-
-function metricError(bundle: MetricBundleState, name: string) {
-  return (bundle.errors as Record<string, string | undefined>)[name] ?? bundle.error;
-}
-
-function detailList(rows: Detail[]) {
-  return <div className="grid gap-1">{rows.map((row) => <div key={`${row.label}-${row.value}`} className="flex min-w-56 justify-between gap-4"><span>{row.label}</span><span className="font-mono text-[var(--console-ink)]">{row.value}</span></div>)}</div>;
-}
-
-function CallsPanel({ rows, state }: { rows: LatencyRow[]; state: MetricBundleState }) {
-  const grouped = new Map<string, LatencyRow[]>();
-  for (const row of rows) grouped.set(row.date, [...(grouped.get(row.date) ?? []), row]);
-  const trend: TrendPoint[] = [...grouped].map(([date, dayRows]) => ({
-    date,
-    calls: dayRows.reduce((sum, row) => sum + row.call_count, 0),
-    details: dayRows.map((row) => ({ label: row.model, value: `${formatNumber(row.call_count)} runs` })),
-  })).sort((a, b) => a.date.localeCompare(b.date));
-  return <Panel title="AI pipeline runs over time" description="Recorded pipeline runs per UTC day; hover for the terminal-model split." source={<SourceTag>Analytics aggregate</SourceTag>}><MetricState loading={state.loading} error={metricError(state, "ai_latency")} empty={trend.length === 0} emptyMessage="No recorded pipeline rows were returned for this window."><div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={trend} series={[{ key: "calls", label: "Pipeline runs", color: "var(--console-blue)" }]} ariaLabel="AI pipeline runs over time" tooltipDetails={(point) => detailList((point?.details ?? []) as Detail[])} /></div></MetricState></Panel>;
-}
-
-function LatencyPanel({ rows, state }: { rows: LatencyRow[]; state: MetricBundleState }) {
-  const grouped = new Map<string, LatencyRow[]>();
-  for (const row of rows) grouped.set(row.date, [...(grouped.get(row.date) ?? []), row]);
-  const trend: TrendPoint[] = [...grouped].map(([date, dayRows]) => ({
-    date,
-    p50: Math.max(...dayRows.map((row) => row.p50_ms)),
-    p95: Math.max(...dayRows.map((row) => row.p95_ms)),
-    p99: Math.max(...dayRows.map((row) => row.p99_ms ?? 0)),
-    details: dayRows.map((row) => ({ label: row.model, value: `p95 ${formatDuration(row.p95_ms)} · n=${row.call_count}` })),
-  })).sort((a, b) => a.date.localeCompare(b.date));
-  return <Panel title="Recorded AI pipeline latency" description="Highest terminal-model percentile per UTC day; hover for each model’s p95 and sample." source={<SourceTag>Analytics aggregate</SourceTag>}><MetricState loading={state.loading} error={metricError(state, "ai_latency")} empty={trend.length === 0} emptyMessage="No recorded AI pipeline latency rows were returned for this window."><div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={trend} series={[{ key: "p50", label: "Highest model p50", color: "var(--console-green)" }, { key: "p95", label: "Highest model p95", color: "var(--console-blue)" }, { key: "p99", label: "Highest model p99", color: "var(--console-brick)" }]} ariaLabel="Recorded AI pipeline latency percentiles over time" format="duration" tooltipDetails={(point) => detailList((point?.details ?? []) as Detail[])} /></div></MetricState></Panel>;
-}
-
-function FailurePanel({ rows, state }: { rows: FailureRow[]; state: MetricBundleState }) {
-  const grouped = new Map<string, FailureRow[]>();
-  for (const row of rows) grouped.set(row.date, [...(grouped.get(row.date) ?? []), row]);
-  const trend: TrendPoint[] = [...grouped].map(([date, dayRows]) => {
-    const events = dayRows.reduce((sum, row) => sum + row.event_count, 0);
-    const failures = dayRows.reduce((sum, row) => sum + row.failure_count, 0);
-    return { date, rate: events ? failures / events : 0, details: dayRows.map((row) => ({ label: `${row.provider} · ${row.model}`, value: `${row.failure_count}/${row.event_count} · ${formatPercent(row.failure_rate)}` })) };
-  }).sort((a, b) => a.date.localeCompare(b.date));
-  return <Panel title="Failure rate over time" description="Weighted controlled failures; hover for provider and model counts." source={<SourceTag>Analytics aggregate</SourceTag>}><MetricState loading={state.loading} error={metricError(state, "ai_failure_rate")} empty={trend.length === 0} emptyMessage="No AI failure rows were returned for this window."><div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={trend} series={[{ key: "rate", label: "Failure rate", color: "var(--console-brick)" }]} ariaLabel="AI failure rate over time" format="percent" tooltipDetails={(point) => detailList((point?.details ?? []) as Detail[])} /></div></MetricState></Panel>;
-}
-
-function TokenPanel({ rows, state }: { rows: TokenCostRow[]; state: MetricBundleState }) {
-  const grouped = new Map<string, TokenCostRow[]>();
-  for (const row of rows) grouped.set(row.date, [...(grouped.get(row.date) ?? []), row]);
-  const trend: TrendPoint[] = [...grouped].map(([date, dayRows]) => ({
-    date,
-    input: dayRows.reduce((sum, row) => sum + row.input_tokens, 0),
-    output: dayRows.reduce((sum, row) => sum + row.output_tokens, 0),
-    details: dayRows.map((row) => ({ label: row.model, value: `${formatNumber(row.input_tokens)} in · ${formatNumber(row.output_tokens)} out${row.pricing_known ? ` · $${row.cost_usd.toFixed(4)}` : " · price unknown"}` })),
-  })).sort((a, b) => a.date.localeCompare(b.date));
-  return <Panel title="Token use over time" description="Observed input and output tokens; hover for model usage and the rate-card estimate." source={<SourceTag>Analytics aggregate</SourceTag>}><MetricState loading={state.loading} error={metricError(state, "token_cost_daily")} empty={trend.length === 0} emptyMessage="No token rows were returned for this window."><div className="px-3 py-4 sm:px-5"><TimeSeriesChart data={trend} series={[{ key: "input", label: "Input tokens", color: "var(--console-blue)" }, { key: "output", label: "Output tokens", color: "var(--console-green)" }]} ariaLabel="AI token use over time" tooltipDetails={(point) => detailList((point?.details ?? []) as Detail[])} /></div><InlineNote>Cost is an estimate from observed tokens and configured model rates, not Google billing data.</InlineNote></MetricState></Panel>;
-}
-
-function RequestPanel({ requests }: { requests: { rows: RequestRow[]; total: number; loading: boolean; error: string | null } }) {
-  return <Panel title="Exact AI meal traces" description="Bounded Supabase RPC results for individual meal calls." source={<SourceTag tone={requests.error ? "warn" : "live"}>Supabase RPC</SourceTag>}><MetricState loading={requests.loading} error={requests.error} empty={requests.rows.length === 0} emptyMessage="No exact trace rows were recorded in this window. The RPC succeeded; the trace tables may still be empty."><SimpleTable columns={["Request", "UTC", "Meal", { label: "Duration", align: "right" }, { label: "Verdicts", align: "right" }, "Trace"]} caption="Recent AI meal traces">{requests.rows.slice(0, 12).map((row) => <TableRow key={row[9]}><TableCell><span className="font-mono text-[11px]">{row[0]}</span></TableCell><TableCell muted><span className="font-mono text-[11px]">{row[1]} {row[2]}</span></TableCell><TableCell className="max-w-72"><a className="line-clamp-2 font-medium leading-5 text-[var(--console-ink)] hover:text-[var(--console-blue)] hover:underline" href={`/trace/${encodeURIComponent(row[9])}`}>{row[3]}</a></TableCell><TableCell numeric>{formatDuration(row[4])}</TableCell><TableCell numeric muted>{formatNumber(row[5])} · {formatNumber(row[6])} accepted</TableCell><TableCell><a className="text-[var(--console-blue)] hover:underline" href={`/trace/${encodeURIComponent(row[9])}`}>Open</a></TableCell></TableRow>)}</SimpleTable></MetricState></Panel>;
-}
+const WINDOWS: WindowDays[] = [7, 30, 90];
+const DAILY = ["ai_usage_daily", "ai_meals_daily"] as const;
+const WINDOW = ["ai_model_window", "ai_meal_window"] as const;
 
 export default function AiPage() {
-  const [range, setRange] = React.useState<ConsoleRange>("30d");
-  const window = React.useMemo(() => rangeWindow(range), [range]);
-  const bundle = useMetricBundle(AI_METRICS, window.from, window.to);
-  const requests = useRequests(range, 12);
-  const latency = (bundle.data?.ai_latency ?? []) as LatencyRow[];
-  const failures = (bundle.data?.ai_failure_rate ?? []) as FailureRow[];
-  const costs = (bundle.data?.token_cost_daily ?? []) as TokenCostRow[];
-  const latestDate = latestByDate(latency)?.date;
-  const latestLatency = latency.filter(row => row.date === latestDate).sort((a,b) => b.p95_ms - a.p95_ms)[0];
-  const failureEvents = failures.reduce((sum, row) => sum + row.event_count, 0);
-  const failureCount = failures.reduce((sum, row) => sum + row.failure_count, 0);
-  const knownCost = costs.filter((row) => row.pricing_known).reduce((sum, row) => sum + row.cost_usd, 0);
-  const hasKnownCost = costs.some((row) => row.pricing_known);
+  const [win, setWin] = React.useState<WindowDays>(30);
+  // Remount per window so both bundles load the new range together; a kept
+  // bundle would otherwise mix the old range's rows into the new window.
+  return <AiUsage key={win} win={win} setWin={setWin} />;
+}
 
-  return <ConsolePage><PageIntro eyebrow="AI" title="AI" description="AI call volume, latency, failures, tokens, estimated cost, and exact meal-call traces."><div className="flex flex-wrap items-center gap-2"><RangeControl value={range} onChange={setRange} label="Window" /><RefreshButton refreshing={bundle.refreshing || requests.refreshing} onClick={() => { bundle.refresh(); requests.refresh(); }} /></div></PageIntro><div className="mt-3 grid gap-3"><MetricRibbon items={[
-    { label: "Latest highest model p95", value: formatDuration(latestLatency?.p95_ms), detail: latestLatency ? `${latestLatency.date} · ${latestLatency.model}` : "No latency row", tone: "blue", loading: bundle.loading, error: metricError(bundle, "ai_latency") },
-    { label: "Failure rate", value: formatPercent(failureEvents ? failureCount / failureEvents : undefined), detail: failureEvents ? `${failureCount} of ${failureEvents} events` : "No failure rows", tone: failureCount ? "amber" : "green", loading: bundle.loading, error: metricError(bundle, "ai_failure_rate") },
-    { label: "Estimated cost", value: hasKnownCost ? `$${knownCost.toFixed(4)}` : "Price unavailable", detail: "token rate card", loading: bundle.loading, error: metricError(bundle, "token_cost_daily") },
-    { label: "Exact traces", value: formatNumber(requests.total || undefined), detail: "Supabase RPC rows", loading: requests.loading, error: requests.error },
-  ]} /><CallsPanel rows={latency} state={bundle} /><LatencyPanel rows={latency} state={bundle} /><FailurePanel rows={failures} state={bundle} /><TokenPanel rows={costs} state={bundle} /><RequestPanel requests={requests} /></div></ConsolePage>;
+function AiUsage({ win, setWin }: { win: WindowDays; setWin: (win: WindowDays) => void }) {
+  const today = React.useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const from = dayRange(today, win)[0];
+  // Daily rows span this window and the one before it plus a day, since the
+  // change badges compare complete days only (today left out).
+  const daily = useMetricBundle(DAILY, dayRange(today, win * 2 + 1)[0], today);
+  const totals = useMetricBundle(WINDOW, from, today);
+
+  // A manual refresh reloads both bundles independently; show their data only
+  // once both have reloaded, so one fresh bundle never meets a stale one.
+  const [shown, setShown] = React.useState({ daily: daily.data, totals: totals.data });
+  const settled = !daily.refreshing && !totals.refreshing && !daily.error && !totals.error;
+  if (settled && (shown.daily !== daily.data || shown.totals !== totals.data)) {
+    setShown({ daily: daily.data, totals: totals.data });
+  }
+
+  const input: UsageInput | null = React.useMemo(() => {
+    if (!shown.daily || !shown.totals) return null;
+    return {
+      daily: (shown.daily.ai_usage_daily ?? []) as AiUsageDailyRow[],
+      mealsDaily: (shown.daily.ai_meals_daily ?? []) as AiMealsDailyRow[],
+      window: (shown.totals.ai_model_window ?? []) as AiModelUsageRow[],
+      mealWindow: ((shown.totals.ai_meal_window ?? []) as AiMealsRow[])[0],
+      to: today,
+      win,
+    };
+  }, [shown, today, win]);
+  const models = React.useMemo(() => (input ? modelsOf(input) : []), [input]);
+  const summary = React.useMemo(() => (input ? summarize(input, models) : null), [input, models]);
+  const error = daily.error ?? totals.error ?? Object.values({ ...daily.errors, ...totals.errors })[0] ?? null;
+
+  return (
+    <div className="mx-auto flex max-w-[1320px] flex-col gap-3 py-4">
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div className="grid gap-1">
+          <h1 className="text-[22px] font-semibold tracking-tight">AI usage</h1>
+          <p className="text-muted-foreground text-[13px]">Spend, latency and reliability per model · UTC days · cost priced by Kallo from provider token counts</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <ToggleGroup type="single" value={String(win)} onValueChange={(v) => v && setWin(Number(v) as WindowDays)} aria-label="Window">
+            {WINDOWS.map((w) => (
+              <ToggleGroupItem key={w} value={String(w)} className="tabular px-3">
+                {w}d
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+          <RefreshButton refreshing={daily.refreshing || totals.refreshing} onClick={() => { daily.refresh(); totals.refresh(); }} />
+        </div>
+      </header>
+
+      <MetricState
+        loading={daily.loading || totals.loading}
+        error={error}
+        empty={!summary || summary.models.length === 0}
+        emptyMessage="No AI calls were recorded in this window."
+      >
+        {input && summary ? (
+          <>
+            <KpiStrip summary={summary} unit={`${win}d`} />
+            <UsageChart input={input} models={models} />
+            <CostLatency models={summary.models} />
+            <Trends input={input} models={models} />
+            <footer className="text-muted-foreground flex flex-wrap gap-x-6 gap-y-1 px-1 text-[12px]">
+              <span>Cost per meal covers primary analyses only; shadow tests spent {usd(summary.shadowSpend)} this window.</span>
+              <span>Unpriced calls: {int(summary.unpricedCalls)}</span>
+              {summary.timedSince ? <span>Per-call latency recorded since {shortDate(summary.timedSince)}.</span> : null}
+              {summary.hasTiming ? null : <span>No per-call latency recorded yet.</span>}
+            </footer>
+          </>
+        ) : null}
+      </MetricState>
+    </div>
+  );
 }

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Geist } from "next/font/google";
 import "./globals.css";
 import { RangeProvider } from "@/components/range-context";
 import { AppSidebar } from "@/components/shell/sidebar";
@@ -9,9 +10,12 @@ export const metadata: Metadata = {
   description: "Administration and analytics for Kallo",
 };
 
+// One typeface everywhere; numbers use Geist's tabular figures.
+const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={geist.variable}>
       <body className="antialiased">
         <RangeProvider>
           <div className="flex min-h-dvh">

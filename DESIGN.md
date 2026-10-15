@@ -15,9 +15,9 @@ mistaken for a supported conclusion.
 
 ## Visual direction
 
-- Restrained warm-neutral palette. Ink and paper carry most of the surface;
-  green, amber, and brick are reserved for proven states and data series.
-- System sans for interface text and a compact tabular face for numbers. Keep
+- Dark only ("Graphite"): near-black surfaces, light ink. Green, amber, brick
+  and blue are reserved for states and data series.
+- One typeface: Geist for all text and numbers, with tabular figures. Keep
   labels short and line lengths readable.
 - Borders and row rules establish structure. Cards are used for independent
   analytical blocks, not as a repeated icon-and-copy grid.
@@ -28,16 +28,19 @@ mistaken for a supported conclusion.
 
 | Token | Value | Use |
 | --- | --- | --- |
-| `--console-bg` | `oklch(0.985 0.006 90)` | Main page surface |
-| `--console-panel` | `oklch(0.975 0.008 90)` | Sidebar and quiet panels |
-| `--console-surface` | `oklch(0.998 0.002 90)` | Tables and focused blocks |
-| `--console-ink` | `oklch(0.22 0.018 70)` | Headings and primary values |
-| `--console-muted` | `oklch(0.52 0.018 75)` | Supporting copy and axes |
-| `--console-rule` | `oklch(0.89 0.018 85)` | Dividers and field borders |
-| `--console-green` | `oklch(0.47 0.12 150)` | Healthy/accepted state |
-| `--console-amber` | `oklch(0.58 0.12 75)` | Neutral watch state |
-| `--console-brick` | `oklch(0.52 0.16 32)` | Error/rejected state |
-| `--console-blue` | `oklch(0.52 0.13 250)` | Links and secondary series |
+| `--console-bg` | `#0b0c0e` | Main page surface |
+| `--console-panel` | `#111316` | Sidebar and quiet panels |
+| `--console-surface` | `#16191d` | Tables and focused blocks |
+| `--console-ink` | `#eceef1` | Headings and primary values |
+| `--console-muted` | `#8a909a` | Supporting copy and axes |
+| `--console-rule` | `#23272d` | Dividers and field borders |
+| `--console-green` | `#34c493` | Healthy/accepted state |
+| `--console-amber` | `#f0a53a` | Neutral watch state |
+| `--console-brick` | `#f2555a` | Error/rejected state |
+| `--console-blue` | `#5cb8ea` | Links and secondary series |
+
+Model series use `--model-1` … `--model-7`. Known models keep a fixed slot
+(`dashboard/lib/ai-usage/models.ts`), so a model has the same color on every chart.
 
 All colors must remain legible without relying on color alone. Every chart or
 status indicator has a text label, count, pattern, or table equivalent.
@@ -48,7 +51,7 @@ status indicator has a text label, count, pattern, or table equivalent.
   a content column capped at 1440px.
 - Primary pages are `/`, `/ai`, `/ingredients`, and `/system`. The old pipeline,
   retrieval, and coverage routes redirect into the consolidated pages. Exact
-  trace detail remains reachable from AI. There is no user-behavior page.
+  trace detail is reachable from the Trace viewer. There is no user-behavior page.
 - The first row on each page establishes the page purpose, data window, and
   source state. The next row carries the most decision-relevant comparison or
   distribution. Detail tables follow below.
