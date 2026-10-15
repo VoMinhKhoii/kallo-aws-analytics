@@ -16,10 +16,19 @@ Credentials are Worker secrets and never included in the browser bundle.
   grants, end free access, preview counts, and audited undo.
 - `/requests`: paginated original requests, stage timings, and model-call metadata.
 - `/feedback`: paginated feedback and status triage.
-- `/analytics`, `/ai`, `/ingredients`: the existing analytics contract, aggregated
+- `/analytics`, `/ingredients`: the existing analytics contract, aggregated
   directly in Postgres from privacy-reduced `analytics.v_*` views. No Academy lab
   session is required. Token estimates use the documented 9 September 2026 pricing
   snapshot from `glue/transforms.py`; unknown models remain unpriced.
+- `/ai`: AI spend, calls, tokens, cost per 1k meals, p95/p99 latency, error,
+  fallback and cache-hit rates per model over 7, 30 or 90 UTC days, each KPI
+  compared with the window before it (only when the data covers at least 80% of
+  that earlier window). It reads four metrics (`ai_usage_daily`,
+  `ai_model_window`, `ai_meals_daily`, `ai_meal_window`) from
+  `analytics.v_budget_events`. Cost is the `cost_usd` Kallo records on every model
+  call, priced from the provider's token counts; models Kallo cannot price stay
+  unpriced and are counted. Percentiles are computed over raw calls per window,
+  never averaged from daily values.
 - `/system`: Google Monitoring queried directly using the existing read-only reader.
   Direct mode shows HTTP percentiles across all traffic. The optional AWS collector's
   AI/non-AI HTTP split is available only in AWS mode; direct mode does not invent it.
@@ -31,6 +40,10 @@ Premium domain logic was ported from Kallo PR #415, commit
 production/sandbox grants, audit attribution, and one-time undo. The database must
 have Kallo's Premium migrations from PRs #414–415. Kallo's own deployment applies
 these migrations; this repository does not push them.
+
+Kallo also owns `analytics.v_budget_events`. The `/ai` page needs its
+`cost_usd`, `latency_ms`, `fallback_from` and `cache_write_tokens` columns from
+Kallo PR #460; deploy the dashboard only after those migrations are on production.
 
 Account-level records and Premium reads/writes require founder access. Mutations
 require same-origin requests. Reviewers can read aggregate analytics, monitoring,
@@ -46,6 +59,7 @@ npx wrangler whoami
 npm run typecheck
 npm run test:admin
 npm run test:metrics
+npm run test:ai-usage
 npm run deploy
 ```
 

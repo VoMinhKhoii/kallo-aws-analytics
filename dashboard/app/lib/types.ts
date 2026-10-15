@@ -12,6 +12,10 @@ export const METRIC_NAMES = [
   "corpus_reverse_lookup",
   "ingredient_gaps",
   "ingredient_rank_distribution",
+  "ai_usage_daily",
+  "ai_model_window",
+  "ai_meals_daily",
+  "ai_meal_window",
 ] as const;
 
 export type MetricName = (typeof METRIC_NAMES)[number];
@@ -30,7 +34,47 @@ export const OPERATIONAL_METRIC_NAMES = METRIC_NAMES as readonly [
   "corpus_reverse_lookup",
   "ingredient_gaps",
   "ingredient_rank_distribution",
+  "ai_usage_daily",
+  "ai_model_window",
+  "ai_meals_daily",
+  "ai_meal_window",
 ];
+
+/**
+ * One model's attempts (request_count = 0 rows of analytics.v_budget_events)
+ * over one UTC day, or over the whole requested window. Spend is the sum of
+ * Kallo-priced `cost_usd`; NULL-cost attempts are counted in `unpriced_calls`.
+ */
+export type AiModelUsageRow = {
+  model: string;
+  /** Every attempt of the model in the slice was shadow work. */
+  shadow: boolean;
+  calls: number;
+  errors: number;
+  unpriced_calls: number;
+  spend_usd: number | null;
+  input_tokens: number;
+  cached_tokens: number;
+  output_tokens: number;
+  thought_tokens: number;
+  /** Attempts that recorded a latency; older rows predate per-call timing. */
+  timed_calls: number;
+  p95_ms: number | null;
+  p99_ms: number | null;
+  /** Successful Gemini attempts that stood in for this (Claude) model. */
+  fallbacks: number;
+};
+export type AiUsageDailyRow = AiModelUsageRow & { date: string };
+
+/** Primary meal analyses: cost summed per request_id. */
+export type AiMealsRow = {
+  meals: number;
+  /** Analyses whose every attempt was priced; the cost stats cover only these. */
+  priced_meals: number;
+  spend_usd: number | null;
+  p95_meal_usd: number | null;
+};
+export type AiMealsDailyRow = AiMealsRow & { date: string };
 
 export type DauWauRow = { date: string; dau: number; wau: number };
 export type MacroRow = {
@@ -170,6 +214,10 @@ export type MetricPayloadMap = {
   corpus_reverse_lookup: CorpusReverseLookupRow[];
   ingredient_gaps: IngredientGapRow[];
   ingredient_rank_distribution: IngredientRankDistributionRow[];
+  ai_usage_daily: AiUsageDailyRow[];
+  ai_model_window: AiModelUsageRow[];
+  ai_meals_daily: AiMealsDailyRow[];
+  ai_meal_window: AiMealsRow[];
 };
 
 export type MetricItem<T> = {

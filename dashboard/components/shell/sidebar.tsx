@@ -29,7 +29,7 @@ function NavSection({
               className={cn(
                 "group flex min-h-9 items-center gap-2.5 rounded-md px-2.5 text-[13px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--console-blue)]",
                 active
-                  ? "bg-[var(--console-ink)] font-medium text-[var(--console-surface)]"
+                  ? "bg-[var(--console-surface)] font-medium text-[var(--console-ink)] shadow-[inset_0_0_0_1px_var(--console-rule)]"
                   : "text-[var(--console-muted)] hover:bg-[var(--console-surface)] hover:text-[var(--console-ink)]",
               )}
             >
