@@ -74,6 +74,9 @@ test('summarize keeps spend unknown when no call was priced, and sums shadow spe
   assert.equal(summarize(unpriced, modelsOf(unpriced)).spend.value, null);
   const unpricedToday = input({ daily: [day('2026-10-15', 'mystery-model', { spend_usd: null })] });
   assert.equal(summarize(unpricedToday, modelsOf(unpricedToday)).today.spend, null);
+  // Complete days with only unpriced calls: no badge, not a 100% drop.
+  const unpricedRecent = input({ daily: input().daily.map((r) => (r.date >= '2026-10-13' ? { ...r, spend_usd: null } : r)) });
+  assert.equal(summarize(unpricedRecent, modelsOf(unpricedRecent)).spend.cur, null);
   const quietToday = input({ daily: [day('2026-10-14', 'gemini-3.1-flash-lite')] });
   assert.equal(summarize(quietToday, modelsOf(quietToday)).today.spend, 0);
 
@@ -85,6 +88,9 @@ test('volumeRows fills every day of the window and marks today partial', () => {
   const rows = volumeRows(input({ daily: [day('2026-10-15', 'gemini-3.1-flash-lite')] }), 'calls');
   assert.deepEqual(rows.map((r) => [r.date, r.partial, r.total]), [['2026-10-14', false, 0], ['2026-10-15', true, 100]]);
   assert.equal(rows[1][modelKey('gemini-3.1-flash-lite')], 100);
+  // A day with rows is active even when the metric totals 0 ($0 failed calls).
+  const zero = volumeRows(input({ daily: [day('2026-10-14', 'gemini-3.1-flash-lite', { spend_usd: 0 })] }), 'spend');
+  assert.deepEqual(zero.map((r) => [r.date, r.active, r.total]), [['2026-10-14', true, 0], ['2026-10-15', false, 0]]);
 });
 
 test('trendRows start on the first day with data', () => {

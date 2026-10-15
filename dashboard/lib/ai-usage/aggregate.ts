@@ -116,8 +116,11 @@ export function summarize(input: UsageInput, models: ModelMeta[]): Summary {
   // Unknown, not $0, when no call in the window could be priced.
   const priced = input.window.flatMap((r) => (r.spend_usd == null ? [] : [r.spend_usd]));
   const windowSpend = priced.length ? sum(priced) : null;
-  const todayRowsUsage = byDay.get(to) ?? [];
-  const todaySpend = todayRowsUsage.length && todayRowsUsage.every((r) => r.spend_usd == null) ? null : daySpend(to);
+  // Same for a run of days: unknown when its calls were all unpriced.
+  const spendOf = (days: string[]) => {
+    const rows = days.flatMap((d) => byDay.get(d) ?? []);
+    return rows.length && rows.every((r) => r.spend_usd == null) ? null : sum(rows.map((r) => r.spend_usd ?? 0));
+  };
   const summaries: ModelSummary[] = input.window
     .filter((r) => metaById.has(r.model))
     .map((r) => ({
@@ -145,7 +148,7 @@ export function summarize(input: UsageInput, models: ModelMeta[]): Summary {
 
   return {
     models: summaries,
-    spend: { value: windowSpend, ...change((days) => total(days, daySpend)), spark: cur.map(daySpend) },
+    spend: { value: windowSpend, ...change(spendOf), spark: cur.map(daySpend) },
     calls: { value: windowCalls, ...change((days) => total(days, dayCalls)), spark: cur.map(dayCalls) },
     perKMeals: {
       value: meals?.priced_meals && meals.spend_usd != null ? (meals.spend_usd / meals.priced_meals) * 1000 : null,
@@ -154,7 +157,7 @@ export function summarize(input: UsageInput, models: ModelMeta[]): Summary {
     },
     cacheRate: { value: cacheOf(cur), ...change(cacheOf), spark: cur.map(dayCache) },
     mealP95: meals?.p95_meal_usd ?? null,
-    today: { spend: todaySpend, meals: todayRows?.meals ?? 0 },
+    today: { spend: spendOf([to]), meals: todayRows?.meals ?? 0 },
     // Primary meal-analysis calls per meal; shadow and other routes stay out.
     callsPerMeal: meals?.meals ? meals.calls / meals.meals : null,
     shadowSpend: sum(input.window.map((r) => r.shadow_spend_usd ?? 0)),
@@ -165,13 +168,14 @@ export function summarize(input: UsageInput, models: ModelMeta[]): Summary {
 }
 
 export type VolumeMetric = "spend" | "calls" | "tokens";
-export type VolumeRow = { date: string; partial: boolean; total: number } & Record<string, number | string | boolean>;
+/** `active`: the day has model rows (history has begun), even if its total is 0. */
+export type VolumeRow = { date: string; partial: boolean; active: boolean; total: number } & Record<string, number | string | boolean>;
 
 /** One row per day of the window (gaps filled), one numeric column per model key. */
 export function volumeRows(input: UsageInput, metric: VolumeMetric): VolumeRow[] {
   const byDay = group(input.daily);
   return dayRange(input.to, input.win).map((date) => {
-    const row: VolumeRow = { date, partial: date === input.to, total: 0 };
+    const row: VolumeRow = { date, partial: date === input.to, active: byDay.has(date), total: 0 };
     for (const r of byDay.get(date) ?? []) {
       const v = metric === "spend" ? r.spend_usd ?? 0 : metric === "calls" ? r.calls : r.input_tokens + r.output_tokens + r.thought_tokens;
       row[modelKey(r.model)] = v;

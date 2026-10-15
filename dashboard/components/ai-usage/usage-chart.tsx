@@ -31,7 +31,7 @@ export function UsageChart({ input, models }: { input: UsageInput; models: Model
   const total = rows.reduce((s, r) => s + r.total, 0);
   // Average over complete days since the first one with data, not the empty
   // days before history begins.
-  const complete = rows.slice(Math.max(rows.findIndex((r) => r.total > 0), 0)).filter((r) => !r.partial);
+  const complete = rows.slice(Math.max(rows.findIndex((r) => r.active), 0)).filter((r) => !r.partial);
   const avg = complete.reduce((s, r) => s + r.total, 0) / Math.max(complete.length, 1);
   const rail = shown
     .map((meta) => ({ meta, sum: columnTotal(rows, meta.key) }))
