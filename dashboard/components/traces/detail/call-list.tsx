@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import type { TraceGraphDetail, TracePayload } from '@/lib/traces/types';
+import { tokenText,callLatency } from '@/lib/traces-ui/format';
 import { modelLabel } from '@/lib/traces-ui/graph';
 import { ms,usd } from '@/lib/ai-usage/format';
 import { useResource } from '@/lib/traces-ui/use-resource';
@@ -13,5 +14,5 @@ function ExpandedCall({traceId,call}:{traceId:string;call:TraceGraphDetail['call
 }
 export function CallList({traceId,calls}:{traceId:string;calls:TraceGraphDetail['calls']}) {
   const [expanded,setExpanded]=useState<string|null>(null);
-  return <div>{calls.map(c=><div key={c.id}><button aria-expanded={expanded===c.id} onClick={()=>setExpanded(v=>v===c.id?null:c.id)} className="w-full space-y-1 border-b border-border py-3 text-left hover:bg-secondary focus-visible:outline-2"><span className="flex justify-between gap-2"><strong className="font-medium">{modelLabel(c.model)} · attempt {c.attempt}</strong><span className={c.error?'text-destructive':'text-muted-foreground'}>{c.error?'error':'success'} {expanded===c.id?'▾':'▸'}</span></span><span className="block tabular text-muted-foreground">{c.inputTokens??'—'} / {c.cachedTokens??'—'} / {c.outputTokens??'—'} in / cached / out</span><span className="block tabular text-muted-foreground">{ms(c.latencyMs)} · {usd(c.costUsd)}{c.error&&` · ${c.error}`}</span></button>{expanded===c.id&&<ExpandedCall traceId={traceId} call={c}/>}</div>)}</div>;
+  return <div>{calls.map(c=><div key={c.id}><button aria-expanded={expanded===c.id} onClick={()=>setExpanded(v=>v===c.id?null:c.id)} className="w-full space-y-1 border-b border-border py-3 text-left hover:bg-secondary focus-visible:outline-2"><span className="flex justify-between gap-2"><strong className="font-medium">{modelLabel(c.model)} · attempt {c.attempt}</strong><span className={c.error?'text-destructive':'text-muted-foreground'}>{c.error?'error':'success'} {expanded===c.id?'▾':'▸'}</span></span><span className="block tabular text-muted-foreground">{tokenText(c)}</span><span className="block tabular text-muted-foreground">{callLatency(c.latencyMs)} · {usd(c.costUsd)}{c.error&&` · ${c.error}`}</span></button>{expanded===c.id&&<ExpandedCall traceId={traceId} call={c}/>}</div>)}</div>;
 }

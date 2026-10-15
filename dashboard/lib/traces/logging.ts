@@ -1,3 +1,4 @@
+import { stageStats } from './stats';
 import { z } from 'zod';
 import { googleAccessToken } from '../admin/cloud-monitoring';
 import { assembleDetail, normalizeCall, type Row } from './normalize';
@@ -42,7 +43,7 @@ export function loggingDetail(request: Row, entries: unknown[], billed: number, 
   const final = events.findLast(e => e.type === 'final') || {};
   const stages: TraceStage[] = events.filter(e => e.type === 'stage').map(e => ({
     key: String(e.stage || e.eventId), name: String(e.stage || 'unknown'), index: Number(e.index || 0), startedAt: e.startedAt || request.created_at,
-    durationMs: e.durationMs ?? null, status: e.status || 'unknown', error: e.error ?? null, input: e.input ?? null, output: e.output ?? null, calls: [],
+    stats: stageStats(e.input, e.output, e.output?.result), durationMs: e.durationMs ?? null, status: e.status || 'unknown', error: e.error ?? null, input: e.input ?? null, output: e.output ?? null, calls: [],
   }));
   const calls = events.filter(e => e.type === 'llm').map(e => normalizeCall({ ...e, id: e.eventId }));
   const result = final.summary || final.result || events.findLast(e => e.type === 'stage' && e.stage === 'assembly')?.output?.result || {};

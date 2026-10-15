@@ -1,3 +1,4 @@
+import { stageStatKeys } from './stats';
 import { sql } from 'drizzle-orm';
 import type { AppDb } from '../admin/db/client';
 import { requestColumns } from './query';
@@ -18,6 +19,18 @@ export async function loadPostgresDetail(db: AppDb, request: Row, graphOnly = fa
       sum(octet_length(coalesce(input_json::text,''))+octet_length(coalesce(output_json::text,''))) OVER (ORDER BY stage_index,id) AS bytes
     FROM public.pipeline_stage_logs WHERE request_id=${id}::uuid ORDER BY stage_index,id LIMIT 64)
     SELECT id::text,stage,stage_index,created_at::text,duration_ms,status,error,input_bytes,output_bytes,
+      (CASE WHEN stage='decomposition' AND jsonb_typeof(output_json->'mealItems')='array'
+        THEN jsonb_build_object('mealItemCount',jsonb_array_length(output_json->'mealItems')) ||
+          (SELECT CASE WHEN bool_and(jsonb_typeof(item->'ingredients')='array') THEN
+            jsonb_build_object('ingredientCount',sum(CASE WHEN jsonb_typeof(item->'ingredients')='array' THEN jsonb_array_length(item->'ingredients') ELSE 0 END))
+            ELSE '{}'::jsonb END FROM jsonb_array_elements(output_json->'mealItems') AS item)
+        ELSE '{}'::jsonb END) ||
+      (SELECT coalesce(jsonb_object_agg(key,value),'{}'::jsonb) FROM jsonb_each(
+        (CASE WHEN jsonb_typeof(input_json)='object' THEN input_json ELSE '{}'::jsonb END) ||
+        (CASE WHEN jsonb_typeof(output_json)='object' THEN output_json ELSE '{}'::jsonb END) ||
+        (CASE WHEN jsonb_typeof(output_json->'result')='object' THEN output_json->'result' ELSE '{}'::jsonb END))
+        WHERE key IN (${sql.join(stageStatKeys.map(key=>sql`${key}`),sql`, `)})
+          AND jsonb_typeof(value) IN ('number','string','boolean','null') AND octet_length(value::text)<=130) AS stats,
       CASE WHEN NOT ${graphOnly} AND bytes<=786432 THEN input_json END AS input_json,CASE WHEN bytes<=786432 AND (NOT ${graphOnly} OR stage='assembly') THEN output_json END AS output_json,
       bytes>786432 AS truncated FROM sized`);
   const calls = await db.execute(sql`WITH sized AS (

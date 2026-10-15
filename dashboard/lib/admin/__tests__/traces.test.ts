@@ -79,6 +79,7 @@ test('Postgres list and detail work before and after summary expansion with tied
     assert.equal(light.calls[0].prompt,undefined);assert.equal(light.calls[0].hasPrompt,true);
     assert.equal(light.stages[0].input,null);assert.ok(light.stages[0].inputBytes);
     assert.equal(light.summary.kcal,100);
+    assert.deepEqual(light.stages[0].stats,{mealItemCount:1,ingredientCount:1});
     const graph=graphDetail(detail);
     assert.ok(Buffer.byteLength(JSON.stringify(graph))<40960);
     assert.equal('input' in graph.stages[0],false); assert.equal('prompt' in graph.calls[0],false);
@@ -101,6 +102,10 @@ test('Postgres list and detail work before and after summary expansion with tied
       UPDATE analysis_model_budget_events SET error_category='timeout' WHERE id='${id}';
       UPDATE analysis_model_budget_events SET created_at=created_at+interval '1 second',model='gemini-test',fallback_from='gemini-test',cost_usd=NULL WHERE id='${otherId}';`);
     await pg.exec(`INSERT INTO pipeline_stage_logs VALUES ('00000000-0000-4000-8000-000000000003','${otherId}','decomposition',1,'2026-10-10T10:00:00Z',10,'success',NULL,'{}','{"mealItems":[{"ingredients":[{},{}]}]}')`);
+    await pg.exec(`INSERT INTO pipeline_stage_logs VALUES ('00000000-0000-4000-8000-000000000004','${id}','decomposition',0,'2026-10-10T10:00:00Z',10,'success',NULL,'{}','{"mealItems":[{"ingredients":[{},{}]},{"ingredients":[{}]}]}')`);
+    const withStats=await loadPostgresDetail(db,row!,true);
+    assert.equal(withStats.stages.find(s=>s.name==='nutrition')?.stats.chunkCount,2);
+    assert.deepEqual(withStats.stages.find(s=>s.name==='decomposition')?.stats,{mealItemCount:2,ingredientCount:3});
     const expanded=new Set(['replay_of_request_id']);
     const combined=traceFilters.parse({...f,model:'second',flags:'chunked,rescue,fallback,retried,unmatched'});
     const filtered=await db.execute(listQuery(combined,expanded));
@@ -153,10 +158,10 @@ test('Logging deadline returns fallback even if the transport ignores abort', as
 test('history attribution uses completion windows, tiny selector outputs, explicit roles and after-response marking',()=>{
   const stage=(id:string,stage:string,created_at:string,duration_ms:number)=>({id,stage,created_at,duration_ms,stage_index:1,status:'success'});
   const rows=[stage('decomp','decomposition','2026-10-10T10:00:00.200Z',200),stage('match','matching','2026-10-10T10:00:00.500Z',300),stage('nutrition','nutrition','2026-10-10T10:00:00.900Z',400)];
-  const attempt=(id:string,created_at:string,output_tokens=10,call_role?:string)=>({id,created_at,model:'test',output_tokens,call_role});
+  const attempt=(id:string,created_at:string,output_tokens=10,call_role?:string)=>({id,created_at,model:'test',input_tokens:1500,output_tokens,call_role});
   const detail=postgresDetail(request,rows,[],[
     attempt('a','2026-10-10T10:00:00.100Z'),attempt('b','2026-10-10T10:00:00.300Z'),attempt('c','2026-10-10T10:00:00.400Z',200),attempt('d','2026-10-10T10:00:00.600Z'),attempt('e','2026-10-10T10:00:01.100Z'),attempt('f','2026-10-10T10:00:00.700Z',10,'rescue_call2')]);
-  assert.deepEqual(detail.calls.map(c=>c.role),['call1','selector','unknown','call2_chunk','unknown','rescue_call2']);
+  assert.deepEqual(detail.calls.map(c=>c.role),['call1','selector','unknown','selector','unknown','selector']);
   assert.equal(detail.calls[4].afterResponse,true); assert.equal(detail.calls[0].stage,'decomp'); assert.equal(detail.calls[1].stage,'match');
   assert.equal(traceCacheControl('success'),'private, max-age=3600');assert.equal(traceCacheControl('error'),'private, max-age=3600');assert.equal(traceCacheControl('pending'),'no-store');assert.equal(traceCacheControl('success',true),'no-store');
   const logging=loggingDetail(request,[e('request',1),e('llm',2,{stage:'nutrition',callRole:'rescue_selector',model:'test',prompt:'hello'}),e('final',3)],1)!;
@@ -164,4 +169,23 @@ test('history attribution uses completion windows, tiny selector outputs, explic
   const busy=postgresDetail(request,rows,[],Array.from({length:30},(_,i)=>attempt(String(i),'2026-10-10T10:00:00.600Z',500)));
   const size=Buffer.byteLength(JSON.stringify(graphDetail(busy)));
   assert.ok(size<40960,`30-attempt graph is ${size} bytes`);
+});
+
+test('legacy selectors and true nutrition chunks are separated by shape',()=>{
+  const rows=[{id:'nutrition',stage:'nutrition',stage_index:2,created_at:'2026-10-10T10:00:00.900Z',duration_ms:800,status:'success'}];
+  const calls=Array.from({length:14},(_,i)=>({id:String(i),model:'test',created_at:'2026-10-10T10:00:00.600Z',input_tokens:1556,output_tokens:i<12?64:500,call_role:'call2_chunk'}));
+  const detail=postgresDetail(request,rows,calls,[]);
+  assert.equal(detail.calls.filter(c=>c.role==='selector').length,12);
+  assert.equal(detail.calls.filter(c=>c.role==='call2_chunk').length,2);
+});
+test('both adapters retain only bounded scalar stage stats in graph details',()=>{
+  const input={ingredientCount:12,isFood:true,mealSlot:'lunch'},output={matchedCount:10,unmatchedCount:2,wireResponse:'x'.repeat(50000),chunkCount:{nested:2}};
+  const pg=postgresDetail(request,[{id:'match',stage:'matching',stage_index:1,created_at:request.created_at,duration_ms:100,status:'success',input_json:input,output_json:output}],[],[]);
+  const log=loggingDetail(request,[e('request',1),e('stage',2,{stage:'matching',input,output}),e('final',3)],0)!;
+  for(const detail of [pg,log]) {
+    const graph=graphDetail(detail);
+    assert.deepEqual(graph.stages[0].stats,{ingredientCount:12,isFood:'true',mealSlot:'lunch',matchedCount:10,unmatchedCount:2});
+    assert.ok(Buffer.byteLength(JSON.stringify(graph))<40960);
+    assert.equal('output' in graph.stages[0],false);
+  }
 });

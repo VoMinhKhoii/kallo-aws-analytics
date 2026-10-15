@@ -25,6 +25,7 @@ export interface TraceCall {
 }
 export interface TraceStage {
   key: string; name: string; index: number; startedAt: string; durationMs: number | null;
+  stats: Record<string, number | string | null>;
   status: string; error: string | null; inputBytes?: number; outputBytes?: number; input: unknown; output: unknown; calls: CallId[];
 }
 export interface TraceDetail {

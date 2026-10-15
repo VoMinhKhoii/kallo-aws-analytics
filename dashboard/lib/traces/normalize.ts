@@ -1,4 +1,5 @@
 import type { CallRole, Nutrient, TraceCall, TraceDetail, TraceItem, TraceStage } from './types';
+import { stageStats } from './stats';
 import { numberOrNull as n } from './query';
 // Adapters accept database/log payloads at this boundary and expose one typed contract.
 export type Row = Record<string, any>;
@@ -40,6 +41,14 @@ export function normalizeCall(c: Row): TraceCall {
 }
 export function assembleDetail(request: Row, stages: TraceStage[], calls: TraceCall[], result: Row, source: TraceDetail['source'], billed: number, truncated = false): TraceDetail {
   stages.sort((a,b) => a.index-b.index || a.startedAt.localeCompare(b.startedAt));
+  // Older captures record a stage's completed counts on the next stage's input.
+  const decomp = stages.find(s => s.name === 'decomposition');
+  const matching = stages.find(s => s.name === 'matching');
+  const nutritionStage = stages.find(s => s.name === 'nutrition');
+  if (decomp && matching) decomp.stats.ingredientCount ??= matching.stats.ingredientCount ?? null;
+  if (matching && nutritionStage) for (const key of ['matchedCount','unmatchedCount']) {
+    if (nutritionStage.stats[key] != null) matching.stats[key] ??= nutritionStage.stats[key];
+  }
   for (const s of stages) s.calls = calls.filter(c => c.stage === s.key || c.stage === s.name).map(c => c.id);
   const gaps: TraceDetail['gaps'] = [];
   for (let i=1; i<stages.length; i++) {
@@ -60,7 +69,7 @@ export function postgresDetail(request: Row, rows: Row[], callRows: Row[], budge
   const stages: TraceStage[] = rows.map(s => ({ key: String(s.id), name: String(s.stage), index: Number(s.stage_index),
     // Legacy created_at is written after the stage completes.
     startedAt: new Date(Date.parse(s.created_at) - Number(s.duration_ms || 0)).toISOString(), durationMs: n(s.duration_ms),
-    inputBytes: n(s.input_bytes) ?? undefined, outputBytes: n(s.output_bytes) ?? undefined, status: String(s.status), error: str(s.error), input: s.input_json ?? null, output: s.output_json ?? null, calls: [] }));
+    stats: stageStats(s.input_json, s.output_json, s.output_json?.result, s.stats), inputBytes: n(s.input_bytes) ?? undefined, outputBytes: n(s.output_bytes) ?? undefined, status: String(s.status), error: str(s.error), input: s.input_json ?? null, output: s.output_json ?? null, calls: [] }));
   const used = new Set<string>();
   const calls = callRows.map(c => {
     // Budget events have no legacy call ID. Match once by model/time/token usage;
@@ -80,7 +89,8 @@ export function postgresDetail(request: Row, rows: Row[], callRows: Row[], budge
     const stage = stages.find(s => s.key === c.stage) || window;
     if (stage) {
       c.stage = stage.key;
-      if (c.role === 'unknown') c.role = stage.name === 'matching' ? ((c.outputTokens ?? Infinity) <= 64 ? 'selector' : 'unknown') : callRole(null, stage.name);
+      if (stages.some(s => ['matching','nutrition'].includes(s.name) && at >= Date.parse(s.startedAt) && at <= Date.parse(s.startedAt) + Number(s.durationMs || 0)) && c.outputTokens !== null && c.outputTokens <= 64 && c.inputTokens !== null && c.inputTokens < 4000) c.role = 'selector';
+      else if (c.role === 'unknown') c.role = stage.name === 'nutrition' ? ((c.outputTokens ?? 0) > 64 ? 'call2_chunk' : 'unknown') : stage.name === 'matching' ? 'unknown' : callRole(null, stage.name);
     }
   }
   const result = rows.find(s => s.stage === 'assembly')?.output_json?.result || {};
