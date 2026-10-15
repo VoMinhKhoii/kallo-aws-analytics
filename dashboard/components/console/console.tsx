@@ -17,6 +17,7 @@ import {
 import type {
   AppHealthRow,
 } from "@/app/lib/types";
+import { decimal, int, ms, pct } from "@/lib/ai-usage/format";
 import { cn } from "@/lib/utils";
 
 export type ConsoleRange = "24h" | "7d" | "30d";
@@ -36,19 +37,19 @@ export function rangeWindow(range: ConsoleRange, now = new Date()) {
 }
 
 export function formatNumber(value: number | null | undefined): string {
-  return value == null || !Number.isFinite(value) ? "No data" : value.toLocaleString("en-US");
+  return value == null || !Number.isFinite(value) ? "No data" : int(value);
 }
 
 export function formatDecimal(value: number | null | undefined, digits = 1): string {
-  return value == null || !Number.isFinite(value) ? "No data" : value.toFixed(digits);
+  return value == null || !Number.isFinite(value) ? "No data" : decimal(value, digits);
 }
 
 export function formatPercent(value: number | null | undefined, digits = 1): string {
-  return value == null || !Number.isFinite(value) ? "No data" : `${(value * 100).toFixed(digits)}%`;
+  return value == null || !Number.isFinite(value) ? "No data" : pct(value, digits);
 }
 
 export function formatDuration(value: number | null | undefined): string {
-  return value == null || !Number.isFinite(value) ? "No data" : `${formatNumber(Math.round(value))} ms`;
+  return value == null || !Number.isFinite(value) ? "No data" : ms(value);
 }
 
 export function latestByDate<T extends { date: string }>(rows: T[] | undefined): T | undefined {
@@ -413,9 +414,9 @@ export function TablePager({
   const last = Math.min(safePage * pageSize, total);
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--console-rule)] px-4 py-3 text-[11px] text-[var(--console-muted)] sm:px-5">
-      <span className="tabular-nums">{first}–{last} of {formatNumber(total)} {label}</span>
+      <span className="tabular-nums">{int(first)}–{int(last)} of {formatNumber(total)} {label}</span>
       <div className="flex items-center gap-2">
-        <span className="tabular-nums">Page {safePage} of {pageCount}</span>
+        <span className="tabular-nums">Page {int(safePage)} of {int(pageCount)}</span>
         <button type="button" aria-label={`Previous ${label} page`} onClick={() => onPageChange(safePage - 1)} disabled={safePage <= 1} className="inline-flex size-8 items-center justify-center rounded-md border border-[var(--console-rule)] bg-[var(--console-surface)] text-[var(--console-ink)] hover:bg-[var(--console-panel)] focus-visible:outline-2 focus-visible:outline-[var(--console-blue)] disabled:cursor-not-allowed disabled:opacity-40"><ChevronLeft className="size-3.5" aria-hidden="true" /></button>
         <button type="button" aria-label={`Next ${label} page`} onClick={() => onPageChange(safePage + 1)} disabled={safePage >= pageCount} className="inline-flex size-8 items-center justify-center rounded-md border border-[var(--console-rule)] bg-[var(--console-surface)] text-[var(--console-ink)] hover:bg-[var(--console-panel)] focus-visible:outline-2 focus-visible:outline-[var(--console-blue)] disabled:cursor-not-allowed disabled:opacity-40"><ChevronRight className="size-3.5" aria-hidden="true" /></button>
       </div>

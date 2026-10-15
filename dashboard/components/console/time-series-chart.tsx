@@ -1,5 +1,6 @@
 "use client";
 
+import { decimal, ms, pct, usd } from "@/lib/ai-usage/format";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "@/components/charts/recharts";
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 
@@ -26,12 +27,7 @@ export function TimeSeriesChart({
     item.key,
     data.filter((point) => typeof point[item.key] === "number" && Number.isFinite(point[item.key])).length,
   ]));
-  const valueFormatter = (value: number) => {
-    if (format === "duration") return value >= 1000 ? `${(value / 1000).toFixed(1)} s` : `${Math.round(value)} ms`;
-    if (format === "percent") return `${(value * 100).toFixed(1)}%`;
-    if (format === "currency") return `$${value.toFixed(4)}`;
-    return value.toLocaleString("en-US");
-  };
+  const valueFormatter = format === "duration" ? ms : format === "percent" ? pct : format === "currency" ? usd : decimal;
   return (
     <ChartContainer config={config} className="h-64 w-full aspect-auto" role="img" aria-label={ariaLabel}>
       <LineChart data={data} margin={{ top: 12, right: 14, bottom: 0, left: 8 }}>
@@ -51,7 +47,7 @@ export function TimeSeriesChart({
         />
         <ChartLegend content={<ChartLegendContent />} />
         {series.map((item) => (
-          <Line key={item.key} type="monotone" dataKey={item.key} name={item.key} stroke={item.color} strokeWidth={2} dot={observedPoints[item.key] === 1 ? { r: 4, strokeWidth: 2 } : false} activeDot={{ r: 3 }} connectNulls={connectGaps} isAnimationActive={false} />
+          <Line key={item.key} type="monotoneX" dataKey={item.key} name={item.key} stroke={item.color} strokeWidth={2} dot={observedPoints[item.key] === 1 ? { r: 4, strokeWidth: 2 } : false} activeDot={{ r: 3 }} connectNulls={connectGaps} isAnimationActive={false} />
         ))}
       </LineChart>
     </ChartContainer>

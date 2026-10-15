@@ -12,18 +12,15 @@ import {
   type TraceMealItem,
   type TraceNutrition,
 } from "@/lib/analytics-hooks";
+import { decimal, int, ms, pct } from "@/lib/ai-usage/format";
 import { cn } from "@/lib/utils";
 
-const duration = (milliseconds: number) =>
-  milliseconds >= 1000
-    ? `${(milliseconds / 1000).toFixed(2)} s`
-    : `${milliseconds.toLocaleString("en-US")} ms`;
-
+const duration = ms;
 const macro = (value: number | null | undefined, unit = "") =>
-  value == null || !Number.isFinite(value) ? "—" : `${Math.round(value).toLocaleString("en-US")}${unit}`;
+  value == null || !Number.isFinite(value) ? "—" : `${int(value)}${unit}`;
 
 const matchConfidence = (value: string | number | null | undefined) => {
-  if (typeof value === "number" && Number.isFinite(value)) return `${Math.round(value * 100)}% match`;
+  if (typeof value === "number" && Number.isFinite(value)) return `${pct(value, 0)} match`;
   return value ? String(value) : "";
 };
 
@@ -52,7 +49,7 @@ function fieldLabel(key: string) {
 function scalar(value: unknown) {
   if (value === null || value === undefined || value === "") return <span className="text-[var(--console-muted)]">Not returned</span>;
   if (typeof value === "boolean") return value ? "Yes" : "No";
-  if (typeof value === "number") return value.toLocaleString("en-US", { maximumFractionDigits: 4 });
+  if (typeof value === "number") return decimal(value, 4, 0);
   return String(value);
 }
 
@@ -240,8 +237,8 @@ export function RequestTraceDetail({ requestId }: { requestId: string }) {
             <dl className="grid gap-x-5 gap-y-3 sm:grid-cols-2 xl:grid-cols-5">
               <div><dt className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--console-muted)]">Status</dt><dd className="mt-1 text-sm font-medium capitalize">{data.status ?? "unknown"}</dd></div>
               <div><dt className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--console-muted)]">End to end</dt><dd className="mt-1 text-sm font-medium tabular-nums">{duration(data.total)}</dd></div>
-              <div><dt className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--console-muted)]">Ingredients</dt><dd className="mt-1 text-sm font-medium tabular-nums">{data.counts.ingredients.toLocaleString("en-US")}</dd></div>
-              <div><dt className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--console-muted)]">Model calls</dt><dd className="mt-1 text-sm font-medium tabular-nums">{data.modelCalls.length} · {totalTokens.toLocaleString("en-US")} tokens</dd></div>
+              <div><dt className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--console-muted)]">Ingredients</dt><dd className="mt-1 text-sm font-medium tabular-nums">{int(data.counts.ingredients)}</dd></div>
+              <div><dt className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--console-muted)]">Model calls</dt><dd className="mt-1 text-sm font-medium tabular-nums">{int(data.modelCalls.length)} · {int(totalTokens)} tokens</dd></div>
               <div><dt className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--console-muted)]">Started</dt><dd className="mt-1 text-sm font-medium tabular-nums">{data.startedAt ? new Date(data.startedAt).toLocaleString("en-GB", { timeZone: "UTC", dateStyle: "medium", timeStyle: "short" }) + " UTC" : "—"}</dd></div>
             </dl>
 
@@ -285,7 +282,7 @@ export function RequestTraceDetail({ requestId }: { requestId: string }) {
                 <h3 id="trace-model-heading" className="mb-2 text-sm font-semibold">AI model calls</h3>
                 <table className="w-full min-w-[42rem] text-left text-xs">
                   <thead className="text-[10px] uppercase tracking-[0.08em] text-[var(--console-muted)]"><tr><th className="py-2 pr-4">Stage</th><th className="py-2 pr-4">Model</th><th className="py-2 pr-4">Attempt</th><th className="py-2 pr-4 text-right">Latency</th><th className="py-2 pr-4 text-right">Input</th><th className="py-2 pr-4 text-right">Output</th><th className="py-2">Result</th></tr></thead>
-                  <tbody>{data.modelCalls.map((call, index) => <tr key={`${call.stage}-${call.model}-${index}`} className="border-t border-[var(--console-rule)]"><td className="py-2.5 pr-4 capitalize">{call.stage}</td><td className="py-2.5 pr-4 font-mono text-[11px]">{call.model}</td><td className="py-2.5 pr-4 tabular-nums">{call.attempt}</td><td className="py-2.5 pr-4 text-right tabular-nums">{duration(call.latencyMs)}</td><td className="py-2.5 pr-4 text-right tabular-nums">{call.inputTokens.toLocaleString("en-US")}</td><td className="py-2.5 pr-4 text-right tabular-nums">{call.outputTokens.toLocaleString("en-US")}</td><td className={call.ok ? "py-2.5 text-[var(--console-green)]" : "py-2.5 text-[var(--console-brick)]"}>{call.ok ? "OK" : call.error ?? "Error"}</td></tr>)}</tbody>
+                  <tbody>{data.modelCalls.map((call, index) => <tr key={`${call.stage}-${call.model}-${index}`} className="border-t border-[var(--console-rule)]"><td className="py-2.5 pr-4 capitalize">{call.stage}</td><td className="py-2.5 pr-4 font-mono text-[11px]">{call.model}</td><td className="py-2.5 pr-4 tabular-nums">{int(call.attempt)}</td><td className="py-2.5 pr-4 text-right tabular-nums">{duration(call.latencyMs)}</td><td className="py-2.5 pr-4 text-right tabular-nums">{int(call.inputTokens)}</td><td className="py-2.5 pr-4 text-right tabular-nums">{int(call.outputTokens)}</td><td className={call.ok ? "py-2.5 text-[var(--console-green)]" : "py-2.5 text-[var(--console-brick)]"}>{call.ok ? "OK" : call.error ?? "Error"}</td></tr>)}</tbody>
                 </table>
               </section>
             ) : null}
@@ -294,7 +291,7 @@ export function RequestTraceDetail({ requestId }: { requestId: string }) {
 
             {data.rows.length > 0 ? (
               <section className="overflow-x-auto border-t border-[var(--console-rule)] pt-5" aria-labelledby="trace-decisions-heading">
-                <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2"><h3 id="trace-decisions-heading" className="text-sm font-semibold">Ingredient retrieval decisions</h3><span className="text-[11px] text-[var(--console-muted)]">{data.counts.accepted} accepted · {data.counts.unmatched} unmatched · {data.counts.rejected} rejected</span></div>
+                <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2"><h3 id="trace-decisions-heading" className="text-sm font-semibold">Ingredient retrieval decisions</h3><span className="text-[11px] text-[var(--console-muted)]">{int(data.counts.accepted)} accepted · {int(data.counts.unmatched)} unmatched · {int(data.counts.rejected)} rejected</span></div>
                 <table className="w-full min-w-[38rem] text-left text-xs">
                   <thead className="text-[10px] uppercase tracking-[0.08em] text-[var(--console-muted)]"><tr><th className="py-2 pr-4">Ingredient</th><th className="py-2 pr-4">Selected match</th><th className="py-2 pr-4 text-right">Pool</th><th className="py-2 pr-4">Choice</th><th className="py-2">Verdict</th></tr></thead>
                   <tbody>{data.rows.map((row, index) => <tr key={`${row[0]}-${index}`} className="border-t border-[var(--console-rule)]"><td className="py-2.5 pr-4">{row[0]}</td><td className="py-2.5 pr-4">{row[1]}</td><td className="py-2.5 pr-4 text-right tabular-nums">{row[2]}</td><td className="py-2.5 pr-4">{row[3]}</td><td className="py-2.5 capitalize">{row[4]}</td></tr>)}</tbody>

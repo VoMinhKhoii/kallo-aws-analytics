@@ -1,6 +1,6 @@
 "use client";
 
-import { longDate } from "@/lib/ai-usage/format";
+import { longDate, pct } from "@/lib/ai-usage/format";
 import type { ModelMeta } from "@/lib/ai-usage/models";
 
 interface Entry {
@@ -47,7 +47,7 @@ export function UsageTooltip({
             <span className="size-2 rounded-[2px]" style={{ background: r.meta.color }} />
             <span className="min-w-0 break-words text-muted-foreground">{r.meta.label}</span>
             <span className="tabular text-foreground">{format(r.value)}</span>
-            {showTotal ? <span className="tabular w-9 text-right text-muted-foreground">{total ? Math.round((r.value / total) * 100) : 0}%</span> : null}
+            {showTotal ? <span className="tabular w-9 text-right text-muted-foreground">{pct(total ? r.value / total : 0, 0)}</span> : null}
           </div>
         ))}
       </div>

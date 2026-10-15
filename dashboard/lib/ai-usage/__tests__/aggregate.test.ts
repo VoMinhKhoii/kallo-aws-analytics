@@ -126,3 +126,15 @@ test('known models keep their palette slot; unknown ones take a free slot', () =
   ]);
   assert.equal(describeModels(['claude-haiku-5-5'], new Set())[0].color, 'var(--model-2)');
 });
+
+test('sparklines preserve unknown days and zero denominators as gaps', () => {
+  const inp = input({
+    daily: [day('2026-10-15', 'gemini-3.1-flash-lite', { input_tokens: 0, spend_usd: null })],
+    mealsDaily: [],
+  });
+  const summary = summarize(inp, modelsOf(inp));
+  assert.deepEqual(summary.cacheRate.spark, [null, null]);
+  assert.deepEqual(summary.perKMeals.spark, [null, null]);
+  assert.deepEqual(summary.spend.spark, [null, null]);
+  assert.deepEqual(summary.calls.spark, [null, 100]);
+});

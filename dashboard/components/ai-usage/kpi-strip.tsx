@@ -2,22 +2,22 @@
 
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import * as React from "react";
-import { Area, AreaChart, ResponsiveContainer, Tooltip } from "@/components/charts/recharts";
+import { Area, Bar, ComposedChart, ResponsiveContainer, Tooltip } from "@/components/charts/recharts";
 import type { Kpi, Summary } from "@/lib/ai-usage/aggregate";
-import { compact, delta, pct, usd } from "@/lib/ai-usage/format";
+import { compact, decimal, delta, pct, usd } from "@/lib/ai-usage/format";
 import { cn } from "@/lib/utils";
 
 import { Cell } from "@/components/shared/kpi-cell";
 
 type Good = "down" | "up";
 
-function Sparkline({ values, color, format }: { values: number[]; color: string; format: (v: number) => string }) {
+function Sparkline({ values, color, format, bars = false }: { values: (number | null)[]; bars?: boolean; color: string; format: (v: number) => string }) {
   const id = React.useId().replace(/:/g, "");
   const data = values.map((v, i) => ({ i, v }));
   return (
     <div className="h-7 w-full">
       <ResponsiveContainer>
-        <AreaChart data={data} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
+        <ComposedChart data={data} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
           <defs>
             <linearGradient id={`spark-${id}`} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={color} stopOpacity={0.35} />
@@ -32,8 +32,8 @@ function Sparkline({ values, color, format }: { values: number[]; color: string;
               ) : null
             }
           />
-          <Area type="monotone" dataKey="v" stroke={color} strokeWidth={1.5} fill={`url(#spark-${id})`} isAnimationActive={false} dot={false} activeDot={{ r: 2.5, strokeWidth: 0, fill: color }} />
-        </AreaChart>
+          {bars ? <Bar dataKey="v" fill={color} isAnimationActive={false} /> : <Area connectNulls={false} type="monotoneX" dataKey="v" stroke={color} strokeWidth={1.5} fill={`url(#spark-${id})`} isAnimationActive={false} dot={false} activeDot={{ r: 2.5, strokeWidth: 0, fill: color }} />}
+        </ComposedChart>
       </ResponsiveContainer>
     </div>
   );
@@ -73,8 +73,8 @@ export function KpiStrip({ summary, unit }: { summary: Summary; unit: string }) 
         label="Calls"
         value={calls.value == null ? "—" : compact(calls.value)}
         delta={<DeltaPill kpi={calls} good="up" unit={unit} />}
-        sub={summary.callsPerMeal == null ? undefined : `${summary.callsPerMeal.toFixed(1)} per meal`}
-        spark={<Sparkline values={calls.spark} color="var(--console-muted)" format={compact} />}
+        sub={summary.callsPerMeal == null ? undefined : `${decimal(summary.callsPerMeal)} per meal`}
+        spark={<Sparkline bars values={calls.spark} color="var(--console-muted)" format={compact} />}
       />
       <Cell label="Cache hit" value={pct(cacheRate.value, 0)} delta={<DeltaPill kpi={cacheRate} good="up" unit={unit} points />} spark={<Sparkline values={cacheRate.spark} color="var(--model-3)" format={(v) => pct(v, 0)} />} />
     </section>

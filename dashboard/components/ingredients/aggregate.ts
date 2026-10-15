@@ -1,4 +1,4 @@
-import type { CorpusReverseLookupRow, IngredientDemandRow, IngredientGapRow, IngredientRankDistributionRow, MacroRow } from '@/app/lib/types';
+import type { CorpusReverseLookupRow, IngredientDemandRow, IngredientGapRow, IngredientRankDistributionRow, MacroRow, MatchRateRow } from '@/app/lib/types';
 export function aggregateDemand(rows: IngredientDemandRow[]) {
   const counts = new Map<string, number>();
   for (const row of rows) counts.set(row.ingredient_query, (counts.get(row.ingredient_query) ?? 0) + row.count);
@@ -57,3 +57,12 @@ export function aggregateMacros(rows: MacroRow[]) {
   return [...groups.values()];
 }
 
+
+/** The API can return 100% for 0/0; absence is unknown, including omitted days. */
+export function matchRateRows(rows: MatchRateRow[], dates: string[]) {
+  const byDate = new Map(rows.map(row => [row.date, row]));
+  return dates.map(date => {
+    const row = byDate.get(date);
+    return { date, unmatched_count: row?.unmatched_count ?? 0, match_rate: row && row.ingredient_count > 0 ? row.matched_count / row.ingredient_count : null };
+  });
+}

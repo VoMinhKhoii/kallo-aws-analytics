@@ -1,9 +1,10 @@
 "use client";
+import { dayRange } from '@/lib/ai-usage/aggregate';
 import { useMemo } from 'react';
 import { rangeWindow, type ConsoleRange } from '@/components/console/console';
 import { useMetricBundle } from '@/lib/use-metric-bundle';
 import { aggregateMappings } from '@/lib/ingredient-mappings';
-import { aggregateDemand, aggregateGaps, aggregateRanks, aggregateReverse, aggregateMacros } from './aggregate';
+import { aggregateDemand, aggregateGaps, aggregateRanks, aggregateReverse, aggregateMacros, matchRateRows } from './aggregate';
 const METRICS = ['ingredient_demand', 'ingredient_mappings', 'corpus_reverse_lookup', 'ingredient_gaps', 'ingredient_rank_distribution', 'match_rate', 'macro_distributions', 'implausible_foods'] as const;
 export function useIngredients(win: string) {
   const window = useMemo(() => rangeWindow(win as ConsoleRange), [win]);
@@ -16,5 +17,5 @@ export function useIngredients(win: string) {
   const ranks = aggregateRanks(bundle.data?.ingredient_rank_distribution ?? []);
   const reverse = aggregateReverse(bundle.data?.corpus_reverse_lookup ?? []);
   const macros = aggregateMacros(bundle.data?.macro_distributions ?? []);
-  return {bundle, mappings, demand, gaps, ranks, reverse, macros, matches: bundle.data?.match_rate ?? [], flags: bundle.data?.implausible_foods ?? []};
+  return {bundle, mappings, demand, gaps, ranks, reverse, macros, matches: matchRateRows(bundle.data?.match_rate ?? [], dayRange(window.to, window.days)), flags: bundle.data?.implausible_foods ?? []};
 }

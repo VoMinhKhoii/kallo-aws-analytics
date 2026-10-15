@@ -10,7 +10,7 @@ import { ModelRail, useLocalFocus } from "./model-rail";
 import { UsageTooltip } from "./usage-tooltip";
 
 const METRICS: { key: VolumeMetric; label: string; format: (v: number) => string; axis: (v: number) => string }[] = [
-  { key: "spend", label: "Spend", format: usd, axis: (v) => (v === 0 ? "$0" : `$${v < 10 ? v.toFixed(2) : Math.round(v)}`) },
+  { key: "spend", label: "Spend", format: usd, axis: usd },
   { key: "calls", label: "Calls", format: compact, axis: compact },
   { key: "tokens", label: "Tokens", format: compact, axis: compact },
 ];
@@ -69,7 +69,7 @@ export function UsageChart({ input, models }: { input: UsageInput; models: Model
       <div className="flex flex-col gap-3 px-2 py-3 sm:flex-row sm:pr-4">
         <div className="h-[230px] w-full min-w-0 sm:flex-1">
           <ResponsiveContainer>
-            <BarChart data={rows} margin={{ top: 8, right: 8, bottom: 0, left: 4 }} barCategoryGap={rows.length <= 7 ? "28%" : "14%"} onMouseLeave={() => focus.setHovered(null)}>
+            <BarChart data={rows} margin={{ top: 8, right: 104, bottom: 0, left: 4 }} barCategoryGap={rows.length <= 7 ? "28%" : "14%"} onMouseLeave={() => focus.setHovered(null)}>
               <defs>
                 {shown.map((m) => (
                   <pattern key={m.key} id={`hatch-${m.key}`} width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
@@ -80,7 +80,7 @@ export function UsageChart({ input, models }: { input: UsageInput; models: Model
               </defs>
               <CartesianGrid vertical={false} stroke="var(--console-rule)" />
               <XAxis dataKey="date" tickFormatter={shortDate} tickLine={false} axisLine={false} minTickGap={28} tick={{ fill: "var(--console-muted)", fontSize: 11 }} />
-              <YAxis tickFormatter={def.axis} tickLine={false} axisLine={false} width={48} tick={{ fill: "var(--console-muted)", fontSize: 11 }} />
+              <YAxis allowDecimals={metric === "spend"} tickFormatter={def.axis} tickLine={false} axisLine={false} width={48} tick={{ fill: "var(--console-muted)", fontSize: 11 }} />
               <Tooltip
                 cursor={{ fill: "var(--console-ink)", fillOpacity: 0.05 }}
                 content={(p) => (
@@ -88,7 +88,7 @@ export function UsageChart({ input, models }: { input: UsageInput; models: Model
                 )}
               />
               {avg > 0 ? (
-                <ReferenceLine y={avg} stroke="var(--console-muted)" strokeDasharray="4 4" strokeOpacity={0.6} label={{ value: `avg ${def.format(avg)}`, position: "insideTopRight", fill: "var(--console-muted)", fontSize: 11 }} />
+                <ReferenceLine y={avg} stroke="var(--console-muted)" strokeDasharray="4 4" strokeOpacity={0.6} label={{ value: `avg ${def.format(avg)}`, position: "right", fill: "var(--console-muted)", fontSize: 11 }} />
               ) : null}
               {shown.map((m) => (
                 <Bar key={m.key} dataKey={m.key} stackId="v" isAnimationActive animationDuration={500} onMouseEnter={() => focus.setHovered(m.key)}>

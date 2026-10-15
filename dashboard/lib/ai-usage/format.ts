@@ -1,4 +1,7 @@
 const compactFmt = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
+export const decimal = (v: number, digits = 1, minimumDigits = digits) => new Intl.NumberFormat("en-US", { minimumFractionDigits: minimumDigits, maximumFractionDigits: digits }).format(v);
+export const msAxis = (v: number) => v < 1000 ? `${Math.round(v)} ms` : `${decimal(v / 1000, Number.isInteger(v / 1000) ? 0 : 1)} s`;
+
 const intFmt = new Intl.NumberFormat("en-US");
 
 export const compact = (v: number) => compactFmt.format(v);

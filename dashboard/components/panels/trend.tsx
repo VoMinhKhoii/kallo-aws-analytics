@@ -67,7 +67,7 @@ export function TrendCard({
                           content={<ChartTooltipContent formatter={(v) => `${v}${suffix}`} />} />
             <Area
               isAnimationActive={false}
-              dataKey="value" type="monotone" connectNulls={false}
+              dataKey="value" type="monotoneX" connectNulls={false}
               stroke={meta.color} strokeWidth={2} fill={`url(#fill-${metric})`}
               dot={(props: { cx?: number; cy?: number; index?: number; payload?: TrendPoint }) => {
                 const { cx, cy, payload, index } = props;
