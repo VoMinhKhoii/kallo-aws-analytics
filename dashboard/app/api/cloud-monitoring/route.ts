@@ -18,7 +18,7 @@ export async function GET(request: Request) {
   try {
     const refresh = url.searchParams.get("refresh") === "1";
     const result = process.env.METRICS_SOURCE === 'postgres'
-      ? await getDirectMonitoring(from, to, refresh)
+      ? await getDirectMonitoring(from, to, refresh, access.session.role)
       : await getCloudMonitoring(from, to, refresh);
     return Response.json(result, { headers: { "Cache-Control": refresh ? "private, no-store" : "private, max-age=30" } });
   } catch (reason) {

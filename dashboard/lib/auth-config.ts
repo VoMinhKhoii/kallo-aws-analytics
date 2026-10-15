@@ -50,12 +50,11 @@ function environment(): Environment {
 }
 
 /**
- * Keep session cookies HTTPS-only unless a deployment explicitly opts into
- * the classroom lab's HTTP-only ALB. Production hosts such as Vercel never
- * need to set this override.
+ * Sessions require Secure cookies unless an explicit override is used on a loopback request URL.
  */
-export function shouldUseSecureSessionCookies(env: Environment = environment()): boolean {
-  return env[COOKIE_SECURE_ENV_NAME]?.trim().toLowerCase() !== "false";
+export function shouldUseSecureSessionCookies(env: Environment = environment(), requestUrl?: string): boolean {
+  const loopback = requestUrl ? ['localhost','127.0.0.1'].includes(new URL(requestUrl).hostname) : false;
+  return !(env[COOKIE_SECURE_ENV_NAME]?.trim().toLowerCase() === 'false' && loopback);
 }
 
 /** Return configuration status without exposing any secret values. */
@@ -66,14 +65,13 @@ export function getAuthConfig(env: Environment = environment()): AuthConfig {
   const reviewerPassword = env.DASHBOARD_REVIEWER_PASSWORD ?? "";
   const sessionSecret = env.DASHBOARD_SESSION_SECRET ?? "";
 
-  const missing = AUTH_ENV_NAMES.filter((name) => !env[name]?.trim());
+  const missing = AUTH_ENV_NAMES.filter((name) => !name.includes("REVIEWER") && !env[name]?.trim());
   const weak = [
     founderPassword.length < MIN_PASSWORD_CHARS ? "DASHBOARD_FOUNDER_PASSWORD" : null,
-    reviewerPassword.length < MIN_PASSWORD_CHARS ? "DASHBOARD_REVIEWER_PASSWORD" : null,
     sessionSecret.length < MIN_SESSION_SECRET_CHARS ? "DASHBOARD_SESSION_SECRET" : null,
   ].filter((name): name is string => name !== null);
-  const invalid = founderUsername === reviewerUsername ? ["DASHBOARD_FOUNDER_USERNAME", "DASHBOARD_REVIEWER_USERNAME"] : [];
-  const problemNames = [...new Set([...missing, ...weak, ...invalid])];
+  const reviewerValid = Boolean(reviewerUsername.trim() && reviewerPassword.trim() && reviewerPassword.length >= MIN_PASSWORD_CHARS && reviewerUsername !== founderUsername);
+  const problemNames = [...new Set([...missing, ...weak])];
 
   if (problemNames.length > 0) {
     return {
@@ -87,8 +85,8 @@ export function getAuthConfig(env: Environment = environment()): AuthConfig {
     reason: null,
     founderUsername,
     founderPassword,
-    reviewerUsername,
-    reviewerPassword,
+    reviewerUsername: reviewerValid ? reviewerUsername : "",
+    reviewerPassword: reviewerValid ? reviewerPassword : "",
     sessionSecret,
   };
 }
@@ -113,32 +111,28 @@ function normaliseOrigin(value: string): string | null {
   try {
     const parsed = new URL(value);
     if (parsed.username || parsed.password || parsed.pathname !== "/" || parsed.search || parsed.hash) return null;
-    return parsed.origin.toLowerCase();
+    return ['http:', 'https:'].includes(parsed.protocol) ? parsed.origin.toLowerCase() : null;
   } catch {
     return null;
   }
 }
 
 /**
- * Require an Origin header that matches the request's trusted origin.  Vercel
- * and ALB deployments may expose the original host through forwarded headers;
- * those are accepted only as a complete, canonical origin.
+ * Require a fixed deployment origin; forwarded headers never establish trust.
  */
 export function isSameOrigin(request: Request): boolean {
   const supplied = request.headers.get("origin");
   const suppliedOrigin = supplied ? normaliseOrigin(supplied) : null;
   if (!suppliedOrigin) return false;
 
-  const expected = new Set<string>();
-  const requestOrigin = normaliseOrigin(new URL(request.url).origin);
-  if (requestOrigin) expected.add(requestOrigin);
-
-  const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",", 1)[0]?.trim();
-  const forwardedHost = request.headers.get("x-forwarded-host")?.split(",", 1)[0]?.trim();
-  if (forwardedProto && forwardedHost && /^[a-z][a-z\d+.-]*$/i.test(forwardedProto) && /^[^\s/:]+(?::\d+)?$/i.test(forwardedHost)) {
-    const forwardedOrigin = normaliseOrigin(`${forwardedProto}://${forwardedHost}`);
-    if (forwardedOrigin) expected.add(forwardedOrigin);
+  const expected = new Set(["https://admin.kallo.fit", "https://kallo-admin.minhkhoitdn.workers.dev"]);
+  for (const value of (environment().DASHBOARD_EXTRA_ORIGINS || '').split(',')) {
+    const origin = normaliseOrigin(value.trim());
+    if (origin) expected.add(origin);
   }
-
+  if (environment().NODE_ENV !== "production") {
+    const origin = new URL(request.url);
+    if (["localhost", "127.0.0.1", "[::1]"].includes(origin.hostname)) expected.add(origin.origin);
+  }
   return expected.has(suppliedOrigin);
 }

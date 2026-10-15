@@ -8,6 +8,10 @@
   "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
   "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "kallo-admin" }],
   "observability": { "enabled": true, "traces": { "enabled": true, "head_sampling_rate": 0.1 } },
+  "ratelimits": [
+    { "name": "LOGIN_RATE_LIMITER", "namespace_id": "1001", "simple": { "limit": 5, "period": 60 } },
+    { "name": "LOGIN_GLOBAL_LIMITER", "namespace_id": "1002", "simple": { "limit": 30, "period": 60 } }
+  ],
   "workers_dev": true,
   "preview_urls": false,
   "vars": { "METRICS_SOURCE": "postgres" },

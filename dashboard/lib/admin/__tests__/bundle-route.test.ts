@@ -1,0 +1,26 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { GET } from '../../../app/api/metrics/route';
+import { createSessionToken } from '../../auth';
+import { METRIC_NAMES } from '../../../app/lib/types';
+import { GET as payload } from '../../../app/api/traces/[id]/payload/route';
+
+test('metrics bundle runs at most four concurrent loads, caches results, and sets refresh headers',async t=>{
+  const oldEnv={...process.env}, oldFetch=globalThis.fetch;
+  Object.assign(process.env,{DASHBOARD_FOUNDER_USERNAME:'test',DASHBOARD_FOUNDER_PASSWORD:'test-password-123',DASHBOARD_SESSION_SECRET:'x'.repeat(40),METRICS_SOURCE:'aws',API_BASE_URL:'https://synthetic.test',DASHBOARD_TOKEN:'synthetic'});
+  t.after(()=>{globalThis.fetch=oldFetch;for(const k of Object.keys(process.env))if(!(k in oldEnv))delete process.env[k];Object.assign(process.env,oldEnv);});
+  let running=0,peak=0,loads=0;
+  globalThis.fetch=async()=>{running++;loads++;peak=Math.max(peak,running);await new Promise(resolve=>setTimeout(resolve,15));running--;return Response.json({items:[{date:'2026-08-01',payload:[]}]});};
+  const headers={cookie:'kallo_session='+createSessionToken('founder')};
+  const url='https://admin.kallo.fit/api/metrics?metrics='+METRIC_NAMES.slice(0,6).join(',')+'&from=2026-08-01&to=2026-08-01';
+  const response=await GET(new Request(url,{headers}));
+  assert.equal(response.status,200);assert.equal(peak,4);assert.equal(loads,6);
+  assert.equal(response.headers.get('cache-control'),'private, max-age=30, stale-while-revalidate=300');
+  assert.equal(Object.keys((await response.json()).data).length,6);
+  await GET(new Request(url,{headers}));assert.equal(loads,6);
+  assert.equal((await GET(new Request(url+'&refresh=1',{headers}))).headers.get('cache-control'),'private, no-store');assert.equal(loads,12);
+  assert.equal((await payload(new Request('https://admin.kallo.fit/api/traces/x/payload?node=test'),{params:Promise.resolve({id:'x'})})).status,401);
+  assert.equal((await payload(new Request('https://admin.kallo.fit/api/traces/x/payload?node=test',{headers}),{params:Promise.resolve({id:'x'})})).status,400);
+  const badNode=await payload(new Request('https://admin.kallo.fit/api/traces/00000000-0000-4000-8000-000000000001/payload?node=../x',{headers}),{params:Promise.resolve({id:'00000000-0000-4000-8000-000000000001'})});
+  assert.equal(badNode.status,400);assert.equal(badNode.headers.get('cache-control'),'no-store');
+});
