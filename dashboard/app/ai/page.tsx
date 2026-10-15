@@ -31,9 +31,10 @@ function AiUsage({ win, setWin }: { win: WindowDays; setWin: (win: WindowDays) =
   const totals = useMetricBundle(WINDOW, from, today);
 
   // A manual refresh reloads both bundles independently; show their data only
-  // once neither is mid-refresh, so one fresh bundle never meets a stale one.
+  // once both have reloaded, so one fresh bundle never meets a stale one.
   const [shown, setShown] = React.useState({ daily: daily.data, totals: totals.data });
-  if (!daily.refreshing && !totals.refreshing && (shown.daily !== daily.data || shown.totals !== totals.data)) {
+  const settled = !daily.refreshing && !totals.refreshing && !daily.error && !totals.error;
+  if (settled && (shown.daily !== daily.data || shown.totals !== totals.data)) {
     setShown({ daily: daily.data, totals: totals.data });
   }
 

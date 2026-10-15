@@ -53,6 +53,8 @@ export type AiModelUsageRow = {
   errors: number;
   unpriced_calls: number;
   spend_usd: number | null;
+  /** The part of `spend_usd` spent on shadow work. */
+  shadow_spend_usd: number | null;
   input_tokens: number;
   cached_tokens: number;
   output_tokens: number;

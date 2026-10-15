@@ -107,7 +107,9 @@ export function summarize(input: UsageInput, models: ModelMeta[]): Summary {
     return inputTokens ? sum(rows.map((r) => r.cached_tokens)) / inputTokens : null;
   };
 
-  const windowSpend = sum(input.window.map((r) => r.spend_usd ?? 0));
+  // Unknown, not $0, when no call in the window could be priced.
+  const priced = input.window.flatMap((r) => (r.spend_usd == null ? [] : [r.spend_usd]));
+  const windowSpend = priced.length ? sum(priced) : null;
   const summaries: ModelSummary[] = input.window
     .filter((r) => metaById.has(r.model))
     .map((r) => ({
@@ -144,7 +146,7 @@ export function summarize(input: UsageInput, models: ModelMeta[]): Summary {
     mealP95: meals?.p95_meal_usd ?? null,
     today: { spend: daySpend(to), meals: todayRows?.meals ?? 0 },
     callsPerMeal: meals?.meals ? windowCalls / meals.meals : null,
-    shadowSpend: sum(input.window.filter((r) => r.shadow).map((r) => r.spend_usd ?? 0)),
+    shadowSpend: sum(input.window.map((r) => r.shadow_spend_usd ?? 0)),
     unpricedCalls: sum(input.window.map((r) => r.unpriced_calls)),
     timedSince: timed[0] ?? null,
   };

@@ -32,6 +32,11 @@ const ROWS = `
   ('2026-10-04T03:00:00Z','r3',${MEAL},'primary','mystery-model',0,100,10,0,0,NULL,500,NULL,NULL),
   -- Shadow work: counted per model, never in meal cost.
   ('2026-10-04T04:00:00Z','s1',${MEAL},'shadow','gemini-3.5-flash-lite',0,4000,400,0,0,0.0050,6000,NULL,NULL),
+  -- Shadow work on a model that also serves primary traffic.
+  ('2026-10-04T04:30:00Z','s2',${MEAL},'shadow','claude-haiku-5-5',0,100,10,0,0,0.0002,NULL,NULL,NULL),
+  -- r5 starts just before the window and finishes inside it: filed under Oct 3, whole.
+  ('2026-10-03T23:59:58Z','r5',${MEAL},'primary','gemini-2.5-flash',1,0,0,0,0,NULL,NULL,NULL,NULL),
+  ('2026-10-04T00:00:02Z','r5',${MEAL},'primary','gemini-2.5-flash',0,100,10,0,0,0.0001,4000,NULL,NULL),
   -- Old row from before per-call timing: no latency.
   ('2026-10-04T05:00:00Z','r4',${MEAL},'primary','gemini-3.1-flash-lite',0,1000,100,0,0,0.0004,NULL,NULL,NULL),
   -- Outside the window on both sides (UTC bounds while the session is in Tokyo).
@@ -52,7 +57,7 @@ test('AI usage metrics count attempts, price, percentiles and fallbacks per mode
     const by = Object.fromEntries(window.map((r) => [r.model, r]));
 
     // Reservation rows are not calls; days outside the UTC window are excluded.
-    assert.equal(by['claude-haiku-5-5'].calls, 2);
+    assert.equal(by['claude-haiku-5-5'].calls, 3);
     assert.equal(by['gemini-3.1-flash-lite'].calls, 3);
     assert.equal(by['claude-haiku-5-5'].errors, 1);
     assert.equal(by['gemini-3.1-flash-lite'].errors, 1);
@@ -73,6 +78,10 @@ test('AI usage metrics count attempts, price, percentiles and fallbacks per mode
 
     assert.equal(by['gemini-3.5-flash-lite'].shadow, true);
     assert.equal(by['claude-haiku-5-5'].shadow, false);
+    // Shadow spend is summed per attempt, also on a model that serves primary work.
+    assert.equal(by['claude-haiku-5-5'].shadow_spend_usd, 0.0002);
+    assert.equal(by['gemini-3.5-flash-lite'].shadow_spend_usd, 0.005);
+    assert.equal(by['gemini-3.1-flash-lite'].shadow_spend_usd, null);
     assert.equal(by['claude-haiku-5-5'].cached_tokens, 1000);
 
     const daily = await run(pg, 'ai_usage_daily');
@@ -88,7 +97,8 @@ test('AI meal metrics sum each primary analysis and leave out unpriced ones', as
   try {
     await pg.exec(SCHEMA + ROWS);
     const [meal] = await run(pg, 'ai_meal_window');
-    // r1, r2, r3, r4 are primary analyses; s1 is shadow; r0/r9 fall outside.
+    // r1, r2, r3, r4 are primary analyses; s1/s2 are shadow; r0/r9 fall
+    // outside; r5 started before the window, so its in-window tail is not a meal.
     assert.equal(meal.meals, 4);
     assert.equal(meal.priced_meals, 3);
     // r1 0.0010 + r2 (0.0003 + 0.0020 + 0.0020) + r4 0.0004

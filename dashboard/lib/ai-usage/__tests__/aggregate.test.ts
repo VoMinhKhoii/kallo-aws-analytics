@@ -8,7 +8,7 @@ function usage(model: string, over: Partial<AiModelUsageRow> = {}): AiModelUsage
   return {
     model, shadow: false, calls: 100, errors: 1, unpriced_calls: 0, spend_usd: 0.1,
     input_tokens: 1000, cached_tokens: 400, output_tokens: 100, thought_tokens: 0,
-    timed_calls: 100, p95_ms: 5000, p99_ms: 8000, fallbacks: 0, ...over,
+    timed_calls: 100, p95_ms: 5000, p99_ms: 8000, fallbacks: 0, shadow_spend_usd: null, ...over,
   };
 }
 const day = (date: string, model: string, over: Partial<AiModelUsageRow> = {}): AiUsageDailyRow => ({ date, ...usage(model, over) });
@@ -62,6 +62,14 @@ test('summarize skips a prior window the data covers less than 80%', () => {
   const inp = input({ win: 30 as never, daily: [...prior, day('2026-10-15', 'gemini-3.1-flash-lite')] });
   const tenDay = { ...inp, win: 10 as never };
   assert.equal(summarize(tenDay, modelsOf(tenDay)).spend.prev, null);
+});
+
+test('summarize keeps spend unknown when no call was priced, and sums shadow spend per call', () => {
+  const unpriced = input({ window: [usage('mystery-model', { spend_usd: null, unpriced_calls: 100 })] });
+  assert.equal(summarize(unpriced, modelsOf(unpriced)).spend.value, null);
+
+  const mixed = input({ window: [usage('claude-haiku-5-5', { spend_usd: 0.3, shadow_spend_usd: 0.1 }), usage('gemini-3.5-flash-lite', { shadow: true, spend_usd: 0.2, shadow_spend_usd: 0.2 })] });
+  assert.ok(Math.abs(summarize(mixed, modelsOf(mixed)).shadowSpend - 0.3) < 1e-9);
 });
 
 test('volumeRows fills every day of the window and marks today partial', () => {
