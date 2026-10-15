@@ -26,8 +26,9 @@ export default function AiPage() {
 function AiUsage({ win, setWin }: { win: WindowDays; setWin: (win: WindowDays) => void }) {
   const today = React.useMemo(() => new Date().toISOString().slice(0, 10), []);
   const from = dayRange(today, win)[0];
-  // Daily rows span this window and the one before it, for the change badges.
-  const daily = useMetricBundle(DAILY, dayRange(today, win * 2)[0], today);
+  // Daily rows span this window and the one before it plus a day, since the
+  // change badges compare complete days only (today left out).
+  const daily = useMetricBundle(DAILY, dayRange(today, win * 2 + 1)[0], today);
   const totals = useMetricBundle(WINDOW, from, today);
 
   // A manual refresh reloads both bundles independently; show their data only
@@ -87,7 +88,8 @@ function AiUsage({ win, setWin }: { win: WindowDays; setWin: (win: WindowDays) =
             <footer className="text-muted-foreground flex flex-wrap gap-x-6 gap-y-1 px-1 text-[12px]">
               <span>Cost per meal covers primary analyses only; shadow tests spent {usd(summary.shadowSpend)} this window.</span>
               <span>Unpriced calls: {int(summary.unpricedCalls)}</span>
-              {summary.timedSince ? <span>Per-call latency recorded since {shortDate(summary.timedSince)}.</span> : <span>No per-call latency recorded yet.</span>}
+              {summary.timedSince ? <span>Per-call latency recorded since {shortDate(summary.timedSince)}.</span> : null}
+              {summary.hasTiming ? null : <span>No per-call latency recorded yet.</span>}
             </footer>
           </>
         ) : null}

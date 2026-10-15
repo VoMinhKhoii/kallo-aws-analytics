@@ -71,6 +71,8 @@ export type AiUsageDailyRow = AiModelUsageRow & { date: string };
 /** Primary meal analyses: cost summed per request_id. */
 export type AiMealsRow = {
   meals: number;
+  /** Model calls (attempts) made by these analyses. */
+  calls: number;
   /** Analyses whose every attempt was priced; the cost stats cover only these. */
   priced_meals: number;
   spend_usd: number | null;

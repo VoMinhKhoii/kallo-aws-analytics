@@ -37,13 +37,13 @@ function Sparkline({ values, color, format }: { values: number[]; color: string;
   );
 }
 
-function DeltaPill({ kpi, good, unit }: { kpi: Kpi; good: Good; unit: string }) {
-  const d = kpi.value == null ? null : delta(kpi.value, kpi.prev);
+function DeltaPill({ kpi, good, unit, points }: { kpi: Kpi; good: Good; unit: string; points?: boolean }) {
+  const d = delta(kpi.cur, kpi.prev, points);
   if (!d) return null;
   const better = good === "up" ? d.up : !d.up;
   const Icon = d.up ? ArrowUpRight : ArrowDownRight;
   return (
-    <span className="flex shrink-0 items-center gap-1.5 text-[11px]" title={`vs prior ${unit}`}>
+    <span className="flex shrink-0 items-center gap-1.5 text-[11px]" title={`Last ${unit} of complete days vs the ${unit} before`}>
       <span className={cn("tabular inline-flex items-center gap-0.5 rounded px-1 py-px font-medium", better ? "bg-[var(--console-green)]/12 text-[var(--console-green)]" : "bg-[var(--console-amber)]/12 text-[var(--console-amber)]")}>
         <Icon className="size-3" />
         {d.text}
@@ -87,7 +87,7 @@ export function KpiStrip({ summary, unit }: { summary: Summary; unit: string }) 
         sub={summary.callsPerMeal == null ? undefined : `${summary.callsPerMeal.toFixed(1)} per meal`}
         spark={<Sparkline values={calls.spark} color="var(--console-muted)" format={compact} />}
       />
-      <Cell label="Cache hit" value={pct(cacheRate.value, 0)} delta={<DeltaPill kpi={cacheRate} good="up" unit={unit} />} spark={<Sparkline values={cacheRate.spark} color="var(--model-3)" format={(v) => pct(v, 0)} />} />
+      <Cell label="Cache hit" value={pct(cacheRate.value, 0)} delta={<DeltaPill kpi={cacheRate} good="up" unit={unit} points />} spark={<Sparkline values={cacheRate.spark} color="var(--model-3)" format={(v) => pct(v, 0)} />} />
     </section>
   );
 }

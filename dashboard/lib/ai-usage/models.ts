@@ -24,7 +24,9 @@ const KNOWN: Record<string, { label: string; slot: number }> = {
 };
 const SLOTS = 7;
 
-export const modelKey = (id: string) => id.replace(/[^a-zA-Z0-9]/g, "_");
+// Recharts reads dots as paths, so punctuation is escaped; the escape and the
+// prefix keep keys one-to-one and clear of row fields like `date` or `total`.
+export const modelKey = (id: string) => `m_${id.replace(/[^a-zA-Z0-9]/g, (c) => `_${c.charCodeAt(0).toString(16)}_`)}`;
 
 function vendorOf(id: string): ModelMeta["vendor"] {
   if (id.startsWith("claude-")) return "Anthropic";

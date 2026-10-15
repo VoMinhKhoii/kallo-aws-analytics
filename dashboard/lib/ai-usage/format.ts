@@ -32,8 +32,14 @@ export function longDate(iso: string): string {
   return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
 }
 
-export function delta(cur: number, prev: number | null): { text: string; up: boolean } | null {
-  if (prev == null || prev === 0) return null;
+/** Relative change, or percentage points for a rate (40% → 44% is +4.0 pt, not +10%). */
+export function delta(cur: number | null, prev: number | null, points = false): { text: string; up: boolean } | null {
+  if (cur == null || prev == null) return null;
+  if (points) {
+    const change = cur - prev;
+    return { text: `${change >= 0 ? "+" : "−"}${Math.abs(change * 100).toFixed(1)} pt`, up: change >= 0 };
+  }
+  if (prev === 0) return null;
   const change = cur / prev - 1;
   return { text: `${change >= 0 ? "+" : "−"}${Math.abs(change * 100).toFixed(1)}%`, up: change >= 0 };
 }

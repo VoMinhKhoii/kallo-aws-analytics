@@ -26,7 +26,10 @@ export interface ModelSummary {
 }
 
 export interface Kpi {
+  /** The whole window, today included. */
   value: number | null;
+  /** Change badge: the last `win` complete days against the `win` before them. */
+  cur: number | null;
   prev: number | null;
   spark: number[];
 }
@@ -38,16 +41,17 @@ export interface Summary {
   perKMeals: Kpi;
   cacheRate: Kpi;
   mealP95: number | null;
-  today: { spend: number; meals: number };
+  today: { spend: number | null; meals: number };
   callsPerMeal: number | null;
   shadowSpend: number;
   unpricedCalls: number;
-  /** First day with per-call latency in the loaded range, if any. */
+  /** First day with per-call latency, when timing began inside the loaded range. */
   timedSince: string | null;
+  hasTiming: boolean;
 }
 
 export interface UsageInput {
-  /** Daily rows covering the current window and the one before it. */
+  /** Daily rows covering the current window and the `win + 1` days before it. */
   daily: AiUsageDailyRow[];
   mealsDaily: AiMealsDailyRow[];
   /** Whole-window rows: percentiles over raw attempts, not daily averages. */
@@ -76,7 +80,9 @@ export function modelsOf(input: Pick<UsageInput, "daily" | "window">): ModelMeta
 export function summarize(input: UsageInput, models: ModelMeta[]): Summary {
   const { win, to } = input;
   const cur = dayRange(to, win);
-  const prev = dayRange(dayRange(to, win)[0], win + 1).slice(0, win);
+  // Badges leave today out: a partial day against full ones fakes a drop.
+  const done = dayRange(dayRange(to, 2)[0], win);
+  const prev = dayRange(done[0], win + 1).slice(0, win);
   const byDay = group(input.daily);
   const mealsByDay = new Map(input.mealsDaily.map((r) => [r.date, r]));
   const metaById = new Map(models.map((m) => [m.id, m]));
@@ -110,6 +116,8 @@ export function summarize(input: UsageInput, models: ModelMeta[]): Summary {
   // Unknown, not $0, when no call in the window could be priced.
   const priced = input.window.flatMap((r) => (r.spend_usd == null ? [] : [r.spend_usd]));
   const windowSpend = priced.length ? sum(priced) : null;
+  const todayRowsUsage = byDay.get(to) ?? [];
+  const todaySpend = todayRowsUsage.length && todayRowsUsage.every((r) => r.spend_usd == null) ? null : daySpend(to);
   const summaries: ModelSummary[] = input.window
     .filter((r) => metaById.has(r.model))
     .map((r) => ({
@@ -132,23 +140,27 @@ export function summarize(input: UsageInput, models: ModelMeta[]): Summary {
   const todayRows = mealsByDay.get(to);
   const windowCalls = sum(input.window.map((r) => r.calls));
   const timed = input.daily.filter((r) => r.timed_calls > 0).map((r) => r.date).sort();
+  const firstLoaded = input.daily.map((r) => r.date).sort()[0];
+  const change = (f: (days: string[]) => number | null) => (hasPrev ? { cur: f(done), prev: f(prev) } : { cur: null, prev: null });
 
   return {
     models: summaries,
-    spend: { value: windowSpend, prev: hasPrev ? total(prev, daySpend) : null, spark: cur.map(daySpend) },
-    calls: { value: windowCalls, prev: hasPrev ? total(prev, dayCalls) : null, spark: cur.map(dayCalls) },
+    spend: { value: windowSpend, ...change((days) => total(days, daySpend)), spark: cur.map(daySpend) },
+    calls: { value: windowCalls, ...change((days) => total(days, dayCalls)), spark: cur.map(dayCalls) },
     perKMeals: {
       value: meals?.priced_meals && meals.spend_usd != null ? (meals.spend_usd / meals.priced_meals) * 1000 : null,
-      prev: hasPrev ? perKOf(mealsIn(prev)) : null,
+      ...change((days) => perKOf(mealsIn(days))),
       spark: cur.map(dayPerK),
     },
-    cacheRate: { value: cacheOf(cur), prev: hasPrev ? cacheOf(prev) : null, spark: cur.map(dayCache) },
+    cacheRate: { value: cacheOf(cur), ...change(cacheOf), spark: cur.map(dayCache) },
     mealP95: meals?.p95_meal_usd ?? null,
-    today: { spend: daySpend(to), meals: todayRows?.meals ?? 0 },
-    callsPerMeal: meals?.meals ? windowCalls / meals.meals : null,
+    today: { spend: todaySpend, meals: todayRows?.meals ?? 0 },
+    // Primary meal-analysis calls per meal; shadow and other routes stay out.
+    callsPerMeal: meals?.meals ? meals.calls / meals.meals : null,
     shadowSpend: sum(input.window.map((r) => r.shadow_spend_usd ?? 0)),
     unpricedCalls: sum(input.window.map((r) => r.unpriced_calls)),
-    timedSince: timed[0] ?? null,
+    timedSince: timed[0] && timed[0] > firstLoaded ? timed[0] : null,
+    hasTiming: timed.length > 0,
   };
 }
 

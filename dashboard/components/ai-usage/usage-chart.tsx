@@ -29,7 +29,9 @@ export function UsageChart({ input, models }: { input: UsageInput; models: Model
   const byKey = React.useMemo(() => new Map(models.map((m) => [m.key, m])), [models]);
   const shown = models.filter((m) => rows.some((r) => typeof r[m.key] === "number"));
   const total = rows.reduce((s, r) => s + r.total, 0);
-  const complete = rows.filter((r) => !r.partial);
+  // Average over complete days since the first one with data, not the empty
+  // days before history begins.
+  const complete = rows.slice(Math.max(rows.findIndex((r) => r.total > 0), 0)).filter((r) => !r.partial);
   const avg = complete.reduce((s, r) => s + r.total, 0) / Math.max(complete.length, 1);
   const rail = shown
     .map((meta) => ({ meta, sum: columnTotal(rows, meta.key) }))

@@ -18,10 +18,13 @@ export function metricQuery(metric: MetricName, from: string, to: string): SQL {
     WHERE ${time(sql`created_at`)} AND request_count = 0 AND model IS NOT NULL AND model <> ''`;
   const fallbacks = (byDay: boolean) => sql`SELECT ${byDay ? sql`d,` : sql``} fallback_from AS model, count(*) AS n FROM (${attempts}) f
     WHERE fallback_from IS NOT NULL AND error_category IS NULL GROUP BY ${byDay ? sql`d,` : sql``} fallback_from`;
+  // A NULL cost with no tokens is a call that failed before using any: $0,
+  // not unpriced. Spend is unknown only when nothing in the slice was priced.
+  const unpriced = sql`count(*) FILTER (WHERE a.cost_usd IS NULL AND a.input_tokens + a.output_tokens + a.thought_tokens > 0)`;
   const usageColumns = sql`bool_and(a.work_kind = 'shadow') AS shadow, count(*)::int AS calls,
     count(*) FILTER (WHERE a.error_category IS NOT NULL)::int AS errors,
-    count(*) FILTER (WHERE a.cost_usd IS NULL AND a.input_tokens + a.output_tokens + a.thought_tokens > 0)::int AS unpriced_calls,
-    sum(a.cost_usd)::float AS spend_usd,
+    ${unpriced}::int AS unpriced_calls,
+    (CASE WHEN count(a.cost_usd) = 0 AND ${unpriced} > 0 THEN NULL ELSE coalesce(sum(a.cost_usd), 0) END)::float AS spend_usd,
     (sum(a.cost_usd) FILTER (WHERE a.work_kind = 'shadow'))::float AS shadow_spend_usd,
     sum(a.input_tokens)::float AS input_tokens, sum(a.cached_tokens)::float AS cached_tokens,
     sum(a.output_tokens)::float AS output_tokens, sum(a.thought_tokens)::float AS thought_tokens,
@@ -31,15 +34,17 @@ export function metricQuery(metric: MetricName, from: string, to: string): SQL {
     coalesce(max(fb.n), 0)::int AS fallbacks`;
   // Cost per primary meal analysis: every row of one request_id summed. An
   // analysis with any unpriced attempt is left out of the cost figures. It is
-  // filed under its first row and kept whole, so one that starts just before
-  // the window is not counted from its tail (analyses last under a minute).
-  const mealCosts = sql`SELECT request_id, min(created_at) AS first_at, sum(cost_usd) AS usd,
+  // filed under its first row and kept whole: rows are read a day past both
+  // bounds, so one crossing either edge is neither counted from its tail nor
+  // cut short (analyses last under a minute).
+  const mealCosts = sql`SELECT request_id, min(created_at) AS first_at, coalesce(sum(cost_usd), 0) AS usd,
+    count(*) FILTER (WHERE request_count = 0) AS calls,
     count(*) FILTER (WHERE request_count = 0 AND cost_usd IS NULL AND input_tokens + output_tokens + thought_tokens > 0) AS unpriced
     FROM analytics.v_budget_events
-    WHERE created_at >= ((${from}::date - 1)::timestamp AT TIME ZONE 'UTC') AND created_at < ((${to}::date + 1)::timestamp AT TIME ZONE 'UTC')
+    WHERE created_at >= ((${from}::date - 1)::timestamp AT TIME ZONE 'UTC') AND created_at < ((${to}::date + 2)::timestamp AT TIME ZONE 'UTC')
       AND route = '/api/analyze-meal' AND work_kind = 'primary' AND request_id IS NOT NULL
-    GROUP BY request_id HAVING min(created_at) >= (${from}::date::timestamp AT TIME ZONE 'UTC')`;
-  const mealColumns = sql`count(*)::int AS meals, count(*) FILTER (WHERE unpriced = 0)::int AS priced_meals,
+    GROUP BY request_id HAVING ${time(sql`min(created_at)`)}`;
+  const mealColumns = sql`count(*)::int AS meals, coalesce(sum(calls), 0)::int AS calls, count(*) FILTER (WHERE unpriced = 0)::int AS priced_meals,
     (sum(usd) FILTER (WHERE unpriced = 0))::float AS spend_usd,
     percentile_cont(0.95) WITHIN GROUP (ORDER BY usd) FILTER (WHERE unpriced = 0) AS p95_meal_usd`;
   switch (metric) {
