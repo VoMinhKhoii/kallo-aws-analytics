@@ -52,6 +52,6 @@ export async function POST(request: Request) {
     { ok: true, role },
     { headers: { "Cache-Control": "no-store" } },
   );
-  setSessionCookie(response, createSessionToken(role));
+  setSessionCookie(response, createSessionToken(role), request);
   return response;
 }

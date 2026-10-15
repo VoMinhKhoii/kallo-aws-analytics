@@ -10,6 +10,6 @@ export function POST(request: Request) {
     { ok: true },
     { headers: { "Cache-Control": "no-store" } },
   );
-  clearSessionCookie(response);
+  clearSessionCookie(response, request);
   return response;
 }

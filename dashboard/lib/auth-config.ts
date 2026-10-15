@@ -50,10 +50,11 @@ function environment(): Environment {
 }
 
 /**
- * Production sessions always require HTTPS; development may explicitly use HTTP.
+ * Sessions require Secure cookies unless an explicit override is used on a loopback request URL.
  */
-export function shouldUseSecureSessionCookies(env: Environment = environment()): boolean {
-  return env.NODE_ENV === "production" || env[COOKIE_SECURE_ENV_NAME]?.trim().toLowerCase() !== "false";
+export function shouldUseSecureSessionCookies(env: Environment = environment(), requestUrl?: string): boolean {
+  const loopback = requestUrl ? ['localhost','127.0.0.1'].includes(new URL(requestUrl).hostname) : false;
+  return !(env[COOKIE_SECURE_ENV_NAME]?.trim().toLowerCase() === 'false' && loopback);
 }
 
 /** Return configuration status without exposing any secret values. */
@@ -110,7 +111,7 @@ function normaliseOrigin(value: string): string | null {
   try {
     const parsed = new URL(value);
     if (parsed.username || parsed.password || parsed.pathname !== "/" || parsed.search || parsed.hash) return null;
-    return parsed.origin.toLowerCase();
+    return ['http:', 'https:'].includes(parsed.protocol) ? parsed.origin.toLowerCase() : null;
   } catch {
     return null;
   }
@@ -125,6 +126,10 @@ export function isSameOrigin(request: Request): boolean {
   if (!suppliedOrigin) return false;
 
   const expected = new Set(["https://admin.kallo.fit", "https://kallo-admin.minhkhoitdn.workers.dev"]);
+  for (const value of (environment().DASHBOARD_EXTRA_ORIGINS || '').split(',')) {
+    const origin = normaliseOrigin(value.trim());
+    if (origin) expected.add(origin);
+  }
   if (environment().NODE_ENV !== "production") {
     const origin = new URL(request.url);
     if (["localhost", "127.0.0.1", "[::1]"].includes(origin.hostname)) expected.add(origin.origin);

@@ -6,7 +6,7 @@ export class AggregateCache {
     const now = this.now();
     let entry = this.entries.get(key);
     if (entry?.pending) return entry.pending as Promise<{ value: T; collectedAt: string }>;
-    if (entry?.value !== undefined && entry.expires > now && (!refresh || now - entry.refreshed < 10000)) {
+    if (entry?.value !== undefined && entry.expires > now && !refresh) {
       this.entries.delete(key); this.entries.set(key, entry);
       return { value: entry.value as T, collectedAt: entry.collectedAt! };
     }

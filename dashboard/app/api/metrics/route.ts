@@ -1,7 +1,7 @@
 import { getSelectedMetrics } from "@/app/lib/api";
 import { METRIC_NAMES, type MetricName } from "@/app/lib/types";
 import { getLiveMetrics } from '@/lib/admin/live-metrics';
-import { aggregateCache, windowTtl } from "@/lib/admin/cache";
+import { aggregateCache } from "@/lib/admin/cache";
 import { authorizeRequest } from '@/lib/auth';
 
 export const dynamic = "force-dynamic";
@@ -44,7 +44,7 @@ export async function GET(request: Request) {
   const source = process.env.METRICS_SOURCE === 'postgres' ? 'postgres' : 'aws';
   const loadMetric = async (metric: MetricName) => {
     try {
-      return { metric, ...await aggregateCache.get(`metrics:v1:${source}:${access.session.role}:${metric}:${from}:${to}`, windowTtl(from, to), async () => {
+      return { metric, ...await aggregateCache.get(`metrics:v1:${source}:${access.session.role}:${metric}:${from}:${to}`, 60000, async () => {
         const result = source === 'postgres' ? await getLiveMetrics([metric], from, to) : await getSelectedMetrics([metric], from, to);
         if (result.errors[metric]) throw new Error(result.errors[metric]);
         return result.data[metric];
@@ -52,7 +52,9 @@ export async function GET(request: Request) {
     } catch { return { metric, error: 'The metric could not be loaded.' }; }
   };
   const parts = [];
-  for (const metric of requested as MetricName[]) parts.push(await loadMetric(metric));
+  for (let i = 0; i < requested.length; i += 4) {
+    parts.push(...await Promise.all((requested as MetricName[]).slice(i, i + 4).map(loadMetric)));
+  }
   const bundle = {
     from, to,
     data: Object.fromEntries(parts.filter(p => !('error' in p)).map(p => [p.metric, 'value' in p ? p.value : undefined])),
@@ -61,6 +63,6 @@ export async function GET(request: Request) {
     collectedAtByMetric: Object.fromEntries(parts.flatMap(p => 'collectedAt' in p ? [[p.metric, p.collectedAt]] : [])),
   };
   return Response.json(bundle, {
-    headers: { "Cache-Control": refresh ? "private, no-store" : "private, max-age=30" },
+    headers: { "Cache-Control": refresh ? "private, no-store" : "private, max-age=30, stale-while-revalidate=300" },
   });
 }

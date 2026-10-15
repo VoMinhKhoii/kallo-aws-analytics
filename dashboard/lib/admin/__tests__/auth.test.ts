@@ -55,3 +55,17 @@ test('login works without reviewer secrets, wrong password is generic, founder r
   assert.equal(invalid.status,400); assert.equal(invalid.headers.get('cache-control'),'no-store');
   const expired = createSessionToken('founder',1); assert.equal(verifySessionToken(expired),null);
 });
+
+test('explicit extra origins and local-only insecure cookie override work in production', async t => {
+  const previous={...process.env}; Object.assign(process.env,config,{NODE_ENV:'production',DASHBOARD_EXTRA_ORIGINS:'http://127.0.0.1:43123, https://example.test/path, https://trusted.test',DASHBOARD_COOKIE_SECURE:'false'});
+  t.after(()=>{for(const k of Object.keys(process.env)) if(!(k in previous)) delete process.env[k];Object.assign(process.env,previous);});
+  assert.equal(isSameOrigin(new Request('http://127.0.0.1:43123',{headers:{origin:'http://127.0.0.1:43123'}})),true);
+  assert.equal(isSameOrigin(new Request('http://127.0.0.1:43124',{headers:{origin:'http://127.0.0.1:43124','x-forwarded-host':'127.0.0.1:43123'}})),false);
+  assert.equal(isSameOrigin(new Request('https://example.test',{headers:{origin:'https://example.test'}})),false);
+  assert.equal(shouldUseSecureSessionCookies(process.env,'http://localhost:43123'),false);
+  assert.equal(shouldUseSecureSessionCookies(process.env,'http://127.0.0.1:43123'),false);
+  assert.equal(shouldUseSecureSessionCookies(process.env,'https://trusted.test'),true);
+  assert.equal(shouldUseSecureSessionCookies({DASHBOARD_COOKIE_SECURE:'true'},'http://localhost'),true);
+  const result=await POST(new Request('http://127.0.0.1:43123/api/auth/login',{method:'POST',headers:{origin:'http://127.0.0.1:43123'},body:JSON.stringify({username:config.DASHBOARD_FOUNDER_USERNAME,password:config.DASHBOARD_FOUNDER_PASSWORD})}));
+  assert.equal(result.status,200); assert.doesNotMatch(result.headers.get('set-cookie')!,/; Secure/);
+});

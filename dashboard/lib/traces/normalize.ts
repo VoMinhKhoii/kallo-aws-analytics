@@ -1,4 +1,4 @@
-import type { Nutrient, TraceCall, TraceDetail, TraceItem, TraceStage } from './types';
+import type { CallRole, Nutrient, TraceCall, TraceDetail, TraceItem, TraceStage } from './types';
 import { numberOrNull as n } from './query';
 // Adapters accept database/log payloads at this boundary and expose one typed contract.
 export type Row = Record<string, any>;
@@ -21,8 +21,14 @@ export function nutrition(result: Row = {}): TraceDetail['summary'] {
   }));
   return { ...values(result), items };
 }
+export function callRole(value: unknown, stage?: unknown): CallRole {
+  const roles = ['call1','selector','call2_chunk','rescue_call1','rescue_selector','rescue_call2','unknown'];
+  if (roles.includes(String(value))) return value as CallRole;
+  if (roles.includes(String(stage))) return stage as CallRole;
+  return stage === 'decomposition' ? 'call1' : stage === 'matching' ? 'selector' : stage === 'nutrition' ? 'call2_chunk' : 'unknown';
+}
 export function normalizeCall(c: Row): TraceCall {
-  return { id: String(c.id || c.eventId), stage: str(c.stage), attempt: Number(c.attempt || 1), provider: str(c.provider) || (String(c.model).includes('claude') ? 'anthropic' : String(c.model).includes('gemini') ? 'google' : null),
+  return { ...(c.created_at || c.createdAt ? {createdAt: timestamp(c.created_at || c.createdAt)} : {}), stageLogId: str(c.stage_log_id ?? c.stageLogId), workKind: str(c.work_kind ?? c.workKind), hasPrompt: c.has_prompt ?? (c.prompt != null || c.prompt_rendered != null), hasResponse: c.has_response ?? (c.response != null || c.response_raw != null), role: callRole(c.callRole ?? c.call_role, c.stage), ...(c.promptIsTemplate ? {promptIsTemplate: true} : {}), id: String(c.id || c.eventId), stage: str(c.stage), attempt: Number(c.attempt || 1), provider: str(c.provider) || (String(c.model).includes('claude') ? 'anthropic' : String(c.model).includes('gemini') ? 'google' : null),
     model: String(c.model || 'unknown'), ...(c.startedAt || c.created_at ? { startedAt: c.startedAt ? timestamp(c.startedAt) : new Date(Date.parse(c.created_at) - Number(c.latency_ms || 0)).toISOString() } : {}),
     latencyMs: n(c.latencyMs ?? c.latency_ms), inputTokens: n(c.inputTokens ?? c.input_tokens), cachedTokens: n(c.cachedTokens ?? c.cached_tokens),
     cacheWriteTokens: n(c.cacheWriteTokens ?? c.cache_write_tokens), outputTokens: n(c.outputTokens ?? c.output_tokens), thoughtTokens: n(c.thoughtTokens ?? c.thought_tokens),
@@ -54,16 +60,29 @@ export function postgresDetail(request: Row, rows: Row[], callRows: Row[], budge
   const stages: TraceStage[] = rows.map(s => ({ key: String(s.id), name: String(s.stage), index: Number(s.stage_index),
     // Legacy created_at is written after the stage completes.
     startedAt: new Date(Date.parse(s.created_at) - Number(s.duration_ms || 0)).toISOString(), durationMs: n(s.duration_ms),
-    status: String(s.status), error: str(s.error), input: s.input_json ?? null, output: s.output_json ?? null, calls: [] }));
+    inputBytes: n(s.input_bytes) ?? undefined, outputBytes: n(s.output_bytes) ?? undefined, status: String(s.status), error: str(s.error), input: s.input_json ?? null, output: s.output_json ?? null, calls: [] }));
   const used = new Set<string>();
   const calls = callRows.map(c => {
     // Budget events have no legacy call ID. Match once by model/time/token usage;
     // unmatched billed attempts remain separate rather than being silently lost.
     const b = budget.find(b => !used.has(b.id) && b.model === c.model && Math.abs(Date.parse(b.created_at)-Date.parse(c.created_at)) < 5000 && (b.input_tokens == null || b.input_tokens === c.input_tokens));
     if (b) used.add(b.id);
-    return normalizeCall({ ...b, ...c, cost_usd: b?.cost_usd, cached_tokens: c.cached_tokens ?? b?.cached_tokens, thought_tokens: c.thought_tokens ?? b?.thought_tokens, cache_write_tokens: b?.cache_write_tokens, fallback_from: b?.fallback_from, stage: c.stage_log_id });
+    return normalizeCall({ ...b, ...c, created_at: b?.created_at ?? c.created_at, stage_log_id: c.stage_log_id ?? b?.stage_log_id, cost_usd: b?.cost_usd, cached_tokens: c.cached_tokens ?? b?.cached_tokens, thought_tokens: c.thought_tokens ?? b?.thought_tokens, cache_write_tokens: b?.cache_write_tokens, fallback_from: b?.fallback_from, stage: c.stage_log_id ?? b?.stage_log_id, call_role: c.call_role ?? b?.call_role, promptIsTemplate: c.prompt_is_template });
   });
-  for (const b of budget) if (!used.has(b.id)) calls.push(normalizeCall({ ...b, id: 'budget:' + b.id }));
+  for (const b of budget) if (!used.has(b.id)) calls.push(normalizeCall({ ...b, id: 'budget:' + b.id, stage: b.stage_log_id }));
+  const end = Date.parse(request.created_at) + Number(request.duration_ms ?? run.total_ms ?? 0);
+  for (const c of calls) {
+    const raw = callRows.find(r => String(r.id) === c.id) || budget.find(r => 'budget:' + r.id === c.id);
+    const at = Date.parse(c.createdAt || raw?.created_at || c.startedAt || '');
+    c.afterResponse = Number.isFinite(at) && at > end;
+    if (c.afterResponse) continue;
+    const window = stages.find(s => at >= Date.parse(s.startedAt) && at <= Date.parse(s.startedAt) + Number(s.durationMs || 0));
+    const stage = stages.find(s => s.key === c.stage) || window;
+    if (stage) {
+      c.stage = stage.key;
+      if (c.role === 'unknown') c.role = stage.name === 'matching' ? ((c.outputTokens ?? Infinity) <= 64 ? 'selector' : 'unknown') : callRole(null, stage.name);
+    }
+  }
   const result = rows.find(s => s.stage === 'assembly')?.output_json?.result || {};
   const detail = assembleDetail({ ...request, duration_ms: request.duration_ms ?? run.total_ms }, stages, calls, result, 'postgres', budget.length,
     rows.some(s => s.truncated) || callRows.some(c => c.truncated) || rows.length >= 64 || callRows.length >= 128 || budget.length >= 256);
