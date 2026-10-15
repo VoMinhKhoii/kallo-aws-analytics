@@ -6,8 +6,9 @@ import type { SQL } from 'drizzle-orm';
 import type { AppDb } from '../db/client';
 import { traceFilters, listQuery, encodeCursor, decodeCursor, listTraces } from '../../traces/query';
 import { traceRequest, loadPostgresDetail } from '../../traces/postgres';
-import { loggingDetail, reassemble, loadLoggingDetail } from '../../traces/logging';
-import { graphDetail, nodePayload, traceCacheControl } from '../../traces/detail';
+import { loggingDetail, reassemble, loadLoggingDetail, loadLoggingPayload } from '../../traces/logging';
+import { graphDetail, nodePayload, traceCacheControl, selectedPayload, selectCapture, captureIncomplete } from '../../traces/detail';
+import { traceStatuses } from '../../traces/status';
 import { postgresDetail } from '../../traces/normalize';
 import { generateKeyPairSync } from 'node:crypto';
 const id = '00000000-0000-4000-8000-000000000001';
@@ -47,8 +48,8 @@ test('Logging normalizes summaries, stages, all attempts, gaps and partial captu
   assert.equal(loggingDetail(request,entries.slice(0,-1),1)!.completeness.truncated,true);
 });
 test('Postgres list and detail work before and after summary expansion with tied timestamp paging', async () => {
-  const pg = new PGlite(); const dialect = new PgDialect();
-  const db = { async execute(query: SQL) { const q = dialect.sqlToQuery(query); return (await pg.query(q.sql,q.params)).rows; } } as unknown as AppDb;
+  const pg = new PGlite(); const dialect = new PgDialect();const queries:string[]=[];
+  const db = { async execute(query: SQL) { const q = dialect.sqlToQuery(query);queries.push(q.sql); return (await pg.query(q.sql,q.params)).rows; } } as unknown as AppDb;
   try {
     await pg.exec(`
       CREATE TABLE pipeline_requests(id uuid,created_at timestamptz,status text,raw_input text,duration_ms int,error text);
@@ -65,6 +66,18 @@ test('Postgres list and detail work before and after summary expansion with tied
       INSERT INTO pipeline_llm_call_metadata VALUES ('${id}','google',5,2);
       INSERT INTO analysis_model_budget_events VALUES ('${id}','${id}','2026-10-10T10:00:00Z','gemini-test','google',0,20,10,5,2,0,0.01,100,NULL,NULL),('${otherId}','${id}','2026-10-10T10:00:00Z','claude-test','anthropic',0,15,10,0,0,0,0.02,80,NULL,NULL);
     `);
+    let queryStart=queries.length;
+    const selected=await selectedPayload(db,id,'postgres','call',id);
+    assert.deepEqual(selected?.payload,{prompt:'synthetic template',response:'synthetic response',promptIsTemplate:true});
+    assert.equal(queries.length-queryStart,2);assert.ok(!queries.slice(queryStart).some(q=>q.includes('pipeline_runs')||q.includes('count(*)')));
+    assert.equal(await selectedPayload(db,otherId,'postgres','call',id),null);
+    assert.equal(await selectedPayload(db,otherId,'postgres','stage',id),null);
+    assert.ok(await selectedPayload(db,id,'postgres','stage',id));
+    assert.equal(await selectedPayload(db,id,'postgres','call','missing'),null);
+    queryStart=queries.length;
+    const statuses=await traceStatuses(db,[id,otherId,'00000000-0000-4000-8000-000000000099']);
+    assert.equal(queries.length-queryStart,1);assert.equal(statuses.length,2);assert.equal(statuses[0].durationMs,1000);
+    assert.ok(!queries.at(-1)!.includes('JOIN'));assert.ok(!queries.at(-1)!.includes('pipeline_stage_logs'));
     const f = traceFilters.parse({from:'2026-10-10',to:'2026-10-10',limit:1});
     const first = await listTraces(db,f,'secret'); assert.equal(first.items[0].id,otherId); assert.ok(first.nextCursor);
     const second = await listTraces(db,{...f,cursor:first.nextCursor!},'secret');
@@ -188,4 +201,30 @@ test('both adapters retain only bounded scalar stage stats in graph details',()=
     assert.ok(Buffer.byteLength(JSON.stringify(graph))<40960);
     assert.equal('output' in graph.stages[0],false);
   }
+});
+
+test('partial Logging request markers fall back to Postgres and never receive a long cache lifetime',async()=>{
+  const partial=loggingDetail(request,[e('request',1)],2)!;
+  const pg=postgresDetail(request,[{id:'pg-stage',stage:'assembly',stage_index:3,created_at:request.created_at,duration_ms:100,status:'success',output_json:{result:{kcal:120}}}],[],[{id:'b1',model:'test'},{id:'b2',model:'test'}]);
+  let loads=0;const selected=await selectCapture(partial,async()=>{loads++;return pg;});
+  assert.equal(loads,1);assert.equal(selected.source,'postgres');assert.equal(selected.stages[0].key,'pg-stage');assert.equal(selected.calls.length,2);
+  assert.equal(selected.summary.kcal,120);assert.equal(captureIncomplete(selected),true);
+  assert.equal(traceCacheControl(selected.status,false,captureIncomplete(selected)),'no-store');
+  const full={...partial,completeness:{stagesExpected:4,stagesFound:4,callsLogged:2,callsBilled:2,truncated:false}};
+  assert.equal(await selectCapture(full,async()=>{throw new Error('unexpected fallback');}),full);
+});
+test('Logging payload reads only the selected event, reassembles its parts and enforces request ownership',async t=>{
+  const old=globalThis.fetch,previous=process.env.GOOGLE_MONITORING_CREDENTIALS;
+  process.env.GOOGLE_MONITORING_CREDENTIALS=JSON.stringify({client_email:'payload@example.test',private_key:generateKeyPairSync('rsa',{modulusLength:2048}).privateKey.export({type:'pkcs8',format:'pem'})});
+  t.after(()=>{globalThis.fetch=old;if(previous===undefined)delete process.env.GOOGLE_MONITORING_CREDENTIALS;else process.env.GOOGLE_MONITORING_CREDENTIALS=previous;});
+  let foreign=false;
+  globalThis.fetch=async(url,init)=>{
+    if(String(url).includes('oauth2'))return Response.json({access_token:'payload-test'});
+    const {filter}=JSON.parse(String(init?.body));assert.match(filter,/jsonPayload.eventId="event-4"/);assert.match(filter,/jsonPayload.requestId=/);assert.match(filter,/jsonPayload.type="stage"/);
+    const payload=JSON.stringify({stage:'assembly',input:{selected:true},output:{result:42}});
+    const event={...e('stage',4),requestId:foreign?otherId:id,parts:2};
+    return Response.json({entries:[{jsonPayload:{...event,part:1,payload:payload.slice(0,25)}},{jsonPayload:{...event,part:2,payload:payload.slice(25)}}]});
+  };
+  assert.deepEqual(await loadLoggingPayload(request,'event-4','stage'),{input:{selected:true},output:{result:42}});
+  foreign=true;assert.equal(await loadLoggingPayload(request,'event-4','stage'),null);
 });

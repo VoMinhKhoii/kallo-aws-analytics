@@ -32,11 +32,13 @@ export async function workerLoginLimits(): Promise<LoginLimits> {
 export async function loginAllowed(request: Request, limits: LoginLimits): Promise<boolean> {
   // Cloudflare supplies this header. Never trust X-Forwarded-For as an identity.
   const ip = request.headers.get('cf-connecting-ip') || 'unknown';
-  try {
-    const results = await Promise.allSettled([
-      Promise.resolve().then(() => limits.LOGIN_RATE_LIMITER?.limit({ key: 'login:' + ip })),
-      Promise.resolve().then(() => limits.LOGIN_GLOBAL_LIMITER?.limit({ key: 'login:all' })),
-    ]);
-    return results.every(result => result.status !== 'fulfilled' || result.value?.success !== false);
-  } catch { return true; } // Local development and unavailable bindings remain usable.
+  const local = process.env.NODE_ENV !== 'production' || ['localhost','127.0.0.1','[::1]'].includes(new URL(request.url).hostname);
+  const results = await Promise.allSettled([
+    Promise.resolve().then(() => limits.LOGIN_RATE_LIMITER?.limit({ key: 'login:' + ip })),
+    Promise.resolve().then(() => limits.LOGIN_GLOBAL_LIMITER?.limit({ key: 'login:all' })),
+  ]);
+  if (!local && results.some(r => r.status === 'rejected' || !r.value || typeof r.value.success !== 'boolean')) {
+    throw new Error('Sign-in is temporarily unavailable');
+  }
+  return results.every(r => r.status !== 'fulfilled' || r.value?.success !== false);
 }

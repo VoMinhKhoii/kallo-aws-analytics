@@ -16,13 +16,13 @@ export async function loadOverview(db:AppDb, days:number, now=new Date()):Promis
   const midnight=boundary(0), end=boundary(1), start=boundary(1-days), done=boundary(-days), prior=boundary(-2*days);
   const reservation=sql`e.request_count=1 AND e.route='/api/analyze-meal' AND e.work_kind='primary'
     AND NOT EXISTS (SELECT 1 FROM public.pipeline_requests r WHERE r.id::text=e.request_id AND to_jsonb(r)->>'replay_of_request_id' IS NOT NULL)`;
-  const [totals,daily,attention]=await Promise.all([
+  const [totals,daily,attention,errors7]=await Promise.all([
     db.execute(sql`WITH windows AS (SELECT 'value' AS key,${start} AS lo,${end} AS hi UNION ALL SELECT 'comparison',${done},${midnight} UNION ALL SELECT 'previous',${prior},${done})
     SELECT w.key,
       (SELECT count(*)::int FROM public.analysis_model_budget_events e WHERE ${reservation} AND e.created_at>=lo AND e.created_at<hi) AS meals,
       (SELECT count(DISTINCT (e.created_at AT TIME ZONE 'UTC')::date)::int FROM public.analysis_model_budget_events e WHERE ${reservation} AND e.created_at>=lo AND e.created_at<hi) AS meal_days,
-      (SELECT percentile_cont(0.95) WITHIN GROUP (ORDER BY total_ms) FROM public.pipeline_runs WHERE created_at>=lo AND created_at<hi) AS p95,
-      (SELECT count(DISTINCT (created_at AT TIME ZONE 'UTC')::date)::int FROM public.pipeline_runs WHERE created_at>=lo AND created_at<hi AND total_ms IS NOT NULL) AS run_days,
+      (SELECT percentile_cont(0.95) WITHIN GROUP (ORDER BY total_ms) FROM public.pipeline_runs run WHERE created_at>=lo AND created_at<hi AND NOT EXISTS (SELECT 1 FROM public.pipeline_requests r WHERE r.id::text=to_jsonb(run)->>'request_id' AND to_jsonb(r)->>'replay_of_request_id' IS NOT NULL)) AS p95,
+      (SELECT count(DISTINCT (created_at AT TIME ZONE 'UTC')::date)::int FROM public.pipeline_runs run WHERE created_at>=lo AND created_at<hi AND NOT EXISTS (SELECT 1 FROM public.pipeline_requests r WHERE r.id::text=to_jsonb(run)->>'request_id' AND to_jsonb(r)->>'replay_of_request_id' IS NOT NULL) AND total_ms IS NOT NULL) AS run_days,
       (SELECT count(*)::int FROM public.pipeline_requests WHERE created_at>=lo AND created_at<hi AND status='error' AND to_jsonb(pipeline_requests)->>'replay_of_request_id' IS NULL) AS errors,
       (SELECT count(*)::int FROM public.pipeline_requests WHERE created_at>=lo AND created_at<hi AND to_jsonb(pipeline_requests)->>'replay_of_request_id' IS NULL) AS error_population,
       (SELECT count(*)::int FROM auth.users WHERE created_at>=lo AND created_at<hi) AS signups,
@@ -39,15 +39,18 @@ export async function loadOverview(db:AppDb, days:number, now=new Date()):Promis
       (SELECT count(*)::int FROM public.user_feedback WHERE status='open' AND created_at<${now.toISOString()}::timestamptz-interval '48 hours') AS old_feedback,
       (SELECT count(*)::int FROM public.pipeline_requests WHERE created_at>=${midnight} AND created_at<${end} AND status='error' AND to_jsonb(pipeline_requests)->>'replay_of_request_id' IS NULL) AS failed_today,
       (SELECT count(*)::int FROM auth.users u WHERE ${activePromoSql(sql`u.id`)} AND NOT ${payingSql(sql`u.id`)} AND ${promoEndsSql(sql`u.id`)}<=now()+interval '3 days') AS ending_soon`),
+    db.execute(sql`SELECT
+      (SELECT count(*)::int FROM public.pipeline_requests r WHERE created_at>=${boundary(-7)} AND created_at<${midnight} AND status='error' AND to_jsonb(r)->>'replay_of_request_id' IS NULL) AS errors,
+      (SELECT count(*)::int FROM public.analysis_model_budget_events e WHERE ${reservation} AND created_at>=${boundary(-7)} AND created_at<${midnight}) AS meals`),
   ]);
   const value=totals.find(r=>r.key==='value')!, current=totals.find(r=>r.key==='comparison')!, prev=totals.find(r=>r.key==='previous')!;
   const required=Math.ceil(days*.8), num=(v:unknown)=>v==null?null:Number(v);
   const metric=(key:string,coverage='meal_days'):OverviewKpi=>({value:num(value[key]),comparisonValue:num(current[key]),previousValue:Number(current[coverage])>=required && Number(prev[coverage])>=required?num(prev[key]):null});
   const rate=(r:typeof value)=>Number(r.meals)?Number(r.errors)/Number(r.meals):null;
   const a=attention[0], yesterday=daily[daily.length-2];
-  return {days,through:today,kpis:{meals:metric('meals'),errorRate:{value:days<=7?rate(value):null,comparisonValue:null,previousValue:null},p95MealLatencyMs:metric('p95','run_days'),
+  return {days,through:today,kpis:{meals:metric('meals'),errorRate:{value:rate(errors7[0]),comparisonValue:null,previousValue:null},p95MealLatencyMs:metric('p95','run_days'),
     dau:{...metric('dau'),value:Number(yesterday?.dau||0)},newSignups:metric('signups'),openFeedback:{value:Number(a.open_feedback),comparisonValue:null,previousValue:null}},
     mealsDaily:daily.slice(1).map(r=>({date:String(r.date),analysed:Number(r.analysed),errors:num(r.errors)})),activeUsersDaily:daily.slice(1).map(r=>({date:String(r.date),dau:Number(r.dau),wau:Number(r.wau)})),
     needsAttention:{failedMealsToday:Number(a.failed_today),feedbackOpenOver48h:Number(a.old_feedback),grantsEndingWithin3Days:Number(a.ending_soon)},
-    coverage:{currentMealDays:Number(current.meal_days),previousMealDays:Number(prev.meal_days),requiredDays:required,errorRetentionDays:7,p95Source:'pipeline_runs.total_ms (recorded pipeline latency)',openFeedbackHistory:false}};
+    coverage:{currentMealDays:Number(current.meal_days),previousMealDays:Number(prev.meal_days),requiredDays:required,errorRetentionDays:7,p95Source:'pipeline_runs.total_ms; known replays excluded while request identity is retained (7 days)',openFeedbackHistory:false}};
 }

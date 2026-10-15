@@ -32,6 +32,7 @@ export function TrendChart({
   seriesOnly = false,
   bars = false,
   hourly = false,
+  partialLast = hourly, stacked = false, step = false, integer = false, totals = false, windowLabel, durationAxis = false,
   emptyMessage = "Nothing recorded in this window yet.",
 }: {
   title: string;
@@ -45,6 +46,7 @@ export function TrendChart({
   seriesOnly?: boolean;
   bars?: boolean;
   hourly?: boolean;
+  partialLast?: boolean; stacked?: boolean; step?: boolean; integer?: boolean; totals?: boolean; windowLabel?: string; durationAxis?: boolean;
   emptyMessage?: string;
 }) {
   const rows = observedRows(inputRows, models.map(m => m.key));
@@ -58,8 +60,8 @@ export function TrendChart({
   const byKey = React.useMemo(() => new Map(models.map((m) => [m.key, m])), [models]);
   const since = rows[0]?.date;
   const rail = shown.map((meta) => {
-    const v = hoveredRow ? typeof hoveredRow[meta.key] === "number" ? hoveredRow[meta.key] as number : null : lastValue(rows, meta.key);
-    return { meta, value: v == null ? "—" : format(v), sub: hoveredRow ? shortDate(hoveredRow.date.slice(0,10)) : "latest day" };
+    const v = hoveredRow ? typeof hoveredRow[meta.key] === "number" ? hoveredRow[meta.key] as number : null : totals ? rows.reduce((sum,row)=>sum+(typeof row[meta.key]==='number'?row[meta.key] as number:0),0) : lastValue(rows, meta.key);
+    return { meta, value: v == null ? "—" : format(v), sub: hoveredRow ? shortDate(hoveredRow.date.slice(0,10)) : totals ? (windowLabel??`${inputRows.length}d`) : "latest" };
   });
 
   return (
@@ -77,24 +79,24 @@ export function TrendChart({
         <div className="flex flex-col gap-3 sm:flex-row">
           <div className="h-[190px] w-full min-w-0 sm:flex-1">
             <ResponsiveContainer>
-              <ComposedChart barGap="-100%" data={rows} onMouseMove={state => setHoveredRow(state.activePayload?.[0]?.payload ?? null)} onMouseLeave={() => setHoveredRow(null)} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
+              <ComposedChart barGap={stacked?undefined:"-100%"} data={rows} onMouseMove={state => setHoveredRow(state.activePayload?.[0]?.payload ?? null)} onMouseLeave={() => setHoveredRow(null)} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
                 {bars && <defs>{shown.map(m => <pattern key={m.key} id={`${hatchId}-${m.key}`} width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="5" height="5" fill={m.color} fillOpacity={0.25} /><line x1="0" y1="0" x2="0" y2="5" stroke={m.color} strokeWidth={2} /></pattern>)}</defs>}
                 <CartesianGrid vertical={false} stroke="var(--console-rule)" />
                 <XAxis dataKey="date" ticks={ticks} tickFormatter={v => hourly ? String(v).slice(11, 16) : shortDate(String(v).slice(0,10))} tickLine={false} axisLine={false} minTickGap={36} tick={{ fill: "var(--console-muted)", fontSize: 11 }} />
-                <YAxis allowDecimals={!bars} domain={[0, "auto"]} tickFormatter={axis} tickLine={false} axisLine={false} width={64} tick={({x, y, payload}) => <text x={Number(x) - 8} y={y} textAnchor="end" dominantBaseline="central" fill="var(--console-muted)" fontSize={11}>{axis(Number(payload.value))}</text>} />
+                <YAxis allowDecimals={!bars&&!integer} domain={durationAxis?[0,durationMax(rows,shown.map(m=>m.key))]:[0,"auto"]} ticks={durationAxis?durationTicks(rows,shown.map(m=>m.key)):undefined} tickFormatter={axis} tickLine={false} axisLine={false} width={64} tick={({x, y, payload}) => <text x={Number(x) - 8} y={y} textAnchor="end" dominantBaseline="central" fill="var(--console-muted)" fontSize={11}>{axis(Number(payload.value))}</text>} />
                 <Tooltip
                   allowEscapeViewBox={{x: false, y: false}}
                   cursor={{ stroke: "var(--console-muted)", strokeDasharray: "3 3" }}
                   content={(p) => <UsageTooltip active={p.active} payload={p.payload as never} label={p.label as string} models={byKey} format={format} />}
                 />
                 {shown.map((m, index) => bars ? (
-                  <Bar key={m.key} dataKey={m.key} maxBarSize={index === 0 ? 36 : 14} fill={m.color} fillOpacity={focus.opacity(m.key)} isAnimationActive={animate} onAnimationEnd={() => setAnimate(false)} animationDuration={600}>
-                    {rows.map(row => <Cell key={row.date} fill={row.date.slice(0, 10) === today ? `url(#${hatchId}-${m.key})` : m.color} />)}
+                  <Bar key={m.key} dataKey={m.key} stackId={stacked?"counts":undefined} maxBarSize={stacked||index === 0 ? 36 : 14} fill={m.color} fillOpacity={focus.opacity(m.key)} isAnimationActive={animate} onAnimationEnd={() => setAnimate(false)} animationDuration={600}>
+                    {rows.map(row => <Cell key={row.date} fill={(partialLast ? row.date===rows.at(-1)?.date && row.date.slice(0,10)===today : row.date.slice(0,10)===today) ? `url(#${hatchId}-${m.key})` : m.color} />)}
                   </Bar>
                 ) : (
                   <Line
                     key={m.key}
-                    type="monotoneX"
+                    type={step?"stepAfter":"monotoneX"}
                     dataKey={m.key}
                     stroke={m.color}
                     strokeOpacity={focus.opacity(m.key)}
@@ -111,9 +113,19 @@ export function TrendChart({
               </ComposedChart>
             </ResponsiveContainer>
           </div>
-          {seriesOnly ? <SeriesRail items={rail.map(({meta,value}) => ({...meta,value}))} focus={focus} /> : <ModelRail items={rail} focus={focus} />}
+          {seriesOnly ? <SeriesRail items={rail.map(({meta,value,sub}) => ({...meta,value,sub}))} focus={focus} /> : <ModelRail items={rail} focus={focus} />}
         </div>
       )}
     </section>
   );
 }
+
+// Millisecond data with whole-second, evenly spaced, nice axis ticks.
+function durationTicks(rows:TrendRow[],keys:string[]) {
+  const max=Math.max(1000,...rows.flatMap(r=>keys.map(k=>typeof r[k]==='number'?r[k] as number:0)));
+  const raw=max/4000, magnitude=10**Math.floor(Math.log10(raw));
+  const step=([1,2,4,5,10].find(n=>n*magnitude>=raw)??10)*magnitude*1000;
+  const nice=Math.max(1000,step), top=Math.ceil(max/nice)*nice;
+  return Array.from({length:Math.round(top/nice)+1},(_,i)=>i*nice);
+}
+function durationMax(rows:TrendRow[],keys:string[]) {return durationTicks(rows,keys).at(-1)!;}

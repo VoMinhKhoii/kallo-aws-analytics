@@ -4,6 +4,8 @@ import { getAuthConfig, isSameOrigin, shouldUseSecureSessionCookies } from '../.
 import { createSessionToken, verifySessionToken, authorizeRequest } from '../../auth';
 import { loginAllowed, readLoginBody, loginSchema } from '../../login-security';
 import { GET as traceList } from '../../../app/api/traces/route';
+import { GET as traceStatuses } from '../../../app/api/traces/status/route';
+import { GET as tracePayload } from '../../../app/api/traces/[id]/payload/route';
 import { GET as traceDetail } from '../../../app/api/traces/[id]/route';
 import { GET as analytics } from '../../../app/api/analytics/route';
 import { POST } from '../../../app/api/auth/login/route';
@@ -47,7 +49,7 @@ test('login works without reviewer secrets, wrong password is generic, founder r
   const access = authorizeRequest(new Request('https://admin.kallo.fit/api/traces',{headers:{cookie:'kallo_session='+token}}),{role:'founder'});
   assert.ok('response' in access); if ('response' in access) assert.equal(access.response.status,403);
   const reviewerRequest = new Request('https://admin.kallo.fit/api/traces',{headers:{cookie:'kallo_session='+token}});
-  for (const response of [await traceList(reviewerRequest),await traceDetail(reviewerRequest,{params:Promise.resolve({id:'invalid'})}),await analytics(new Request('https://admin.kallo.fit/api/analytics?fn=traceDetail&id=invalid',{headers:{cookie:'kallo_session='+token}}))]) {
+  for (const response of [await traceList(reviewerRequest),await traceStatuses(reviewerRequest),await tracePayload(reviewerRequest,{params:Promise.resolve({id:'invalid'})}),await traceDetail(reviewerRequest,{params:Promise.resolve({id:'invalid'})}),await analytics(new Request('https://admin.kallo.fit/api/analytics?fn=traceDetail&id=invalid',{headers:{cookie:'kallo_session='+token}}))]) {
     assert.equal(response.status,403); assert.equal(response.headers.get('cache-control'),'no-store');
   }
   const founder = createSessionToken('founder');
@@ -68,4 +70,27 @@ test('explicit extra origins and local-only insecure cookie override work in pro
   assert.equal(shouldUseSecureSessionCookies({DASHBOARD_COOKIE_SECURE:'true'},'http://localhost'),true);
   const result=await POST(new Request('http://127.0.0.1:43123/api/auth/login',{method:'POST',headers:{origin:'http://127.0.0.1:43123'},body:JSON.stringify({username:config.DASHBOARD_FOUNDER_USERNAME,password:config.DASHBOARD_FOUNDER_PASSWORD})}));
   assert.equal(result.status,200); assert.doesNotMatch(result.headers.get('set-cookie')!,/; Secure/);
+});
+
+test('production limiter failures fail closed; only local development may omit bindings',async()=>{
+  const previous=process.env.NODE_ENV;
+  Object.assign(process.env,{NODE_ENV:'production'});
+  const request=new Request('https://admin.example.test/api/auth/login');
+  const yes={async limit(){return {success:true};}},no={async limit(){return {success:false};}},broken={async limit():Promise<{success:boolean}>{throw new Error('unavailable');}};
+  try {
+    await assert.rejects(loginAllowed(request,{}),/Sign-in is temporarily unavailable/);
+    await assert.rejects(loginAllowed(request,{LOGIN_RATE_LIMITER:yes,LOGIN_GLOBAL_LIMITER:broken}),/Sign-in is temporarily unavailable/);
+    await assert.rejects(loginAllowed(request,{LOGIN_RATE_LIMITER:broken,LOGIN_GLOBAL_LIMITER:yes}),/Sign-in is temporarily unavailable/);
+    assert.equal(await loginAllowed(request,{LOGIN_RATE_LIMITER:yes,LOGIN_GLOBAL_LIMITER:yes}),true);
+    assert.equal(await loginAllowed(request,{LOGIN_RATE_LIMITER:yes,LOGIN_GLOBAL_LIMITER:no}),false);
+    assert.equal(await loginAllowed(new Request('http://localhost:3000'),{}),true);
+    Object.assign(process.env,{NODE_ENV:'development'});assert.equal(await loginAllowed(request,{}),true);
+  }finally{if(previous===undefined)delete (process.env as Record<string,string|undefined>).NODE_ENV;else Object.assign(process.env,{NODE_ENV:previous});}
+});
+
+test('production login route returns retryable 503 when Worker limit bindings are unavailable',async t=>{
+  const previous={...process.env};Object.assign(process.env,config,{NODE_ENV:'production'});
+  t.after(()=>{for(const k of Object.keys(process.env))if(!(k in previous))delete process.env[k];Object.assign(process.env,previous);});
+  const response=await POST(new Request('https://admin.kallo.fit/api/auth/login',{method:'POST',headers:{origin:'https://admin.kallo.fit'},body:JSON.stringify({username:config.DASHBOARD_FOUNDER_USERNAME,password:config.DASHBOARD_FOUNDER_PASSWORD})}));
+  assert.equal(response.status,503);assert.equal((await response.json()).error,'Sign-in is temporarily unavailable');assert.equal(response.headers.get('set-cookie'),null);
 });

@@ -22,6 +22,7 @@ const timeout = 45_000;
 let base: URL;
 let username = '', password = '';
 let browser: PW, context: PW, page: PW, anonymous: PW;
+let protectWrites: () => Promise<unknown> = async () => {};
 let counter = 0;
 const issues: { kind: string; detail: string }[] = [];
 const blocked: string[] = [];
@@ -178,7 +179,9 @@ async function run() {
     context.setDefaultTimeout(timeout);
     context.setDefaultNavigationTimeout(timeout);
     // Fail closed for all browser writes, including accidental future UI changes.
-    await context.route('**/*', async (route: PW) => {
+    // Installed after the login checks (see protectWrites below): with the route
+    // in place, Chromium blocked the second login POST (ERR_BLOCKED_BY_CLIENT).
+    protectWrites = () => context.route('**/*', async (route: PW) => {
       const req = route.request(), url = new URL(req.url());
       const method = req.method();
       if (['GET', 'HEAD', 'OPTIONS'].includes(method)) return route.continue();
@@ -259,6 +262,7 @@ async function run() {
     await visible(page.getByText('Founder', { exact: true }));
   });
   if (!loggedIn) return;
+  await protectWrites();
   // Expected wrong-password 401s above must not pollute page health checks.
   issues.length = 0;
   let healthCursor = 0;

@@ -23,7 +23,14 @@ export async function POST(request: Request) {
     return authErrorResponse("Dashboard authentication is not configured", "AUTH_NOT_CONFIGURED", 503);
   }
 
-  if (!await loginAllowed(request, await workerLoginLimits())) {
+  let allowed;
+  try { allowed = await loginAllowed(request, await workerLoginLimits()); }
+  catch {
+    const response=authErrorResponse('Sign-in is temporarily unavailable', 'AUTH_TEMPORARILY_UNAVAILABLE', 503);
+    response.headers.set('Retry-After','60');
+    return response;
+  }
+  if (!allowed) {
     const response = invalidLogin();
     return Response.json(await response.json(), { status: 429, headers: { "Cache-Control": "no-store", "Retry-After": "60" } });
   }

@@ -3,9 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUrlState } from '@/lib/use-url-state';
 import type { TraceList,TraceSummary } from '@/lib/traces/types';
-import { refreshPending } from '@/lib/traces-ui/pending';
+import { refreshPending, pendingEligible } from '@/lib/traces-ui/pending';
 import { useRefocus } from '@/lib/use-refocus';
-import { terminal } from '@/lib/traces-ui/graph';
 import { RefreshButton } from '@/components/console/console';
 import { TraceFilters } from './trace-filters';
 import { TraceRow } from './trace-row';
@@ -23,7 +22,7 @@ export default function TracesList() {
   useEffect(()=>setDraft(q),[q]);
   useEffect(()=>{if(ready&&uuid.test(request))router.replace(`/traces/${request}?w=${win}`);},[ready,request,router,win]);
   useEffect(()=>{
-    if(!ready)return;const g=++generation.current;const controller=new AbortController();abort.current=controller;let timer:ReturnType<typeof setTimeout>;
+    if(!ready)return;const g=++generation.current;const controller=new AbortController();abort.current=controller;let timer:ReturnType<typeof setTimeout>;let failures=0;
     if(previousQuery.current!==query){setRows([]);setNext(null);setActive(-1);previousQuery.current=query;}
     const load=async()=>{
       setLoading(true);setError('');
@@ -34,7 +33,19 @@ export default function TracesList() {
         timer=setTimeout(live,5000);
       }catch(e){if(!controller.signal.aborted)setError(e instanceof Error?e.message:'Traces unavailable');}finally{if(!controller.signal.aborted)setLoading(false);}
     };
-    const live=async()=>{try{if(rowsRef.current.some(r=>!terminal(r.status))){const updates=await refreshPending(rowsRef.current,controller.signal);if(g===generation.current)setRows(old=>old.map(r=>updates.find(u=>u.id===r.id)??r));}}catch(e){if(!controller.signal.aborted)setError(e instanceof Error?e.message:'Live update failed');}finally{if(!controller.signal.aborted)timer=setTimeout(live,5000);}};
+    const live=async()=>{
+      if(document.hidden){timer=setTimeout(live,5000);return;}
+      try {
+        if(rowsRef.current.some(r=>pendingEligible(r))){
+          const snapshot=rowsRef.current;
+          const updates=await refreshPending(snapshot,controller.signal);
+          failures=updates.failed?failures+1:0;
+          if(g===generation.current){const ids=new Set(updates.rows.map(r=>r.id));setRows(old=>old.filter(r=>!snapshot.some(o=>o.id===r.id)||ids.has(r.id)).map(r=>updates.rows.find(u=>u.id===r.id)??r));}
+          if(updates.failed)setError('Some live updates failed; retrying with backoff.');
+        }
+      }catch(e){failures++;if(!controller.signal.aborted)setError(e instanceof Error?e.message:'Live update failed');}
+      finally{if(!controller.signal.aborted)timer=setTimeout(live,Math.min(60000,5000*2**Math.min(failures,4)));}
+    };
     void load();return()=>{controller.abort();clearTimeout(timer);};
   },[query,version,ready]);
   const loadMore=async()=>{if(!next||more)return;const g=generation.current;setMore(true);setError('');try{const r=await fetch(`/api/traces?${query}&cursor=${encodeURIComponent(next)}`,{signal:abort.current?.signal});const b=await r.json();if(!r.ok)throw new Error(b.error??'Unable to load more');if(g!==generation.current)return;setRows(old=>[...old,...(b as TraceList).rows.filter(r=>!old.some(o=>o.id===r.id))]);setNext(b.next);}catch(e){if(g===generation.current)setError(e instanceof Error?e.message:'Unable to load more');}finally{setMore(false);}};
@@ -45,11 +56,11 @@ export default function TracesList() {
   useEffect(()=>{if(active>=0)document.querySelector(`[data-trace-id="${rows[active]?.id}"]`)?.scrollIntoView({block:'nearest'});},[active,rows]);
   const set=(key:string,value:string)=>{const setters:Record<string,(v:string)=>void>={status:setStatus,model:setModel,flags:setFlags};setters[key]?.(value);};
   return <div className="mx-auto grid max-w-[1320px] gap-4 py-4"><header className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-[22px] font-semibold">Traces</h1><div className="flex items-center gap-2">{['24h','7d','30d'].map(w=><button key={w} aria-pressed={w===win} onClick={()=>setWin(w)} className={`rounded-md px-3 py-2 text-xs ${win===w?'bg-secondary':'text-muted-foreground'}`}>{w}</button>)}<RefreshButton refreshing={loading} onClick={()=>setVersion(v=>v+1)}/></div></header>
-    <form onSubmit={e=>{e.preventDefault();if(uuid.test(draft.trim()))router.push(`/traces/${draft.trim()}?w=${win}`);else setQ(draft.trim());}}><input ref={search} aria-label="Search meal text or request UUID" placeholder="Search meal text or request UUID…  /" maxLength={160} value={draft} onChange={e=>setDraft(e.target.value)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"/></form>
+    <form className="relative" onSubmit={e=>{e.preventDefault();if(uuid.test(draft.trim()))router.push(`/traces/${draft.trim()}?w=${win}`);else setQ(draft.trim());}}><input ref={search} aria-label="Search meal text or request UUID" placeholder="Search meal text or request UUID…" maxLength={160} value={draft} onChange={e=>setDraft(e.target.value)} className="h-10 w-full rounded-md border border-input bg-background pl-3 pr-10 text-sm"/><kbd className="pointer-events-none absolute right-3 top-2.5 rounded border border-border px-1.5 text-xs text-muted-foreground">/</kbd></form>
     <TraceFilters {...{status,model,flags,models,set}}/>
-    <p aria-live="polite" className="text-xs text-muted-foreground">{loading&&!rows.length?'Loading traces…':rows.length?`1–${rows.length}${next?' · more available':''}`:'0 traces'}{rows.some(r=>!terminal(r.status))&&' · Live, updates every 5 s'}</p>
+    <p aria-live="polite" className="text-xs text-muted-foreground">{loading&&!rows.length?'Loading traces…':rows.length?`${rows.length} shown`:'0 traces'}{next&&<> · <button disabled={more} onClick={loadMore} className="underline">{more?'Loading…':'Load more'}</button></>}{rows.some(r=>pendingEligible(r))&&' · Live'}</p>
     {error&&<p role="alert" className="text-sm text-destructive">{error} <button onClick={()=>setVersion(v=>v+1)} className="underline">Retry</button></p>}
     <div aria-label="Meal traces">{!ready||loading&&!rows.length?Array.from({length:10},(_,i)=><div key={i} className="h-14 animate-pulse border-b border-border bg-secondary/30"/>):rows.map((row,i)=><TraceRow key={row.id} row={row} active={i===active} win={win}/>)}</div>
-    {!loading&&!rows.length&&!error&&<p className="py-10 text-center text-sm text-muted-foreground">No meals match these filters.</p>}{next&&<button disabled={more} onClick={loadMore} className="justify-self-center rounded-md border border-border px-5 py-2 text-sm disabled:opacity-50">{more?'Loading…':'Load more'}</button>}
+    {!loading&&!rows.length&&!error&&<p className="py-10 text-center text-sm text-muted-foreground">No meals match these filters.</p>}
   </div>;
 }

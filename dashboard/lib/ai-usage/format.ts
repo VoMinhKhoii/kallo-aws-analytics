@@ -17,7 +17,7 @@ export function usd(v: number | null | undefined): string {
 
 export function ms(v: number | null | undefined): string {
   if (v == null) return "—";
-  return v < 1000 ? `${Math.round(v)} ms` : `${(v / 1000).toFixed(v < 10_000 ? 2 : 1)} s`;
+  return v < 1000 ? `${Math.round(v)} ms` : `${(v / 1000).toFixed(1)} s`;
 }
 
 export function pct(v: number | null | undefined, digits = 1): string {

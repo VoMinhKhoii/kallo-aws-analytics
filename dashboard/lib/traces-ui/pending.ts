@@ -1,15 +1,18 @@
 import type { TraceSummary } from '../traces/types';
+import type { TraceStatus } from '../traces/status';
 import { terminal } from './graph';
-/** Refresh each visible pending request, including requests on appended pages. */
-export async function refreshPending(rows:TraceSummary[],signal:AbortSignal):Promise<TraceSummary[]> {
-  const pending=rows.filter(r=>!terminal(r.status));const updates=new Map<string,TraceSummary>();
-  for(let i=0;i<pending.length;i+=4) {
-    await Promise.all(pending.slice(i,i+4).map(async row=>{
-      const r=await fetch(`/api/traces/${encodeURIComponent(row.id)}?refresh=1`,{signal,cache:'no-store'});const detail=await r.json();if(!r.ok)throw new Error(detail.error??'Live trace update failed');
-      const calls=detail.calls as {costUsd:number|null}[];
-      const kcal=detail.summary.kcal;
-      updates.set(row.id,{...row,status:detail.status,error:detail.errorCode??detail.error,durationMs:detail.durationMs,kcalMid:typeof kcal==='number'?kcal:kcal?.mid??null,items:detail.summary.items.length||row.items,costUsd:calls.length&&calls.every(c=>c.costUsd!=null)?calls.reduce((s,c)=>s+c.costUsd!,0):null});
-    }));
-  }
-  return rows.map(r=>updates.get(r.id)??r);
+export const pendingAgeMs = 10 * 60 * 1000;
+export const pendingEligible = (row: Pick<TraceSummary,'status'|'createdAt'>, now=Date.now()) => !terminal(row.status) && Number.isFinite(Date.parse(row.createdAt)) && now-Date.parse(row.createdAt)<pendingAgeMs;
+/** Independent batches preserve successful per-row updates, even if another batch fails. */
+export async function refreshPending(rows:TraceSummary[],signal:AbortSignal,now=Date.now()):Promise<{rows:TraceSummary[]; failed:boolean}> {
+  const pending=rows.filter(r=>pendingEligible(r,now)), updates=new Map<string,TraceStatus>(), missing=new Set<string>();
+  const batches=Array.from({length:Math.ceil(pending.length/50)},(_,i)=>pending.slice(i*50,(i+1)*50));
+  const results=await Promise.allSettled(batches.map(async batch=>{
+    const response=await fetch(`/api/traces/status?ids=${batch.map(r=>encodeURIComponent(r.id)).join(',')}`,{signal,cache:'no-store'});
+    if(response.status===404){batch.forEach(r=>missing.add(r.id));return;}
+    const body=await response.json();if(!response.ok)throw new Error(body.error??'Live update failed');
+    for(const row of body.rows as TraceStatus[])if(batch.some(r=>r.id===row.id))updates.set(row.id,row);
+    for(const id of body.missing as string[])if(batch.some(r=>r.id===id))missing.add(id);
+  }));
+  return {rows:rows.filter(r=>!missing.has(r.id)).map(r=>updates.has(r.id)?{...r,...updates.get(r.id)}:r),failed:results.some(r=>r.status==='rejected')};
 }

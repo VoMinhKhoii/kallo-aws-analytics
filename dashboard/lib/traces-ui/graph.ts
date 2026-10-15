@@ -55,29 +55,37 @@ export function buildGraph(trace:TraceGraphDetail) {
   const decomp=stats('decomposition'), matching=stats('matching'), nutrition=stats('nutrition');
   const parts=(values:string[])=>values.filter(Boolean).join(' · ');
   const field=(v:number|string|null|undefined,label:string)=>v==null?'':`${v} ${label}`;
-  const counts=[parts([field(decomp.mealItemCount??decomp.itemCount??(trace.summary.items.length||null),'items'),field(decomp.ingredientCount,'ingr')]),parts([field(matching.ingredientCount,'ingr'),field(matching.matchedCount,'matched')]),`${nutrition.chunkCount??chunks.length} chunks · ${nutrition.failedChunkCount??chunks.filter(c=>c.every(a=>a.error)).length} failed`,total];
-  // Leave room for up to three chunk groups without spilling into Assembly.
-  const gap=gapWindow(trace); const gapIndex=['request',...stageNames].indexOf(gap.after);
-  const assemblyX=990+Math.max(330,(chunks.length<=3?Math.max(1,chunks.length):1)*250+40);
-  const xs=[0,330,660,990,assemblyX,assemblyX+330].map((x,i)=>x+(gap.ms>=500&&i>gapIndex?180:0));
-  add({...make('request','request','Request',xs[0],0,[],0,null),status:'success',count:`${trace.rawInput.length.toLocaleString('en-US')} chars`});
+  const counts=[parts([field(decomp.mealItemCount??decomp.itemCount??(trace.summary.items.length||null),'items'),field(decomp.ingredientCount,'ingr')]),parts([field(matching.ingredientCount,'ingr'),field(matching.matchedCount,'matched')]),parts([`${nutrition.chunkCount??chunks.length} chunks`,Number(nutrition.failedChunkCount??chunks.filter(c=>c.every(a=>a.error)).length)>0?`${nutrition.failedChunkCount??chunks.filter(c=>c.every(a=>a.error)).length} failed`:'']),total];
+  // Fixed 220 px spine nodes with a 250 px pitch. Child lanes fit below the spine.
+  const gap=gapWindow(trace);
+  const xs=[-250,0,250,500,750,1000];
   stageNames.forEach((name,i)=>{const stage=trace.stages.find(s=>s.name===name||s.key===name);const calls=sorted.filter(c=>stage?.calls.includes(c.id));const step=make(name,stage?'stage':'ghost',name[0].toUpperCase()+name.slice(1),xs[i+1],0,calls,stage?time(stage.startedAt,base):0,stage?.durationMs??null);step.count=stage?(counts[i]||'Not recorded'):'Not recorded';if(name==='matching'&&Number(matching.unmatchedCount)>0)step.warning=` · ${matching.unmatchedCount} unmatched`;step.status=stage?.status??'missing';step.payloadKey=stage?.key;step.error=stage?.error;add(step);});
   add({...make('response','response','Response',xs[5],0,[],trace.durationMs??0,trace.durationMs),status:trace.status,error:trace.errorCode??trace.error,count:`${ms(trace.durationMs)} · ${trace.status}${trace.errorCode??trace.error?` · ${trace.errorCode??trace.error}`:''}`});
-  const spine=['request',...stageNames,'response'];
-  spine.slice(0,-1).forEach((id,i)=>{if(gap.ms>=500&&gap.after===id){const g=add({...make('gap','gap',`Unaccounted ${ms(gap.ms)}`,xs[i]+250,24,[],gap.start,gap.ms),count:''});edge(id,g.id,{dashed:true});edge(g.id,spine[i+1],{dashed:true});}else edge(id,spine[i+1]);});
+  const spine=[...stageNames,'response'];
+  // Label the edge spanning the largest hole, including intervening missing stages.
+  const afterIndex=stageNames.indexOf(gap.after);
+  const gapEdge=Math.max(0,Math.min(spine.length-2,afterIndex));
+  spine.slice(0,-1).forEach((id,i)=>edge(id,spine[i+1],gap.ms>=500&&i===gapEdge?{dashed:true,label:`unaccounted ${ms(gap.ms)}`} : {}));
   const tokens=(calls:TraceCall[])=>{const sum=(key:'inputTokens'|'cachedTokens'|'outputTokens')=>calls.every(c=>c[key]!==null)?calls.reduce((n,c)=>n+(c[key]??0),0):null;return tokenText({inputTokens:sum('inputTokens'),cachedTokens:sum('cachedTokens'),outputTokens:sum('outputTokens')});};
   const child=(s:Step,parent:string)=>{add(s);edge(parent,s.id,{sourceHandle:'bottom',targetHandle:'top'});};
   byRole('call1').forEach((c,i)=>child({...make(`decomposition.call-${i+1}`,'attempt',`Call 1 · ${modelLabel(c.model)}`,xs[1],132+i*96,[c]),count:tokens([c])},'decomposition'));
   if(selectors.length){child({...make('matching.selector','selector',`Selector ×${selectors.length}`,xs[2],132,selectors),count:tokens(selectors)},'matching');}
-  chunks.forEach((calls,i)=>child({...make(`nutrition.chunk-${i+1}`,'chunk',`Call 2 · chunk ${i+1}/${chunks.length}`,xs[3]+(chunks.length<=3?i*250:0),132+(chunks.length>3?i*96:0),calls),status:calls.at(-1)?.error?'error':'success',error:calls.at(-1)?.error,count:`${calls.length>1?`retried ×${calls.length} · `:''}${tokens(calls)}`},'nutrition'));
+  if(chunks.length>3){const calls=chunks.flat();child({...make('nutrition.chunks','chunk',`Call 2 ×${chunks.length}`,xs[3],132,calls),count:tokens(calls)},'nutrition');}
+  else chunks.forEach((calls,i)=>child({...make(`nutrition.chunk-${i+1}`,'chunk',`Call 2 · chunk ${i+1}/${chunks.length}`,xs[3]+i*250,132,calls),status:calls.at(-1)?.error?'error':'success',error:calls.at(-1)?.error,count:`${calls.length>1?`retried ×${calls.length} · `:''}${tokens(calls)}`},'nutrition'));
   const rescues:TraceCall[][]=[];
   sorted.filter(c=>String(roles.get(c.id)).startsWith('rescue')).forEach(c=>{if(c.role==='rescue_call1'||!rescues.length)rescues.push([]);rescues[rescues.length-1].push(c);});
-  const low=Math.max(300,180+Math.max(chunks.length>3?chunks.length:1,byRole('call1').length)*96);
+  const low=132+Math.max(1,byRole('call1').length)*96;
   rescues.forEach((calls,i)=>{const r=add({...make(`rescue-${i+1}`,'rescue',`Rescue ${i+1} · ingredient not recorded`,xs[3]+i*250,low,calls),count:`${plural(calls.length,'call')} · ${ms(Math.max(...calls.map(c=>callStart(c,base)+(c.latencyMs??0)))-callStart(calls[0],base))}`});edge('nutrition',r.id,{dashed:true,sourceHandle:'bottom',targetHandle:'top'});edge(r.id,'assembly',{dashed:true});});
-  const after=byRole('afterResponse');if(after.length){const s=add({...make('after-response','after-response',`After response · ${plural(after.length,'call')}`,xs[5],132,after),count:`Finished +${ms(Math.max(...after.map(c=>callStart(c,base)+(c.latencyMs??0)))-(trace.durationMs??0))}`,afterResponse:true});edge('response',s.id,{dotted:true,sourceHandle:'bottom',targetHandle:'top'});}
-  const unknown=byRole('unknown');if(unknown.length)add({...make('unattributed','unattributed',`Unattributed · ${plural(unknown.length,'call')}`,0,low+120,unknown),count:'Stage not recorded'});
+  const after=byRole('afterResponse');if(after.length){const s=add({...make('after-response','after-response',`After response · ${plural(after.length,'call')}`,xs[5],chunks.length===3?228:132,after),status:'dropped',count:afterResponseText(after,trace),afterResponse:true});edge('response',s.id,{dotted:true,sourceHandle:'bottom',targetHandle:'top'});}
+  const unknown=byRole('unknown');if(unknown.length)add({...make('unattributed','unattributed',`Unattributed · ${plural(unknown.length,'call')}`,0,132+Math.max(1,byRole('call1').length)*96,unknown),count:'Stage not recorded'});
   edges.forEach(e=>e.failed=!!nodes.find(n=>n.id===e.source)?.error||['error','failed'].includes(nodes.find(n=>n.id===e.source)?.status??''));
   return {nodes,edges};
 }
 export const timeOrder=(steps:Step[])=>[...steps].sort((a,b)=>a.start-b.start||a.position.x-b.position.x||a.id.localeCompare(b.id));
 export function adjacentStep(steps:Step[],id:string,direction:number) {const order=timeOrder(steps);return order[Math.max(0,Math.min(order.length-1,order.findIndex(s=>s.id===id)+direction))]?.id;}
+
+export function afterResponseText(calls:TraceCall[],trace:Pick<TraceGraphDetail,'createdAt'|'durationMs'>) {
+  const base=Date.parse(trace.createdAt);
+  const finish=Math.max(...calls.map(c=>c.createdAt?Date.parse(c.createdAt)-base:callStart(c,base)+(c.latencyMs??0)));
+  return `finished +${ms(finish)} · ${ms(finish-(trace.durationMs??0))} after response`;
+}

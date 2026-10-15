@@ -63,6 +63,6 @@ export function matchRateRows(rows: MatchRateRow[], dates: string[]) {
   const byDate = new Map(rows.map(row => [row.date, row]));
   return dates.map(date => {
     const row = byDate.get(date);
-    return { date, unmatched_count: row?.unmatched_count ?? 0, match_rate: row && row.ingredient_count > 0 ? row.matched_count / row.ingredient_count : null };
+    return { date, matched_count: row?.matched_count ?? 0, unmatched_count: row?.unmatched_count ?? 0, match_rate: row && row.ingredient_count > 0 ? row.matched_count / row.ingredient_count : null };
   });
 }
