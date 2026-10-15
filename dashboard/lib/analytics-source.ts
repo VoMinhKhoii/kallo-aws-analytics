@@ -155,6 +155,7 @@ function browserSafeResult(name: RpcName, value: unknown): unknown {
 export async function query(name: RpcName, args: Record<string, unknown>, refresh = false): Promise<unknown> {
   if (!isLive) throw new AnalyticsError(configProblem ?? "analytics source is not configured", 503, "NOT_CONFIGURED");
   const spec = RPC[name];
+  if (name === "traceDetail" || name === "requestsPage") return browserSafeResult(name, await callRpc(spec.fn, args));
   const key = `${name}:${JSON.stringify(args)}`;
 
   const cached = refresh ? undefined : cacheGet(key);

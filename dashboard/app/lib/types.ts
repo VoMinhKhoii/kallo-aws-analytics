@@ -240,6 +240,8 @@ export type MetricResponse<T> = {
 export type DashboardMetrics = MetricPayloadMap;
 
 export type MetricBundle = {
+  collectedAt?: string;
+  collectedAtByMetric?: Partial<Record<MetricName, string>>;
   data: Partial<DashboardMetrics>;
   errors: Partial<Record<MetricName, string>>;
   from: string;
