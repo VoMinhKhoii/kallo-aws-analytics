@@ -51,7 +51,7 @@ export function Topbar() {
   const [navOpen, setNavOpen] = React.useState(false);
   const health = useHealth(pathname === "/" || pathname === "/system");
   const auth = useSessionRole(enabled);
-  const title = TITLES[pathname] ?? "Kallo admin";
+  const title = (pathname.startsWith("/traces/") ? `Traces / ${pathname.split("/")[2].slice(0,8)}` : TITLES[pathname]) ?? "Kallo admin";
 
   if (!enabled) return null;
 

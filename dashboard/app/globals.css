@@ -114,15 +114,10 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Trace workspace: summary remains above the mobile inspector. */
-.trace-detail-body { height: max(640px, calc(100dvh - 230px)); }
-.trace-step-panel { width: var(--drawer-width); max-width: 65%; }
-.trace-panel-scroll { height: calc(100% - 114px); }
+/* Keep the inspector over the canvas; the summary never loses its width. */
+.trace-workspace { display: flex; flex-direction: column; height: calc(100dvh - 56px); min-height: 800px; }
+.trace-detail-body { min-height: 520px; }
+.trace-step-panel { position: absolute; inset: 0 0 0 auto; z-index: 20; width: var(--drawer-width); max-width: 65%; display: flex; flex-direction: column; box-shadow: -8px 0 24px rgb(0 0 0 / .16); }
+.trace-panel-scroll { min-height: 0; flex: 1; }
 .react-flow { --xy-background-color: var(--console-bg); --xy-controls-button-background-color: var(--console-panel); --xy-controls-button-color: var(--console-ink); --xy-controls-button-border-color: var(--console-rule); }
-@media (max-width: 1023px) {
-  .trace-detail-body { flex-direction: column; height: auto; }
-  .trace-step-panel { width: 100%; max-width: 100%; height: 50dvh; min-height: 360px; border-left: 0; border-top: 1px solid var(--console-rule); }
-  .trace-detail-body:has(.trace-step-panel) > div { max-height: 48dvh; overflow: hidden; }
-  .trace-detail-body:has(.trace-step-panel) .trace-canvas { min-height: 240px; height: calc(48dvh - 120px); }
-  .trace-detail-body:has(.trace-step-panel) .trace-canvas-main { min-height: 200px; }
-}
+@media (max-width: 767px) { .trace-step-panel { width: 100%; max-width: 100%; } }
