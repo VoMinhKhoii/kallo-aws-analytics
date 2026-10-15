@@ -30,17 +30,24 @@ function AiUsage({ win, setWin }: { win: WindowDays; setWin: (win: WindowDays) =
   const daily = useMetricBundle(DAILY, dayRange(today, win * 2)[0], today);
   const totals = useMetricBundle(WINDOW, from, today);
 
+  // A manual refresh reloads both bundles independently; show their data only
+  // once neither is mid-refresh, so one fresh bundle never meets a stale one.
+  const [shown, setShown] = React.useState({ daily: daily.data, totals: totals.data });
+  if (!daily.refreshing && !totals.refreshing && (shown.daily !== daily.data || shown.totals !== totals.data)) {
+    setShown({ daily: daily.data, totals: totals.data });
+  }
+
   const input: UsageInput | null = React.useMemo(() => {
-    if (!daily.data || !totals.data) return null;
+    if (!shown.daily || !shown.totals) return null;
     return {
-      daily: (daily.data.ai_usage_daily ?? []) as AiUsageDailyRow[],
-      mealsDaily: (daily.data.ai_meals_daily ?? []) as AiMealsDailyRow[],
-      window: (totals.data.ai_model_window ?? []) as AiModelUsageRow[],
-      mealWindow: ((totals.data.ai_meal_window ?? []) as AiMealsRow[])[0],
+      daily: (shown.daily.ai_usage_daily ?? []) as AiUsageDailyRow[],
+      mealsDaily: (shown.daily.ai_meals_daily ?? []) as AiMealsDailyRow[],
+      window: (shown.totals.ai_model_window ?? []) as AiModelUsageRow[],
+      mealWindow: ((shown.totals.ai_meal_window ?? []) as AiMealsRow[])[0],
       to: today,
       win,
     };
-  }, [daily.data, totals.data, today, win]);
+  }, [shown, today, win]);
   const models = React.useMemo(() => (input ? modelsOf(input) : []), [input]);
   const summary = React.useMemo(() => (input ? summarize(input, models) : null), [input, models]);
   const error = daily.error ?? totals.error ?? Object.values({ ...daily.errors, ...totals.errors })[0] ?? null;
