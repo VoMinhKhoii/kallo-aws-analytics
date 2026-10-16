@@ -102,7 +102,11 @@ export function TrendChart({
                     strokeOpacity={focus.opacity(m.key)}
                     strokeWidth={focus.active === m.key ? 2.5 : 1.75}
                     strokeDasharray={dashed?.has(m.key) ? "5 3" : undefined}
-                    dot={rows.filter(r => typeof r[m.key] === "number").length === 1 ? { r: 3 } : false}
+                    // A reading with no neighbour draws no line segment, so mark it with a dot.
+                    dot={({ cx, cy, index, key }: { cx?: number; cy?: number; index: number; key?: React.Key }) =>
+                      isolated(rows, m.key, index) && cx != null && cy != null
+                        ? <circle key={key} cx={cx} cy={cy} r={3} fill={m.color} fillOpacity={focus.opacity(m.key)} />
+                        : <g key={key} />}
                     activeDot={{ r: 3.5, strokeWidth: 2, stroke: "var(--card)" }}
                     connectNulls={false}
                     isAnimationActive={animate}
@@ -129,3 +133,7 @@ function durationTicks(rows:TrendRow[],keys:string[]) {
   return Array.from({length:Math.round(top/nice)+1},(_,i)=>i*nice);
 }
 function durationMax(rows:TrendRow[],keys:string[]) {return durationTicks(rows,keys).at(-1)!;}
+function isolated(rows:TrendRow[],key:string,i:number) {
+  const has=(j:number)=>typeof rows[j]?.[key]==='number';
+  return has(i)&&!has(i-1)&&!has(i+1);
+}
