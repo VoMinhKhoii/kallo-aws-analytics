@@ -27,7 +27,8 @@ export default function StepPanel({trace,step,close,navigate,onWidthChange}:{tra
   const body=key?payload.data:null;const call=calls.find(c=>c.id===key);const error=call?.error??step.error;
   const download=()=>{const blob=new Blob([JSON.stringify({step,metadata:call??step,payload:body},null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`${trace.id}-${step.id}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
   const input=body&&('input'in body?body.input:body.prompt),rawOutput=body&&('output'in body?body.output:body.response);
-  const output=responseStep?{...(rawOutput && typeof rawOutput==='object' && 'result' in rawOutput ? {result:rawOutput.result}:{}),status:trace.status,error:trace.error,durationMs:trace.durationMs}:rawOutput;
+  // Headline fields first, so they stay in view when the large result is expanded.
+  const output=responseStep?{status:trace.status,error:trace.error,durationMs:trace.durationMs,...(rawOutput && typeof rawOutput==='object' && 'result' in rawOutput ? {result:rawOutput.result}:{})}:rawOutput;
   const loadingPayload=<div role="status" className="min-h-24 animate-pulse bg-secondary/40 p-3 text-muted-foreground">Loading…</div>;
   const payloadError=<p role="alert" className="text-destructive">{payload.error} <button onClick={payload.refresh} className="underline">Retry</button></p>;
   return <aside ref={panelRef} aria-label={`${step.name} step details`} className="trace-step-panel min-w-0 shrink-0 border-l border-border bg-card" style={{'--drawer-width':`${width}px`} as React.CSSProperties}>

@@ -32,7 +32,17 @@ export function CanvasContent({graph,selected,onSelect,duration,fit,panelWidth}:
     const ids=new Set([parent,selected,...graph.edges.filter(e=>e.source===parent&&e.sourceHandle==='bottom').map(e=>e.target)]);
     const bounds=flow.getNodesBounds(flow.getNodes().filter(n=>ids.has(n.id)));
     const own=flow.getNodesBounds([node]);
-    const {width,height}=canvas.current.getBoundingClientRect();
+    let {top}=canvas.current.getBoundingClientRect();
+    const {width,height:canvasHeight}=canvas.current.getBoundingClientRect();
+    // Below md the inspector is a bottom sheet over the canvas: bring the canvas up under the
+    // sticky top bar when the sheet hides it, then centre in the part left above the sheet.
+    const sheet=window.matchMedia('(min-width: 768px)').matches?null:document.querySelector('[aria-label$="step details"]');
+    if(sheet&&sheet.getBoundingClientRect().top-top<160){
+      const bar=document.querySelector('header.sticky')?.getBoundingClientRect().bottom??0;
+      window.scrollBy({top:top-bar,behavior:'instant'});
+      top=canvas.current.getBoundingClientRect().top;
+    }
+    const height=sheet?Math.max(0,Math.min(canvasHeight,sheet.getBoundingClientRect().top-top)):canvasHeight;
     const fullWidth=width+(window.matchMedia('(min-width: 768px)').matches?panelWidth:0);
     const fullZoom=closedZoom.current??getViewportForBounds(flow.getNodesBounds(flow.getNodes()),fullWidth,height,.1,1.25,.2).zoom;
     const zoom=Math.max(.85,fullZoom);

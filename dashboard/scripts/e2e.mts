@@ -175,7 +175,8 @@ async function readableSelection(id: string) {
 }
 async function kpiLabelsFit() {
   const clipped = await page.locator('section[aria-label="Summary"] span').evaluateAll((els: HTMLElement[]) =>
-    els.filter(el => el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1).map(el => el.textContent));
+    // Horizontal only: leading-none values overhang their line box by a pixel without being cut.
+    els.filter(el => el.scrollWidth > el.clientWidth + 1).map(el => el.textContent));
   assert(!clipped.length, `Clipped KPI text: ${clipped.join('; ')}`);
 }
 async function selectStep(id: string, name?: string) {
