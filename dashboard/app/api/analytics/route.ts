@@ -29,6 +29,9 @@ export async function GET(req: Request) {
   if (!isRpcName(name)) {
     return NextResponse.json({ error: "unknown fn" }, { status: 400 });
   }
+  if (["traceDetail", "requestsPage"].includes(name) && access.session.role !== "founder") {
+    return NextResponse.json({ error: "Founder role required" }, { status: 403, headers: { "Cache-Control": "no-store" } });
+  }
   if (!isLive) {
     return NextResponse.json(
       { error: configProblem ?? "analytics source is not configured", code: "NOT_CONFIGURED" },
@@ -65,7 +68,7 @@ export async function GET(req: Request) {
       { data },
       // Let the browser reuse a response briefly; the server cache does the
       // heavy lifting, this just stops duplicate hits from one session.
-      { headers: { "Cache-Control": "private, max-age=30" } }
+      { headers: { "Cache-Control": name === "traceDetail" || name === "requestsPage" ? "no-store" : "private, max-age=30" } }
     );
   } catch (err) {
     if (!(err instanceof AnalyticsError)) console.error("[analytics] unexpected", err);

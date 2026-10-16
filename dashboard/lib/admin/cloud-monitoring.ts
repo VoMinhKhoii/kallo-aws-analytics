@@ -1,29 +1,31 @@
 import 'server-only';
 import { createSign } from 'node:crypto';
+import { aggregateCache } from './cache';
 import type { CloudMonitoringResponse, CloudRunSystemPoint } from '@/app/lib/types';
-let cachedToken: { value: string; expires: number } | null = null;
-let cachedResult: { key: string; value: CloudMonitoringResponse; expires: number } | null = null;
+const cachedTokens = new Map<string, { value: string; expires: number }>();
 
-async function accessToken() {
+export async function googleAccessToken(scope = 'https://www.googleapis.com/auth/monitoring.read', signal?: AbortSignal) {
+  const cachedToken = cachedTokens.get(scope);
   if (cachedToken && cachedToken.expires > Date.now()) return cachedToken.value;
   const credentials = JSON.parse(process.env.GOOGLE_MONITORING_CREDENTIALS || '{}') as { client_email?: string; private_key?: string };
   if (!credentials.client_email || !credentials.private_key) throw new Error('Google Monitoring reader is not configured.');
   const now = Math.floor(Date.now() / 1000);
   const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');
-  const claims = encode({ alg: 'RS256', typ: 'JWT' }) + '.' + encode({ iss: credentials.client_email, scope: 'https://www.googleapis.com/auth/monitoring.read', aud: 'https://oauth2.googleapis.com/token', iat: now, exp: now + 3600 });
+  const claims = encode({ alg: 'RS256', typ: 'JWT' }) + '.' + encode({ iss: credentials.client_email, scope, aud: 'https://oauth2.googleapis.com/token', iat: now, exp: now + 3600 });
   const signature = createSign('RSA-SHA256').update(claims).sign(credentials.private_key).toString('base64url');
-  const r = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: claims + '.' + signature }) });
+  const r = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', signal, headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: claims + '.' + signature }) });
   const body = await r.json() as { access_token?: string };
   if (!r.ok || !body.access_token) throw new Error('Google rejected the Monitoring reader credentials.');
-  cachedToken = { value: body.access_token, expires: Date.now() + 3300 * 1000 };
+  cachedTokens.set(scope, { value: body.access_token, expires: Date.now() + 3300 * 1000 });
   return body.access_token;
 }
 interface GoogleSeries { metric?: { labels?: Record<string,string> }; points?: { interval: { endTime: string }; value: { doubleValue?: number; int64Value?: string } }[] }
 
-export async function getDirectMonitoring(from: string, to: string, refresh = false): Promise<CloudMonitoringResponse> {
-  const key = from + ':' + to;
-  if (!refresh && cachedResult?.key === key && cachedResult.expires > Date.now()) return cachedResult.value;
-  const token = await accessToken();
+export async function getDirectMonitoring(from: string, to: string, refresh = false, role = "founder"): Promise<CloudMonitoringResponse> {
+  return (await aggregateCache.get(`monitoring:v1:${role}:${from}:${to}`, 300000, () => collectMonitoring(from, to), refresh)).value;
+}
+async function collectMonitoring(from: string, to: string): Promise<CloudMonitoringResponse> {
+  const token = await googleAccessToken();
   const project = process.env.GCP_PROJECT_ID || 'cal-487315';
   const service = process.env.GCP_CLOUD_RUN_SERVICE || 'kallo-prod';
   const location = process.env.GCP_CLOUD_RUN_LOCATION || 'asia-southeast1';
@@ -59,6 +61,5 @@ export async function getDirectMonitoring(from: string, to: string, refresh = fa
     collect('instances','run.googleapis.com/container/instance_count','ALIGN_MEAN','REDUCE_SUM'),
   ]);
   const value: CloudMonitoringResponse = { source: 'google-cloud-monitoring', delivery_source: 'cloudflare-direct', project, service, location, from, to, alignment_seconds: alignment, collected_at: new Date().toISOString(), series: [...rows.values()].sort((a,b) => a.timestamp.localeCompare(b.timestamp)).map(row => ({ ...row, error_count: row.error_count || 0, error_rate: row.request_count ? (row.error_count || 0) / row.request_count : 0 })) };
-  cachedResult = { key, value, expires: Date.now() + 300000 };
   return value;
 }

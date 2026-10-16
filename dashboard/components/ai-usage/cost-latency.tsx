@@ -1,8 +1,8 @@
 "use client";
 
-import { CartesianGrid, LabelList, ReferenceArea, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis } from "recharts";
+import { CartesianGrid, LabelList, ReferenceArea, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis } from "@/components/charts/recharts";
 import type { ModelSummary } from "@/lib/ai-usage/aggregate";
-import { compact, ms, pct, usd } from "@/lib/ai-usage/format";
+import { compact, ms, msAxis, pct, usd } from "@/lib/ai-usage/format";
 import { ModelRail, useLocalFocus } from "./model-rail";
 
 interface Point {
@@ -95,14 +95,14 @@ export function CostLatency({ models }: { models: ModelSummary[] }) {
       {points.length === 0 ? (
         <p className="text-muted-foreground px-4 py-10 text-center text-[13px]">No per-call latency in this window yet.</p>
       ) : (
-        <div className="flex flex-wrap gap-3 px-2 pt-1 pb-3 sm:flex-nowrap sm:pr-4">
-          <div className="h-[250px] min-w-0 flex-1">
+        <div className="flex flex-col gap-3 px-2 pt-1 pb-3 sm:flex-row sm:pr-4">
+          <div className="h-[250px] w-full min-w-0 sm:flex-1">
             <ResponsiveContainer>
               <ScatterChart margin={{ top: 16, right: 28, bottom: 18, left: 4 }}>
                 <CartesianGrid stroke="var(--console-rule)" />
                 <ReferenceArea x1={0} x2={maxX / 2} y1={0} y2={maxY / 2} fill="var(--console-green)" fillOpacity={0.06} stroke="var(--console-green)" strokeOpacity={0.25} strokeDasharray="3 3" label={{ value: "cheaper · faster", position: "insideBottomLeft", fill: "var(--console-green)", fontSize: 11, opacity: 0.8 }} />
-                <XAxis type="number" dataKey="x" domain={[0, maxX]} tickFormatter={(v) => `$${Number(v).toFixed(2)}`} tickLine={false} axisLine={false} tick={{ fill: "var(--console-muted)", fontSize: 11 }} label={{ value: "$ / 1k calls", position: "insideBottom", offset: -12, fill: "var(--console-muted)", fontSize: 11 }} />
-                <YAxis type="number" dataKey="y" domain={[0, maxY]} tickFormatter={(v) => `${Number(v).toFixed(0)}s`} tickLine={false} axisLine={false} width={36} tick={{ fill: "var(--console-muted)", fontSize: 11 }} />
+                <XAxis type="number" dataKey="x" domain={[0, maxX]} tickFormatter={usd} tickLine={false} axisLine={false} tick={{ fill: "var(--console-muted)", fontSize: 11 }} label={{ value: "$ / 1k calls", position: "insideBottom", offset: -12, fill: "var(--console-muted)", fontSize: 11 }} />
+                <YAxis type="number" dataKey="y" domain={[0, maxY]} tickFormatter={v => msAxis(Number(v) * 1000)} tickLine={false} axisLine={false} width={64} tick={{ fill: "var(--console-muted)", fontSize: 11 }} />
                 <ZAxis type="number" dataKey="z" range={[220, 1400]} />
                 <Tooltip cursor={{ strokeDasharray: "3 3", stroke: "var(--console-muted)" }} content={(p) => <PointTooltip active={p.active} payload={p.payload as never} />} />
                 {points.map((p) => {

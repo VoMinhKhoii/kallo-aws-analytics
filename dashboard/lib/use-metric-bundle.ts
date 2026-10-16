@@ -1,5 +1,6 @@
 "use client";
 
+import { useRefocus } from "@/lib/use-refocus";
 import * as React from "react";
 import type { DashboardMetrics, MetricBundle, MetricName } from "@/app/lib/types";
 
@@ -66,6 +67,7 @@ export function useMetricBundle(
 ): MetricBundleState {
   const url = metricBundleUrl(metrics, from, to);
   const [refreshKey, setRefreshKey] = React.useState(0);
+  useRefocus(() => setRefreshKey(v => v + 1));
   const [state, setState] = React.useState<MetricBundleState>(() => {
     const cached = memo.get(url);
     return {

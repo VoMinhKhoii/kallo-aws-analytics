@@ -1,6 +1,6 @@
 "use client";
 
-import { longDate } from "@/lib/ai-usage/format";
+import { longDate, pct } from "@/lib/ai-usage/format";
 import type { ModelMeta } from "@/lib/ai-usage/models";
 
 interface Entry {
@@ -36,18 +36,18 @@ export function UsageTooltip({
   const total = rows.reduce((s, r) => s + r.value, 0);
   const extra = note?.(payload[0]?.payload ?? {});
   return (
-    <div className="min-w-60 rounded-lg border border-border bg-popover/95 px-3 py-2.5 text-xs shadow-2xl shadow-black/50 backdrop-blur">
+    <div className="w-[min(240px,65vw)] max-w-full rounded-lg border border-border bg-popover/95 px-3 py-2.5 text-xs shadow-2xl shadow-black/50 backdrop-blur">
       <div className="mb-2 flex items-center justify-between gap-4">
-        <span className="font-medium text-foreground">{label ? longDate(label) : ""}</span>
+        <span className="font-medium text-foreground">{label ? /^\d{4}-\d{2}-\d{2}/.test(label) ? longDate(label.slice(0,10)) : label : ""}</span>
         {extra ? <span className="text-[10.5px] uppercase tracking-wider text-[var(--console-amber)]">{extra}</span> : null}
       </div>
       <div className="grid gap-1.5">
         {rows.map((r) => (
           <div key={r.meta.key} className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-2">
             <span className="size-2 rounded-[2px]" style={{ background: r.meta.color }} />
-            <span className="text-muted-foreground">{r.meta.label}</span>
+            <span className="min-w-0 break-words text-muted-foreground">{r.meta.label}</span>
             <span className="tabular text-foreground">{format(r.value)}</span>
-            {showTotal ? <span className="tabular w-9 text-right text-muted-foreground">{total ? Math.round((r.value / total) * 100) : 0}%</span> : null}
+            {showTotal ? <span className="tabular w-9 text-right text-muted-foreground">{pct(total ? r.value / total : 0, 0)}</span> : null}
           </div>
         ))}
       </div>

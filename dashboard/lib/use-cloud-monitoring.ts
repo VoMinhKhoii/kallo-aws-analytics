@@ -1,10 +1,14 @@
 "use client";
 
+import { useRefocus } from "@/lib/use-refocus";
 import * as React from "react";
 import type { CloudMonitoringResponse } from "@/app/lib/types";
 
+// TODO(backend): return window HTTP p95/p99 and prior complete-window values.
+// Aligned quantiles cannot be combined into window quantiles.
 export function useCloudMonitoring(from: string, to: string) {
   const [refreshKey, setRefreshKey] = React.useState(0);
+  useRefocus(() => setRefreshKey(v => v + 1));
   const [state, setState] = React.useState<{ data: CloudMonitoringResponse | null; loading: boolean; refreshing: boolean; error: string | null }>({ data: null, loading: true, refreshing: false, error: null });
 
   React.useEffect(() => {

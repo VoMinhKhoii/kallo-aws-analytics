@@ -1,0 +1,51 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { PGlite } from '@electric-sql/pglite';
+import { PgDialect } from 'drizzle-orm/pg-core';
+import type { SQL } from 'drizzle-orm';
+import type { AppDb } from '../db/client';
+import { loadOverview } from '../overview';
+test('overview uses durable reservations, complete UTC comparisons, honest error limits and rolling active users', async()=>{
+  const pg=new PGlite(), dialect=new PgDialect();
+  const db={async execute(query:SQL) {const q=dialect.sqlToQuery(query);return (await pg.query(q.sql,q.params)).rows;}} as unknown as AppDb;
+  try {
+    await pg.exec(`SET TIME ZONE 'Asia/Tokyo'; CREATE SCHEMA auth; CREATE SCHEMA analytics;
+      CREATE TABLE auth.users(id uuid,created_at timestamptz);
+      CREATE TABLE analysis_model_budget_events(request_id text,created_at timestamptz,route text,work_kind text,request_count int);
+      CREATE TABLE pipeline_runs(created_at timestamptz,total_ms int,request_id text);
+      CREATE TABLE pipeline_requests(id uuid,created_at timestamptz,status text,replay_of_request_id uuid);
+      CREATE TABLE user_feedback(created_at timestamptz,status text);
+      CREATE TABLE analytics.v_meals(logged_at timestamptz,user_hash text);
+      CREATE TABLE entitlement_grants(user_id uuid,status text,source text,environment text,entitlement_key text,starts_at timestamptz,expires_at timestamptz);
+      INSERT INTO analysis_model_budget_events SELECT 'reservation',d,'/api/analyze-meal','primary',1 FROM generate_series('2026-04-01Z'::timestamptz,'2026-10-16Z',interval '1 day') d;
+      INSERT INTO pipeline_runs SELECT d,1000,NULL::text FROM generate_series('2026-04-01Z'::timestamptz,'2026-10-16Z',interval '1 day') d;
+      INSERT INTO analysis_model_budget_events VALUES ('shadow','2026-10-15Z','/api/analyze-meal','shadow',1),('attempt','2026-10-15Z','/api/analyze-meal','primary',0),('other','2026-10-15Z','/api/cheat','primary',1);
+      INSERT INTO auth.users VALUES ('00000000-0000-4000-8000-000000000001','2026-10-15T23:30Z');
+      INSERT INTO analytics.v_meals VALUES ('2026-10-15T23:30Z','a'),('2026-10-15T20:00Z','a'),('2026-10-10Z','b'),('2026-10-16Z','today');
+      INSERT INTO pipeline_requests VALUES ('00000000-0000-4000-8000-000000000001','2026-10-16Z','error',NULL),('00000000-0000-4000-8000-000000000002','2026-10-16Z','error','00000000-0000-4000-8000-000000000001');
+      INSERT INTO user_feedback VALUES ('2026-10-10Z','open'),('2026-10-16Z','open'),('2026-10-10Z','resolved');
+      INSERT INTO entitlement_grants VALUES ('00000000-0000-4000-8000-000000000001','active','promo','production','premium',now()-interval '1 day',now()+interval '2 days');`);
+    for (const days of [7,30,90]) {
+      const r=await loadOverview(db,days,new Date('2026-10-16T12:00Z'));
+      assert.equal(r.kpis.meals.value,days); assert.equal(r.kpis.meals.comparisonValue,days); assert.equal(r.kpis.meals.previousValue,days);
+      assert.equal(r.kpis.p95MealLatencyMs.value,1000); assert.equal(r.kpis.p95MealLatencyMs.previousValue,1000);
+      assert.equal(r.kpis.errorRate.value,0); assert.equal(r.kpis.errorRate.previousValue,null);
+      assert.equal(r.kpis.dau.value,1); assert.equal(r.kpis.newSignups.value,1); assert.equal(r.kpis.openFeedback.value,2);
+      assert.equal(r.mealsDaily.length,days); assert.equal(r.mealsDaily.at(-1)?.analysed,1);
+      assert.equal(r.activeUsersDaily.at(-2)?.wau,2); assert.equal(r.activeUsersDaily.at(-1)?.dau,1);
+      assert.equal(r.needsAttention.failedMealsToday,1); assert.equal(r.needsAttention.feedbackOpenOver48h,1); assert.equal(r.needsAttention.grantsEndingWithin3Days,1);
+      if(days>7) assert.equal(r.mealsDaily[0].errors,null);
+    }
+    await pg.exec(`INSERT INTO pipeline_requests VALUES ('00000000-0000-4000-8000-000000000003','2026-10-15Z','error',NULL);
+      INSERT INTO pipeline_runs VALUES ('2026-10-15Z',9999999,'00000000-0000-4000-8000-000000000002');`);
+    const replay=await loadOverview(db,30,new Date('2026-10-16T12:00Z'));
+    assert.equal(replay.kpis.p95MealLatencyMs.value,1000);assert.equal(replay.kpis.errorRate.value,1/7);
+    await pg.exec(`DELETE FROM pipeline_runs WHERE created_at>='2026-10-09Z' AND request_id IS NULL;
+      INSERT INTO pipeline_runs SELECT d,9999999,'00000000-0000-4000-8000-000000000002' FROM generate_series('2026-10-09Z'::timestamptz,'2026-10-15Z',interval '1 day') d;`);
+    const coverage=await loadOverview(db,7,new Date('2026-10-16T12:00Z'));
+    assert.equal(coverage.kpis.p95MealLatencyMs.value,null);assert.equal(coverage.kpis.p95MealLatencyMs.previousValue,null);
+    await pg.exec(`DELETE FROM analysis_model_budget_events WHERE created_at<'2026-10-10Z'; DELETE FROM pipeline_runs WHERE created_at<'2026-10-10Z'`);
+    const sparse=await loadOverview(db,7,new Date('2026-10-16T12:00Z'));
+    assert.equal(sparse.kpis.meals.previousValue,null); assert.equal(sparse.kpis.p95MealLatencyMs.previousValue,null);
+  } finally {await pg.close();}
+});

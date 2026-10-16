@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import "./globals.css";
-import { RangeProvider } from "@/components/range-context";
 import { AppSidebar } from "@/components/shell/sidebar";
 import { Topbar } from "@/components/shell/topbar";
 
@@ -17,7 +16,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={geist.variable}>
       <body className="antialiased">
-        <RangeProvider>
           <div className="flex min-h-dvh">
             <AppSidebar />
             <div className="flex min-w-0 flex-1 flex-col">
@@ -25,7 +23,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <main className="min-w-0 flex-1 px-5 pb-10 lg:px-8">{children}</main>
             </div>
           </div>
-        </RangeProvider>
       </body>
     </html>
   );

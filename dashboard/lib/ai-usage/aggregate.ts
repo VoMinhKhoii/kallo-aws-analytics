@@ -31,7 +31,7 @@ export interface Kpi {
   /** Change badge: the last `win` complete days against the `win` before them. */
   cur: number | null;
   prev: number | null;
-  spark: number[];
+  spark: (number | null)[];
 }
 
 export interface Summary {
@@ -87,16 +87,19 @@ export function summarize(input: UsageInput, models: ModelMeta[]): Summary {
   const mealsByDay = new Map(input.mealsDaily.map((r) => [r.date, r]));
   const metaById = new Map(models.map((m) => [m.id, m]));
 
-  const daySpend = (d: string) => sum((byDay.get(d) ?? []).map((r) => r.spend_usd ?? 0));
-  const dayCalls = (d: string) => sum((byDay.get(d) ?? []).map((r) => r.calls));
+  const daySpend = (d: string) => {
+    const priced = (byDay.get(d) ?? []).flatMap(r => r.spend_usd == null ? [] : [r.spend_usd]);
+    return priced.length ? sum(priced) : null;
+  };
+  const dayCalls = (d: string) => byDay.has(d) ? sum(byDay.get(d)!.map(r => r.calls)) : null;
   const dayCache = (d: string) => {
     const rows = byDay.get(d) ?? [];
     const input = sum(rows.map((r) => r.input_tokens));
-    return input ? sum(rows.map((r) => r.cached_tokens)) / input : 0;
+    return input ? sum(rows.map((r) => r.cached_tokens)) / input : null;
   };
   const dayPerK = (d: string) => {
     const m = mealsByDay.get(d);
-    return m?.priced_meals && m.spend_usd != null ? (m.spend_usd / m.priced_meals) * 1000 : 0;
+    return m?.priced_meals && m.spend_usd != null ? (m.spend_usd / m.priced_meals) * 1000 : null;
   };
   const total = (days: string[], f: (d: string) => number) => sum(days.map(f));
   // Compare only against a prior window the data mostly covers; a half-empty
@@ -149,7 +152,7 @@ export function summarize(input: UsageInput, models: ModelMeta[]): Summary {
   return {
     models: summaries,
     spend: { value: windowSpend, ...change(spendOf), spark: cur.map(daySpend) },
-    calls: { value: windowCalls, ...change((days) => total(days, dayCalls)), spark: cur.map(dayCalls) },
+    calls: { value: windowCalls, ...change((days) => total(days, d => dayCalls(d) ?? 0)), spark: cur.map(dayCalls) },
     perKMeals: {
       value: meals?.priced_meals && meals.spend_usd != null ? (meals.spend_usd / meals.priced_meals) * 1000 : null,
       ...change((days) => perKOf(mealsIn(days))),

@@ -1,4 +1,5 @@
 'use client';
+import { int } from '@/lib/ai-usage/format';
 import { useState } from 'react';
 import { AccountSearch } from './account-search';
 import { api, field, button, secondary, type Account } from './shared';
@@ -35,7 +36,7 @@ export function GiveEditor({ onSaved }: { onSaved: () => void }) {
       <p className="text-xs text-[var(--console-muted)]">Paying subscribers are protected. Each change is recorded and can be undone.</p>
       <div><button className={secondary} disabled={busy}>{busy ? 'Checking…' : 'Preview affected accounts'}</button></div>
     </form>
-    {preview && <div className="grid gap-4 rounded-md border border-[var(--console-rule)] bg-[var(--console-panel)] p-5"><p className="text-sm font-medium">{preview.accounts} eligible accounts · {preview.payingSkipped} paying accounts skipped</p>{kind === 'everyone' && <label className="grid gap-2 text-sm">Type {action === 'end' ? 'END' : 'EVERYONE'} to confirm<input className={field} value={confirm} onChange={e => setConfirm(e.target.value)} /></label>}<div className="flex gap-3"><button className={button} onClick={() => void apply()} disabled={busy || preview.accounts === 0 || (kind === 'everyone' && confirm !== (action === 'end' ? 'END' : 'EVERYONE'))}>{busy ? 'Applying…' : action === 'end' ? 'Confirm end free Premium' : 'Confirm give Premium'}</button><button className={secondary} onClick={() => setPreview(null)} disabled={busy}>Cancel</button></div></div>}
+    {preview && <div className="grid gap-4 rounded-md border border-[var(--console-rule)] bg-[var(--console-panel)] p-5"><p className="text-sm font-medium">{int(preview.accounts)} eligible accounts · {int(preview.payingSkipped)} paying accounts skipped</p>{kind === 'everyone' && <label className="grid gap-2 text-sm">Type {action === 'end' ? 'END' : 'EVERYONE'} to confirm<input className={field} value={confirm} onChange={e => setConfirm(e.target.value)} /></label>}<div className="flex flex-wrap gap-3"><button className={button} onClick={() => void apply()} disabled={busy || preview.accounts === 0 || (kind === 'everyone' && confirm !== (action === 'end' ? 'END' : 'EVERYONE'))}>{busy ? 'Applying…' : action === 'end' ? 'Confirm end free Premium' : 'Confirm give Premium'}</button><button className={secondary} onClick={() => setPreview(null)} disabled={busy}>Cancel</button></div></div>}
     {error && <p role="alert" className="text-sm text-[var(--console-brick)]">{error}</p>}
   </div>;
 }

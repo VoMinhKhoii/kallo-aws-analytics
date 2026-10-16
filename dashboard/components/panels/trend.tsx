@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import { Area, AreaChart, CartesianGrid, ReferenceArea, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, CartesianGrid, ReferenceArea, XAxis, YAxis } from "@/components/charts/recharts";
 import { CalendarDays } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardAction, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -67,7 +67,7 @@ export function TrendCard({
                           content={<ChartTooltipContent formatter={(v) => `${v}${suffix}`} />} />
             <Area
               isAnimationActive={false}
-              dataKey="value" type="monotone" connectNulls={false}
+              dataKey="value" type="monotoneX" connectNulls={false}
               stroke={meta.color} strokeWidth={2} fill={`url(#fill-${metric})`}
               dot={(props: { cx?: number; cy?: number; index?: number; payload?: TrendPoint }) => {
                 const { cx, cy, payload, index } = props;

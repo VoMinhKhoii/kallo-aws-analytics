@@ -41,7 +41,7 @@ const TITLES: Record<string, string> = {
   "/ai": "AI",
   "/ingredients": "Ingredients",
   "/system": "System",
-  "/trace": "Trace viewer",
+  "/traces": "Traces",
 };
 
 export function Topbar() {
@@ -49,9 +49,9 @@ export function Topbar() {
   const enabled = pathname !== "/login";
   const { open, setOpen } = useCommandPalette();
   const [navOpen, setNavOpen] = React.useState(false);
-  const health = useHealth(enabled);
+  const health = useHealth(pathname === "/" || pathname === "/system");
   const auth = useSessionRole(enabled);
-  const title = TITLES[pathname] ?? "Kallo admin";
+  const title = (pathname.startsWith("/traces/") ? `Traces / ${pathname.split("/")[2].slice(0,8)}` : TITLES[pathname]) ?? "Kallo admin";
 
   if (!enabled) return null;
 
@@ -91,11 +91,11 @@ export function Topbar() {
             <kbd className="ml-auto hidden rounded border border-[var(--console-rule)] bg-[var(--console-panel)] px-1.5 py-0.5 font-mono text-[10px] sm:inline">⌘K</kbd>
           </button>
         </div>
-        <div className="flex shrink-0 items-center gap-2" title={health.detail}>
+        {(pathname === "/" || pathname === "/system") && <div className="flex shrink-0 items-center gap-2" title={health.detail}>
           <span className={cn("size-2 rounded-full", health.state === "live" ? "bg-[var(--console-green)]" : health.state === "down" ? "bg-[var(--console-brick)]" : "bg-[var(--console-amber)]")} />
           <span className="hidden text-[11px] text-[var(--console-muted)] md:inline">{health.state === "live" ? "Live" : health.state === "down" ? "Unavailable" : "Checking"}</span>
         </div>
-        <div className="flex items-center gap-1.5 border-l border-[var(--console-rule)] pl-3" title={auth.expiresAt ? `Session expires ${new Date(auth.expiresAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}` : undefined}>
+        }<div className="flex items-center gap-1.5 border-l border-[var(--console-rule)] pl-3" title={auth.expiresAt ? `Session expires ${new Date(auth.expiresAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}` : undefined}>
           <ShieldCheck className="size-3.5 text-[var(--console-muted)]" aria-hidden="true" />
           <span className="text-[11px] font-medium text-[var(--console-muted)]">{auth.loading ? "Checking access" : auth.role === "founder" ? "Founder" : auth.role === "reviewer" ? "Reviewer" : "No session"}</span>
           {auth.role ? <button type="button" onClick={() => void logout()} className="ml-1 rounded p-1 text-[var(--console-muted)] hover:bg-[var(--console-surface)] hover:text-[var(--console-ink)] focus-visible:outline-2 focus-visible:outline-[var(--console-blue)]" aria-label="Log out"><LogOut className="size-3.5" /></button> : null}

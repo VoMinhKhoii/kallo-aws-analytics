@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { type TrendMetric, trendRows, type UsageInput } from "@/lib/ai-usage/aggregate";
-import { ms, pct } from "@/lib/ai-usage/format";
+import { ms, msAxis, pct } from "@/lib/ai-usage/format";
 import type { ModelMeta } from "@/lib/ai-usage/models";
 import { cn } from "@/lib/utils";
 import { TrendChart } from "./trend-chart";
@@ -42,10 +42,10 @@ export function Trends({ input, models }: { input: UsageInput; models: ModelMeta
 
   return (
     <>
-      <TrendChart title={`Latency ${latency}`} rows={rows.latency} models={models} dashed={anthropic} format={ms} axis={(v) => `${(v / 1000).toFixed(0)}s`} action={toggle} />
-      <TrendChart title="Error rate" rows={rows.errorRate} models={models} dashed={anthropic} format={(v) => pct(v)} axis={(v) => pct(v)} />
-      <TrendChart title="Fallback rate" rows={rows.fallbackRate} models={fallbackModels} dashed={anthropic} format={(v) => pct(v)} axis={(v) => pct(v)} />
-      <TrendChart title="Cache hit" rows={rows.cacheRate} models={models} dashed={anthropic} format={(v) => pct(v, 0)} axis={(v) => pct(v, 0)} />
+      <TrendChart title={`Latency ${latency}`} rows={rows.latency} models={models} dashed={anthropic} format={ms} axis={msAxis} emptyMessage="No per-call latency in this window yet." action={toggle} />
+      <TrendChart emptyMessage="No error-rate data in this window yet." title="Error rate" rows={rows.errorRate} models={models} dashed={anthropic} format={(v) => pct(v)} axis={(v) => pct(v, 0)} />
+      <TrendChart emptyMessage="No fallback data in this window yet." title="Fallback rate" rows={rows.fallbackRate} models={fallbackModels} dashed={anthropic} format={(v) => pct(v)} axis={(v) => pct(v, 0)} />
+      <TrendChart emptyMessage="No cache data in this window yet." title="Cache hit" rows={rows.cacheRate} models={models} dashed={anthropic} format={(v) => pct(v, 0)} axis={(v) => pct(v, 0)} />
     </>
   );
 }

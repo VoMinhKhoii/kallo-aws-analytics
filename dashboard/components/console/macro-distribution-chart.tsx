@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { int } from "@/lib/ai-usage/format";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "@/components/charts/recharts";
 import type { MacroRow } from "@/app/lib/types";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { cn } from "@/lib/utils";
@@ -41,7 +42,7 @@ export function MacroDistributionChart({ rows }: { rows: MacroRow[] }) {
             <CartesianGrid vertical={false} strokeDasharray="3 3" />
             <XAxis dataKey="bucket" tickLine={false} axisLine={false} tickMargin={10} minTickGap={8} label={{ value: unit, position: "insideBottomRight", offset: -4 }} />
             <YAxis tickLine={false} axisLine={false} width={48} tickMargin={8} allowDecimals={false} />
-            <ChartTooltip content={<ChartTooltipContent formatter={(value) => Number(value).toLocaleString("en-US")} />} />
+            <ChartTooltip content={<ChartTooltipContent formatter={(value) => int(Number(value))} />} />
             <Bar dataKey="count" fill="var(--console-blue)" radius={[3, 3, 0, 0]} isAnimationActive={false} />
           </BarChart>
         </ChartContainer>

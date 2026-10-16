@@ -1,6 +1,7 @@
-import { getCachedSelectedMetrics, getSelectedMetrics } from "@/app/lib/api";
+import { getSelectedMetrics } from "@/app/lib/api";
 import { METRIC_NAMES, type MetricName } from "@/app/lib/types";
 import { getLiveMetrics } from '@/lib/admin/live-metrics';
+import { aggregateCache } from "@/lib/admin/cache";
 import { authorizeRequest } from '@/lib/auth';
 
 export const dynamic = "force-dynamic";
@@ -40,12 +41,28 @@ export async function GET(request: Request) {
   if (Date.parse(to) - Date.parse(from) > 365 * 86400000) {
     return Response.json({ error: 'Date windows are limited to one year.' }, { status: 400 });
   }
-  const bundle = process.env.METRICS_SOURCE === 'postgres'
-    ? await getLiveMetrics(requested as MetricName[], from, to)
-    : refresh
-    ? await getSelectedMetrics(requested as MetricName[], from, to)
-    : await getCachedSelectedMetrics(requested as MetricName[], from, to);
+  const source = process.env.METRICS_SOURCE === 'postgres' ? 'postgres' : 'aws';
+  const loadMetric = async (metric: MetricName) => {
+    try {
+      return { metric, ...await aggregateCache.get(`metrics:v1:${source}:${access.session.role}:${metric}:${from}:${to}`, 60000, async () => {
+        const result = source === 'postgres' ? await getLiveMetrics([metric], from, to) : await getSelectedMetrics([metric], from, to);
+        if (result.errors[metric]) throw new Error(result.errors[metric]);
+        return result.data[metric];
+      }, refresh) };
+    } catch { return { metric, error: 'The metric could not be loaded.' }; }
+  };
+  const parts = [];
+  for (let i = 0; i < requested.length; i += 4) {
+    parts.push(...await Promise.all((requested as MetricName[]).slice(i, i + 4).map(loadMetric)));
+  }
+  const bundle = {
+    from, to,
+    data: Object.fromEntries(parts.filter(p => !('error' in p)).map(p => [p.metric, 'value' in p ? p.value : undefined])),
+    errors: Object.fromEntries(parts.filter(p => 'error' in p).map(p => [p.metric, 'error' in p ? p.error : undefined])),
+    collectedAt: parts.flatMap(p => 'collectedAt' in p ? [p.collectedAt] : []).sort()[0] ?? new Date().toISOString(),
+    collectedAtByMetric: Object.fromEntries(parts.flatMap(p => 'collectedAt' in p ? [[p.metric, p.collectedAt]] : [])),
+  };
   return Response.json(bundle, {
-    headers: { "Cache-Control": refresh ? "private, no-store" : "private, max-age=30" },
+    headers: { "Cache-Control": refresh ? "private, no-store" : "private, max-age=30, stale-while-revalidate=300" },
   });
 }

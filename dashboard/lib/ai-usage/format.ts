@@ -1,4 +1,7 @@
 const compactFmt = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
+export const decimal = (v: number, digits = 1, minimumDigits = digits) => new Intl.NumberFormat("en-US", { minimumFractionDigits: minimumDigits, maximumFractionDigits: digits }).format(v);
+export const msAxis = (v: number) => v < 1000 ? `${Math.round(v)} ms` : `${decimal(v / 1000, Number.isInteger(v / 1000) ? 0 : 1)} s`;
+
 const intFmt = new Intl.NumberFormat("en-US");
 
 export const compact = (v: number) => compactFmt.format(v);
@@ -14,7 +17,7 @@ export function usd(v: number | null | undefined): string {
 
 export function ms(v: number | null | undefined): string {
   if (v == null) return "—";
-  return v < 1000 ? `${Math.round(v)} ms` : `${(v / 1000).toFixed(v < 10_000 ? 2 : 1)} s`;
+  return v < 1000 ? `${Math.round(v)} ms` : `${(v / 1000).toFixed(1)} s`;
 }
 
 export function pct(v: number | null | undefined, digits = 1): string {

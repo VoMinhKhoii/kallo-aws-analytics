@@ -1,12 +1,16 @@
 "use client";
 
 import * as React from "react";
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import type { TrendRow } from "@/lib/ai-usage/aggregate";
+import { Bar, CartesianGrid, Cell, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "@/components/charts/recharts";
+
+import { observedRows, timeTicks } from "@/lib/ai-usage/chart-data";
 import { shortDate } from "@/lib/ai-usage/format";
 import type { ModelMeta } from "@/lib/ai-usage/models";
+import { SeriesRail } from "@/components/charts/series-rail";
 import { ModelRail, useLocalFocus } from "./model-rail";
 import { UsageTooltip } from "./usage-tooltip";
+
+type TrendRow = { date: string } & Record<string, unknown>;
 
 function lastValue(rows: TrendRow[], key: string): number | null {
   for (let i = rows.length - 1; i >= 0; i--) {
@@ -19,12 +23,17 @@ function lastValue(rows: TrendRow[], key: string): number | null {
 /** One full-width daily trend, one line per model, with its own model rail. */
 export function TrendChart({
   title,
-  rows,
+  rows: inputRows,
   models,
   format,
   axis,
   action,
   dashed,
+  seriesOnly = false,
+  bars = false,
+  hourly = false,
+  partialLast = hourly, stacked = false, step = false, integer = false, totals = false, windowLabel, durationAxis = false,
+  emptyMessage = "Nothing recorded in this window yet.",
 }: {
   title: string;
   rows: TrendRow[];
@@ -34,60 +43,89 @@ export function TrendChart({
   action?: React.ReactNode;
   /** Model keys drawn dashed, so the series do not rely on color alone. */
   dashed?: ReadonlySet<string>;
+  seriesOnly?: boolean;
+  bars?: boolean;
+  hourly?: boolean;
+  partialLast?: boolean; stacked?: boolean; step?: boolean; integer?: boolean; totals?: boolean; windowLabel?: string; durationAxis?: boolean;
+  emptyMessage?: string;
 }) {
+  const rows = observedRows(inputRows, models.map(m => m.key));
+  const ticks = timeTicks(rows, hourly);
+  const hatchId = React.useId().replace(/:/g, "");
+  const today = new Date().toISOString().slice(0, 10);
   const focus = useLocalFocus();
-  const shown = models.filter((m) => rows.some((r) => typeof r[m.key] === "number"));
+  const [animate, setAnimate] = React.useState(true);
+  const [hoveredRow, setHoveredRow] = React.useState<TrendRow | null>(null);
+  const shown = models.filter((m) => rows.some((r) => typeof r[m.key] === "number" && Number.isFinite(r[m.key])));
   const byKey = React.useMemo(() => new Map(models.map((m) => [m.key, m])), [models]);
   const since = rows[0]?.date;
   const rail = shown.map((meta) => {
-    const v = lastValue(rows, meta.key);
-    return { meta, value: v == null ? "—" : format(v), sub: "latest day" };
+    const v = hoveredRow ? typeof hoveredRow[meta.key] === "number" ? hoveredRow[meta.key] as number : null : totals ? rows.reduce((sum,row)=>sum+(typeof row[meta.key]==='number'?row[meta.key] as number:0),0) : lastValue(rows, meta.key);
+    return { meta, value: v == null ? "—" : format(v), sub: hoveredRow ? shortDate(hoveredRow.date.slice(0,10)) : totals ? (windowLabel??`${inputRows.length}d`) : "latest" };
   });
 
   return (
     <section className="rounded-xl border border-border bg-card px-4 py-3">
       <div className="mb-2 flex items-center justify-between gap-3">
-        <div className="flex items-baseline gap-3">
+        <div className="flex flex-wrap items-baseline gap-x-3">
           <h2 className="text-[15px] font-semibold">{title}</h2>
-          <span className="text-muted-foreground text-[12px]">{since ? `since ${shortDate(since)}` : ""}</span>
+          <span className="text-muted-foreground text-[12px]">{since ? `since ${shortDate(since.slice(0,10))}` : ""}</span>
         </div>
         {action}
       </div>
       {shown.length === 0 ? (
-        <p className="text-muted-foreground py-8 text-center text-[13px]">Nothing recorded in this window yet.</p>
+        <p className="text-muted-foreground py-10 text-center text-[13px]">{emptyMessage}</p>
       ) : (
-        <div className="flex flex-wrap gap-3 sm:flex-nowrap">
-          <div className="h-[190px] min-w-0 flex-1">
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <div className="h-[190px] w-full min-w-0 sm:flex-1">
             <ResponsiveContainer>
-              <LineChart data={rows} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
+              <ComposedChart barGap={stacked?undefined:"-100%"} data={rows} onMouseMove={state => setHoveredRow(state.activePayload?.[0]?.payload ?? null)} onMouseLeave={() => setHoveredRow(null)} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
+                {bars && <defs>{shown.map(m => <pattern key={m.key} id={`${hatchId}-${m.key}`} width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="5" height="5" fill={m.color} fillOpacity={0.25} /><line x1="0" y1="0" x2="0" y2="5" stroke={m.color} strokeWidth={2} /></pattern>)}</defs>}
                 <CartesianGrid vertical={false} stroke="var(--console-rule)" />
-                <XAxis dataKey="date" tickFormatter={shortDate} tickLine={false} axisLine={false} minTickGap={36} tick={{ fill: "var(--console-muted)", fontSize: 11 }} />
-                <YAxis tickFormatter={axis} tickLine={false} axisLine={false} width={44} tick={{ fill: "var(--console-muted)", fontSize: 11 }} />
+                <XAxis dataKey="date" ticks={ticks} tickFormatter={v => hourly ? String(v).slice(11, 16) : shortDate(String(v).slice(0,10))} tickLine={false} axisLine={false} minTickGap={36} tick={{ fill: "var(--console-muted)", fontSize: 11 }} />
+                <YAxis allowDecimals={!bars&&!integer} domain={durationAxis?[0,durationMax(rows,shown.map(m=>m.key))]:[0,"auto"]} ticks={durationAxis?durationTicks(rows,shown.map(m=>m.key)):undefined} tickFormatter={axis} tickLine={false} axisLine={false} width={64} tick={({x, y, payload}) => <text x={Number(x) - 8} y={y} textAnchor="end" dominantBaseline="central" fill="var(--console-muted)" fontSize={11}>{axis(Number(payload.value))}</text>} />
                 <Tooltip
+                  allowEscapeViewBox={{x: false, y: false}}
                   cursor={{ stroke: "var(--console-muted)", strokeDasharray: "3 3" }}
                   content={(p) => <UsageTooltip active={p.active} payload={p.payload as never} label={p.label as string} models={byKey} format={format} />}
                 />
-                {shown.map((m) => (
+                {shown.map((m, index) => bars ? (
+                  <Bar key={m.key} dataKey={m.key} stackId={stacked?"counts":undefined} maxBarSize={stacked||index === 0 ? 36 : 14} fill={m.color} fillOpacity={focus.opacity(m.key)} isAnimationActive={animate} onAnimationEnd={() => setAnimate(false)} animationDuration={600}>
+                    {rows.map(row => <Cell key={row.date} fill={(partialLast ? row.date===rows.at(-1)?.date && row.date.slice(0,10)===today : row.date.slice(0,10)===today) ? `url(#${hatchId}-${m.key})` : m.color} />)}
+                  </Bar>
+                ) : (
                   <Line
                     key={m.key}
-                    type="monotone"
+                    type={step?"stepAfter":"monotoneX"}
                     dataKey={m.key}
                     stroke={m.color}
                     strokeOpacity={focus.opacity(m.key)}
                     strokeWidth={focus.active === m.key ? 2.5 : 1.75}
                     strokeDasharray={dashed?.has(m.key) ? "5 3" : undefined}
-                    dot={false}
+                    dot={rows.filter(r => typeof r[m.key] === "number").length === 1 ? { r: 3 } : false}
                     activeDot={{ r: 3.5, strokeWidth: 2, stroke: "var(--card)" }}
                     connectNulls={false}
+                    isAnimationActive={animate}
+                    onAnimationEnd={() => setAnimate(false)}
                     animationDuration={600}
                   />
                 ))}
-              </LineChart>
+              </ComposedChart>
             </ResponsiveContainer>
           </div>
-          <ModelRail items={rail} focus={focus} />
+          {seriesOnly ? <SeriesRail items={rail.map(({meta,value,sub}) => ({...meta,value,sub}))} focus={focus} /> : <ModelRail items={rail} focus={focus} />}
         </div>
       )}
     </section>
   );
 }
+
+// Millisecond data with whole-second, evenly spaced, nice axis ticks.
+function durationTicks(rows:TrendRow[],keys:string[]) {
+  const max=Math.max(1000,...rows.flatMap(r=>keys.map(k=>typeof r[k]==='number'?r[k] as number:0)));
+  const raw=max/4000, magnitude=10**Math.floor(Math.log10(raw));
+  const step=([1,2,4,5,10].find(n=>n*magnitude>=raw)??10)*magnitude*1000;
+  const nice=Math.max(1000,step), top=Math.ceil(max/nice)*nice;
+  return Array.from({length:Math.round(top/nice)+1},(_,i)=>i*nice);
+}
+function durationMax(rows:TrendRow[],keys:string[]) {return durationTicks(rows,keys).at(-1)!;}

@@ -7,7 +7,7 @@ import {
 } from "@/lib/auth";
 import { getAuthConfig, isSameOrigin, type DashboardRole } from "@/lib/auth-config";
 
-const MAX_LOGIN_BODY_BYTES = 8_192;
+import { loginSchema, readLoginBody, loginAllowed, workerLoginLimits } from "@/lib/login-security";
 
 function invalidLogin(): Response {
   return authErrorResponse("Credentials not accepted", "AUTH_INVALID", 401);
@@ -23,26 +23,23 @@ export async function POST(request: Request) {
     return authErrorResponse("Dashboard authentication is not configured", "AUTH_NOT_CONFIGURED", 503);
   }
 
-  const contentLength = Number(request.headers.get("content-length"));
-  if (Number.isFinite(contentLength) && contentLength > MAX_LOGIN_BODY_BYTES) {
-    return authErrorResponse("Login request is too large", "REQUEST_TOO_LARGE", 413);
+  let allowed;
+  try { allowed = await loginAllowed(request, await workerLoginLimits()); }
+  catch {
+    const response=authErrorResponse('Sign-in is temporarily unavailable', 'AUTH_TEMPORARILY_UNAVAILABLE', 503);
+    response.headers.set('Retry-After','60');
+    return response;
   }
-
-  let body: unknown;
-  try {
-    const text = await request.text();
-    if (text.length > MAX_LOGIN_BODY_BYTES || new TextEncoder().encode(text).byteLength > MAX_LOGIN_BODY_BYTES) {
-      return authErrorResponse("Login request is too large", "REQUEST_TOO_LARGE", 413);
-    }
-    body = JSON.parse(text);
-  } catch {
-    return invalidLogin();
+  if (!allowed) {
+    const response = invalidLogin();
+    return Response.json(await response.json(), { status: 429, headers: { "Cache-Control": "no-store", "Retry-After": "60" } });
   }
-
-  if (!body || typeof body !== "object") return invalidLogin();
-  const values = body as { username?: unknown; password?: unknown };
-  if (typeof values.username !== "string" || typeof values.password !== "string" || values.username.length > 256 || values.password.length > 1_024) {
-    return invalidLogin();
+  let values;
+  try { values = loginSchema.parse(await readLoginBody(request)); }
+  catch (error) {
+    return error instanceof RangeError
+      ? authErrorResponse("Login request is too large", "REQUEST_TOO_LARGE", 413)
+      : invalidLogin();
   }
 
   // Evaluate every configured pair before choosing a role so an attacker
@@ -53,7 +50,7 @@ export async function POST(request: Request) {
   const reviewerPassword = constantTimeEqual(values.password, config.reviewerPassword);
   const role: DashboardRole | null = founderUsername && founderPassword
     ? "founder"
-    : reviewerUsername && reviewerPassword
+    : Boolean(config.reviewerUsername && config.reviewerPassword) && reviewerUsername && reviewerPassword
       ? "reviewer"
       : null;
   if (!role) return invalidLogin();
@@ -62,6 +59,6 @@ export async function POST(request: Request) {
     { ok: true, role },
     { headers: { "Cache-Control": "no-store" } },
   );
-  setSessionCookie(response, createSessionToken(role));
+  setSessionCookie(response, createSessionToken(role), request);
   return response;
 }
