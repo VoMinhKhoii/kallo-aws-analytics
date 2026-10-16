@@ -116,6 +116,9 @@ async function check(name: string, run: () => Promise<string | void>) {
   console.log(`${result.pass ? 'PASS' : 'FAIL'} ${name} — ${result.detail}`);
   return result.pass;
 }
+function isEdge(url: string) {
+  try { return new URL(url).pathname.startsWith('/cdn-cgi/'); } catch { return false; }
+}
 async function settle() {
   // Next prefetches can be cancelled during navigation. Track actual requests
   // rather than relying on networkidle, which pending traces may never reach.
@@ -238,7 +241,8 @@ async function run() {
     protectWrites = () => context.route('**/*', async (route: PW) => {
       const req = route.request(), url = new URL(req.url());
       const method = req.method();
-      if (['GET', 'HEAD', 'OPTIONS'].includes(method)) return route.continue();
+      // Cloudflare's own beacon and bot check (RUM, challenge platform) are not app writes.
+      if (['GET', 'HEAD', 'OPTIONS'].includes(method) || isEdge(req.url())) return route.continue();
       let allowed = url.origin === base.origin && method === 'POST' &&
         ['/api/auth/login', '/api/auth/logout'].includes(url.pathname);
       if (url.origin === base.origin && method === 'POST' && url.pathname === '/api/admin/premium') {
@@ -253,14 +257,15 @@ async function run() {
     attachPage = () => {
       page.on('crash', () => { crashed = true; });
       page.on('console', (msg: PW) => {
-        if (msg.type() === 'error') issues.push({ kind: 'console', detail: clean(msg.text()) });
+        if (msg.type() === 'error' && !isEdge(msg.location()?.url ?? '')) issues.push({ kind: 'console', detail: clean(msg.text()) });
       });
       page.on('pageerror', (error: Error) => issues.push({ kind: 'pageerror', detail: clean(error.message) }));
-      page.on('request', (r: PW) => { pending.add(r); lastNetwork = Date.now(); });
-      const done = (r: PW) => { pending.delete(r); lastNetwork = Date.now(); };
+      page.on('request', (r: PW) => { if (!isEdge(r.url())) { pending.add(r); lastNetwork = Date.now(); } });
+      const done = (r: PW) => { if (pending.delete(r)) lastNetwork = Date.now(); };
       page.on('requestfinished', done);
       page.on('requestfailed', (r: PW) => {
         done(r);
+        if (isEdge(r.url())) return;
         const error = r.failure()?.errorText || 'unknown transport failure';
         const prefetch = r.headers()['next-router-prefetch'] || r.headers().purpose === 'prefetch';
         // AbortController cancellations also occur on window/filter changes.
@@ -268,7 +273,7 @@ async function run() {
         issues.push({ kind: 'requestfailed', detail: `${r.method()} ${safeUrl(r.url())}: ${error}${prefetch ? ' (prefetch)' : ''}` });
       });
       page.on('response', (r: PW) => {
-        if (r.status() >= 400) issues.push({ kind: 'http', detail: `HTTP ${r.status()} ${safeUrl(r.url())}` });
+        if (r.status() >= 400 && !isEdge(r.url())) issues.push({ kind: 'http', detail: `HTTP ${r.status()} ${safeUrl(r.url())}` });
       });
     };
     attachPage();
@@ -342,10 +347,10 @@ async function run() {
     });
     await check(`${name} window URL and rendered selection`, async () => {
       if (!windowPages.has(name)) return 'N/A — this page has no window control';
-      const target = new URL(page.url()).searchParams.get('w') === '7d' ? '30d' : '7d';
+      const previous = new URL(page.url()).searchParams.get('w') || (name === 'Traces' ? '24h' : '7d');
+      const target = previous === '7d' ? '30d' : '7d';
       const control = page.getByRole('radio', { name: target, exact: true }).or(page.getByRole('button', { name: target, exact: true })).first();
       const before = await page.locator('main').innerText();
-      const previous = new URL(page.url()).searchParams.get('w') || (name === 'Traces' ? '24h' : '7d');
       renderedWindows.set(`${path}:${previous}`, before);
       const responses: PW[] = [];
       const onResponse = (response: PW) => {
