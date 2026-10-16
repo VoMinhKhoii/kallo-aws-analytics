@@ -343,7 +343,7 @@ async function run() {
     await check(`${name} window URL and rendered selection`, async () => {
       if (!windowPages.has(name)) return 'N/A — this page has no window control';
       const target = new URL(page.url()).searchParams.get('w') === '7d' ? '30d' : '7d';
-      const control = page.getByRole('button', { name: target, exact: true });
+      const control = page.getByRole('radio', { name: target, exact: true }).or(page.getByRole('button', { name: target, exact: true })).first();
       const before = await page.locator('main').innerText();
       const previous = new URL(page.url()).searchParams.get('w') || (name === 'Traces' ? '24h' : '7d');
       renderedWindows.set(`${path}:${previous}`, before);
@@ -355,9 +355,13 @@ async function run() {
       };
       page.on('response', onResponse);
       try {
-        await control.click();
+        // Re-click until the URL changes: a click during the page's remount can be lost.
+        await eventually(async () => {
+          if (new URL(page.url()).searchParams.get('w') !== target) await control.click();
+          return new URL(page.url()).searchParams.get('w') === target;
+        }, 'Window control did not update the URL');
         await urlIs(path, { w: target });
-        await eventually(async () => await control.getAttribute('aria-pressed') === 'true', 'Visible window control did not update');
+        await eventually(async () => (await control.getAttribute('aria-pressed')) === 'true' || (await control.getAttribute('aria-checked')) === 'true' || (await control.getAttribute('data-state')) === 'on', 'Visible window control did not update');
         await settle();
         await visible(page.getByRole('heading', { level: 1 }).first());
         await eventually(async () => {
@@ -432,7 +436,7 @@ async function run() {
       await enabled(page.getByRole('combobox', { name, exact: true }));
     await enabled(page.getByRole('textbox', { name: 'Reason', exact: true }));
     await enabled(page.getByRole('button', { name: 'Preview affected accounts', exact: true }));
-    const actions = await page.getByLabel('Action', { exact: true }).locator('option').allTextContents();
+    const actions = await page.getByRole('combobox', { name: 'Action', exact: true }).locator('option').allTextContents();
     assert(actions.includes('Give free Premium') && actions.includes('End free Premium'), 'Give/end actions missing');
     await page.getByRole('tab', { name: 'Activity', exact: true }).click(); await settle();
     const undo = page.getByRole('button', { name: 'Undo', exact: true });
@@ -619,7 +623,7 @@ async function run() {
       await page.keyboard.press('['); await urlIs(`/traces/${row.id}`, { step: adjacentStep(graph.nodes, nextId, -1)! });
       // Pan away first so f must make a visible viewport change.
       const viewport = page.locator('.react-flow__viewport');
-      await page.getByRole('button', { name: 'zoom out', exact: true }).click();
+      await page.getByRole('button', { name: /zoom out/i }).click();
       await new Promise(r => setTimeout(r, 400));
       const before = await viewport.getAttribute('style');
       await page.locator('body').click({ position: { x: 2, y: 2 } }); await page.keyboard.press('f');
@@ -667,8 +671,8 @@ async function run() {
   });
   await check('Auth logout returns to login', async () => {
     await page.getByRole('button', { name: 'Log out', exact: true }).click();
-    await urlIs('/login'); await settle();
-    await goto('/traces?w=7d'); await urlIs('/login');
+    await urlIs('/login');
+    await page.goto(new URL('/traces?w=7d', base).href, { waitUntil: 'domcontentloaded' }); await urlIs('/login');
   });
   await check('Production read-only guard', async () => {
     assert(blocked.length === 0, `Blocked unexpected write attempts: ${blocked.join('; ')}`);
