@@ -66,7 +66,7 @@ export async function givePremium(
 
   return deps.db.transaction(async (tx) => {
     const db = tx as unknown as AppDb;
-    await lockPremiumWrites(db);
+    const ranAt = await lockPremiumWrites(db);
     // One statement, one snapshot: recipients are resolved before Restart cancels
     // anything (canceling a complimentary grant can change group membership), and
     // the set never leaves PostgreSQL. Undo finds the replaced grants by the marker.
@@ -115,7 +115,7 @@ export async function givePremium(
         targetUserIds: input.who.kind === 'users' ? input.who.userIds : null,
         details: { who: input.who, length: input.length },
       },
-      now
+      ranAt
     );
     return { auditId, userCount, expiresAt: latest };
   });

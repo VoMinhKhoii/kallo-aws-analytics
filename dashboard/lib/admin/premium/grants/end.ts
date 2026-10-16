@@ -25,7 +25,7 @@ export async function endFreePremium(
 
   return deps.db.transaction(async (tx) => {
     const db = tx as unknown as AppDb;
-    await lockPremiumWrites(db);
+    const ranAt = await lockPremiumWrites(db);
     const ended = (await db.execute(sql`
       UPDATE public.entitlement_grants AS g
       SET status = 'canceled',
@@ -51,7 +51,7 @@ export async function endFreePremium(
         targetUserIds: input.who.kind === 'users' ? input.who.userIds : null,
         details: { who: input.who },
       },
-      now
+      ranAt
     );
     return { auditId, userCount };
   });
