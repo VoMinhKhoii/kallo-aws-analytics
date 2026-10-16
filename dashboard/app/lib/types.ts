@@ -188,6 +188,8 @@ export type CorpusReverseLookupRow = {
 };
 
 export type IngredientGapRow = {
+  last_seen?: string | null;
+  last_trace_id?: string | null;
   date?: string;
   rank: number;
   ingredient_query: string;

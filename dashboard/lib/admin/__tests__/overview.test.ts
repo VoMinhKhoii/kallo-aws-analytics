@@ -29,7 +29,10 @@ test('overview uses durable reservations, complete UTC comparisons, honest error
       const r=await loadOverview(db,days,new Date('2026-10-16T12:00Z'));
       assert.equal(r.kpis.meals.value,days); assert.equal(r.kpis.meals.comparisonValue,days); assert.equal(r.kpis.meals.previousValue,days);
       assert.equal(r.kpis.p95MealLatencyMs.value,1000); assert.equal(r.kpis.p95MealLatencyMs.previousValue,1000);
-      assert.equal(r.kpis.errorRate.value,0); assert.equal(r.kpis.errorRate.previousValue,null);
+      assert.equal(r.kpis.errorRate.value,1/7);
+      const retained=r.mealsDaily.filter(r=>r.errors!=null);
+      assert.equal(retained.length,7);
+      assert.equal(r.kpis.errorRate.value,retained.reduce((n,r)=>n+r.errors!,0)/retained.reduce((n,r)=>n+r.analysed,0)); assert.equal(r.kpis.errorRate.previousValue,null);
       assert.equal(r.kpis.dau.value,1); assert.equal(r.kpis.newSignups.value,1); assert.equal(r.kpis.openFeedback.value,2);
       assert.equal(r.mealsDaily.length,days); assert.equal(r.mealsDaily.at(-1)?.analysed,1);
       assert.equal(r.activeUsersDaily.at(-2)?.wau,2); assert.equal(r.activeUsersDaily.at(-1)?.dau,1);
@@ -44,6 +47,7 @@ test('overview uses durable reservations, complete UTC comparisons, honest error
     assert.equal(rolling.kpis.meals.comparisonValue,1);
     assert.equal(rolling.kpis.meals.previousValue,1);
     assert.equal(rolling.kpis.errorRate.value,1);
+    assert.equal(rolling.kpis.errorRate.value,rolling.mealsDaily.reduce((n,r)=>n+r.errors!,0)/rolling.mealsDaily.reduce((n,r)=>n+r.analysed,0));
     assert.equal(rolling.kpis.errorRate.previousValue,0);
     assert.equal(rolling.kpis.dau.value,1);
     assert.equal(rolling.mealsDaily.reduce((n,r)=>n+r.analysed,0),1);
@@ -51,7 +55,7 @@ test('overview uses durable reservations, complete UTC comparisons, honest error
     await pg.exec(`INSERT INTO pipeline_requests VALUES ('00000000-0000-4000-8000-000000000003','2026-10-15Z','error',NULL);
       INSERT INTO pipeline_runs VALUES ('2026-10-15Z',9999999,'00000000-0000-4000-8000-000000000002');`);
     const replay=await loadOverview(db,30,new Date('2026-10-16T12:00Z'));
-    assert.equal(replay.kpis.p95MealLatencyMs.value,1000);assert.equal(replay.kpis.errorRate.value,1/7);
+    assert.equal(replay.kpis.p95MealLatencyMs.value,1000);assert.equal(replay.kpis.errorRate.value,2/7);
     await pg.exec(`DELETE FROM pipeline_runs WHERE created_at>='2026-10-09Z' AND request_id IS NULL;
       INSERT INTO pipeline_runs SELECT d,9999999,'00000000-0000-4000-8000-000000000002' FROM generate_series('2026-10-09Z'::timestamptz,'2026-10-15Z',interval '1 day') d;`);
     const coverage=await loadOverview(db,7,new Date('2026-10-16T12:00Z'));

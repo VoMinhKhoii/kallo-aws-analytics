@@ -21,6 +21,7 @@ export function classifyCall(c:TraceCall, trace:TraceGraphDetail):TraceCall['rol
   const base=Date.parse(trace.createdAt), start=callStart(c,base);
   if(c.afterResponse || (trace.durationMs!==null && start>=trace.durationMs))return 'afterResponse';
   const inside=(name:string)=>{const s=trace.stages.find(s=>s.name===name);return s&&s.durationMs!==null&&start>=time(s.startedAt,base)&&start<time(s.startedAt,base)+s.durationMs;};
+  if(c.role==='rescue_call1'||c.role==='rescue_call2')return c.role;
   if(c.roleEvidence==='response')return c.role;
   if(trace.source!=='postgres' && c.role!=='unknown')return c.role;
   const recovered=inferCallRole({stage:inside('nutrition')?'nutrition':inside('matching')?'matching':undefined,role:c.role,inputTokens:c.inputTokens,outputTokens:c.outputTokens,legacyTokenShape:trace.source==='postgres'});
@@ -60,7 +61,7 @@ export function buildGraph(trace:TraceGraphDetail) {
   const gap=gapWindow(trace);
   const xs=[-250,0,250,500,750,1000];
   stageNames.forEach((name,i)=>{const stage=trace.stages.find(s=>s.name===name||s.key===name);const calls=sorted.filter(c=>stage?.calls.includes(c.id));const step=make(name,stage?'stage':'ghost',name[0].toUpperCase()+name.slice(1),xs[i+1],0,calls,stage?time(stage.startedAt,base):0,stage?.durationMs??null);step.count=stage?(counts[i]||'Not recorded'):'Not recorded';if(name==='matching'&&Number(matching.unmatchedCount)>0)step.warning=` · ${matching.unmatchedCount} unmatched`;step.status=stage?.status??'missing';step.payloadKey=stage?.key;step.error=stage?.error;add(step);});
-  add({...make('response','response','Response',xs[5],0,[],trace.durationMs??0,trace.durationMs),status:trace.status,error:trace.errorCode??trace.error,count:`${ms(trace.durationMs)} · ${trace.status}${trace.errorCode??trace.error?` · ${trace.errorCode??trace.error}`:''}`});
+  add({...make('response','response','Response',xs[5],0,[],trace.durationMs??0,0),status:trace.status,error:trace.errorCode??trace.error,count:`${ms(trace.durationMs)} · ${trace.status}${trace.errorCode??trace.error?` · ${trace.errorCode??trace.error}`:''}`});
   const spine=[...stageNames,'response'];
   // Label the edge spanning the largest hole, including intervening missing stages.
   const afterIndex=stageNames.indexOf(gap.after);
@@ -71,11 +72,11 @@ export function buildGraph(trace:TraceGraphDetail) {
   byRole('call1').forEach((c,i)=>child({...make(`decomposition.call-${i+1}`,'attempt',`Call 1${i>0 ? " · re-ask" : ""} · ${modelLabel(c.model)}`,xs[1],132+i*96,[c]),count:tokens([c])},'decomposition'));
   if(selectors.length){child({...make('matching.selector','selector',`Selector ×${selectors.length}`,xs[2],132,selectors),count:tokens(selectors)},'matching');}
   if(chunks.length>3){const calls=chunks.flat();child({...make('nutrition.chunks','chunk',`Call 2 ×${chunks.length}`,xs[3],132,calls),count:tokens(calls)},'nutrition');}
-  else chunks.forEach((calls,i)=>child({...make(`nutrition.chunk-${i+1}`,'chunk',`Call 2 · chunk ${i+1}/${chunks.length}`,xs[3]+i*250,132,calls),status:calls.at(-1)?.error?'error':'success',error:calls.at(-1)?.error,count:`${calls.length>1?`retried ×${calls.length} · `:''}${tokens(calls)}`},'nutrition'));
+  else chunks.forEach((calls,i)=>child({...make(`nutrition.chunk-${i+1}`,'chunk',chunks.length===1?'Call 2':`Call 2 · chunk ${i+1}/${chunks.length}`,xs[3]+i*250,132,calls),status:calls.at(-1)?.error?'error':'success',error:calls.at(-1)?.error,count:`${calls.length>1?`retried ×${calls.length} · `:''}${tokens(calls)}`},'nutrition'));
   const rescues:TraceCall[][]=[];
-  sorted.filter(c=>String(roles.get(c.id)).startsWith('rescue')).forEach(c=>{if(c.role==='rescue_call1'||!rescues.length)rescues.push([]);rescues[rescues.length-1].push(c);});
+  sorted.filter(c=>String(roles.get(c.id)).startsWith('rescue')).forEach(c=>{if(roles.get(c.id)==='rescue_call1'||!rescues.length)rescues.push([]);const group=rescues.find(g=>g[0]?.id===c.rescueGroup)??rescues[rescues.length-1];group.push(c);});
   const low=132+Math.max(1,byRole('call1').length)*96;
-  rescues.forEach((calls,i)=>{const r=add({...make(`rescue-${i+1}`,'rescue',`Rescue ${i+1} · ingredient not recorded`,xs[3]+i*250,low,calls),count:`${plural(calls.length,'call')} · ${ms(Math.max(...calls.map(c=>callStart(c,base)+(c.latencyMs??0)))-callStart(calls[0],base))}`});edge('nutrition',r.id,{dashed:true,sourceHandle:'bottom',targetHandle:'top'});edge(r.id,'assembly',{dashed:true});});
+  rescues.forEach((calls,i)=>{const r=add({...make(`rescue-${i+1}`,'rescue',`Rescue${rescues.length>1?` ${i+1}`:''}${calls.find(c=>c.dishName)?.dishName?` · ${calls.find(c=>c.dishName)!.dishName}`:''}`,xs[3]+i*250,low,calls),count:`${plural(calls.length,'call')} · ${ms(Math.max(...calls.map(c=>callStart(c,base)+(c.latencyMs??0)))-callStart(calls[0],base))}`});edge('nutrition',r.id,{dashed:true,sourceHandle:'bottom',targetHandle:'top'});edge(r.id,'assembly',{dashed:true});});
   const after=byRole('afterResponse');if(after.length){const s=add({...make('after-response','after-response',`After response · ${plural(after.length,'call')}`,xs[5],chunks.length===3?228:132,after),status:'dropped',count:afterResponseText(after,trace),afterResponse:true});edge('response',s.id,{dotted:true,sourceHandle:'bottom',targetHandle:'top'});}
   const unknown=byRole('unknown');if(unknown.length)add({...make('unattributed','unattributed',`Unattributed · ${plural(unknown.length,'call')}`,0,132+Math.max(1,byRole('call1').length)*96,unknown),count:'Stage not recorded'});
   edges.forEach(e=>e.failed=!!nodes.find(n=>n.id===e.source)?.error||['error','failed'].includes(nodes.find(n=>n.id===e.source)?.status??''));
@@ -88,4 +89,9 @@ export function afterResponseText(calls:TraceCall[],trace:Pick<TraceGraphDetail,
   const base=Date.parse(trace.createdAt);
   const finish=Math.max(...calls.map(c=>c.createdAt?Date.parse(c.createdAt)-base:callStart(c,base)+(c.latencyMs??0)));
   return `finished +${ms(finish)} · ${ms(finish-(trace.durationMs??0))} after response`;
+}
+
+/** Response is an instant; only calls and stages contribute spans. */
+export function timelineEnd(steps: Step[], duration: number): number {
+  return Math.max(duration, ...steps.filter(s => ['stage','attempt','chunk','selector','rescue','after-response','unattributed'].includes(s.kind) && s.timingKnown !== false).map(s => s.start + (s.duration ?? 0)), 1);
 }

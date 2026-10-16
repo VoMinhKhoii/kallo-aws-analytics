@@ -1,13 +1,19 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api, field, secondary, date, type Account } from './shared';
 
-export function AccountSearch({ selected, onSelect, detail = false }: { selected: Account[]; onSelect: (account: Account) => void; detail?: boolean }) {
+export function AccountSearch({ selected, onSelect, detail = false, initialAccount }: { selected: Account[]; onSelect: (account: Account) => void; detail?: boolean; initialAccount?: string }) {
   const [query, setQuery] = useState('');
   const [rows, setRows] = useState<Account[]>([]);
   const [account, setAccount] = useState<Account | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  useEffect(()=>{
+    if(!detail||!initialAccount)return;
+    let live=true;setError('');
+    api<Account>('?account='+encodeURIComponent(initialAccount)).then(value=>{if(live)setAccount(value);}).catch(e=>{if(live)setError((e as Error).message);});
+    return()=>{live=false;};
+  },[detail,initialAccount]);
   async function search(e: React.FormEvent) {
     e.preventDefault(); setBusy(true); setError('');
     try { setRows(await api<Account[]>('?search=' + encodeURIComponent(query))); }

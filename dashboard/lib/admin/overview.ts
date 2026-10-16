@@ -45,8 +45,8 @@ export async function loadOverview(db:AppDb, window:number|'24h', now=new Date()
       (SELECT count(*)::int FROM public.pipeline_requests WHERE created_at>=${midnight} AND created_at<${dayEnd} AND status='error' AND to_jsonb(pipeline_requests)->>'replay_of_request_id' IS NULL) AS failed_today,
       (SELECT count(*)::int FROM auth.users u WHERE ${activePromoSql(sql`u.id`)} AND NOT ${payingSql(sql`u.id`)} AND ${promoEndsSql(sql`u.id`)}<=now()+interval '3 days') AS ending_soon`),
     db.execute(sql`SELECT
-      (SELECT count(*)::int FROM public.pipeline_requests r WHERE created_at>=${boundary(-7)} AND created_at<${midnight} AND status='error' AND to_jsonb(r)->>'replay_of_request_id' IS NULL) AS errors,
-      (SELECT count(*)::int FROM public.analysis_model_budget_events e WHERE ${reservation} AND created_at>=${boundary(-7)} AND created_at<${midnight}) AS meals`),
+      (SELECT count(*)::int FROM public.pipeline_requests r WHERE created_at>=${boundary(-6)} AND created_at<${end} AND status='error' AND to_jsonb(r)->>'replay_of_request_id' IS NULL) AS errors,
+      (SELECT count(*)::int FROM public.analysis_model_budget_events e WHERE ${reservation} AND created_at>=${boundary(-6)} AND created_at<${end}) AS meals`),
     hourly ? db.execute(sql`WITH hours AS (SELECT generate_series(${start},${end}-interval '1 hour',interval '1 hour') AS d)
       SELECT to_char(d AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS date,
       (SELECT count(*)::int FROM public.analysis_model_budget_events e WHERE ${reservation} AND e.created_at>=d AND e.created_at<d+interval '1 hour') AS analysed,

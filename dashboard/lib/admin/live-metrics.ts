@@ -91,10 +91,11 @@ export function metricQuery(metric: MetricName, from: string, to: string): SQL {
       SELECT occurred_on::text AS date, normalized_query AS ingredient_query, verdict,
         CASE WHEN reject_bucket IN ('unmatched','missing','no_candidates','low_confidence','invalid_input','model_rejected','other')
           THEN reject_bucket WHEN verdict='unmatched' THEN 'unmatched' ELSE 'other' END AS reject_bucket,
-        count(*)::int AS count
+        count(*)::int AS count, max(occurred_at)::text AS last_seen
       FROM (${validDecisions}) d WHERE verdict IN ('unmatched','rejected') GROUP BY 1,2,3,4)
-      SELECT *, row_number() OVER (ORDER BY count DESC,date,ingredient_query,verdict,reject_bucket)::int AS rank
-      FROM grouped ORDER BY rank LIMIT 50`;
+      SELECT g.*, row_number() OVER (ORDER BY count DESC,date,ingredient_query,verdict,reject_bucket)::int AS rank,
+        (SELECT CASE WHEN count(*)=1 THEN min(r.id::text) END FROM public.pipeline_requests r WHERE r.created_at=g.last_seen::timestamptz) AS last_trace_id
+      FROM grouped g ORDER BY rank LIMIT 50`;
     case 'ingredient_rank_distribution': return sql`SELECT occurred_on::text AS date, pool_size, selected_rank, count(*)::int AS count,
       count(*)::float / NULLIF(sum(count(*)) OVER (PARTITION BY occurred_on::text,pool_size),0) AS share FROM (${decisions}) d WHERE verdict='accepted' AND pool_size >= 1 AND selected_rank BETWEEN 1 AND pool_size GROUP BY 1,2,3 ORDER BY 1,2,3`;
     case 'corpus_reverse_lookup': return sql`WITH base AS (${decisions}), foods AS (

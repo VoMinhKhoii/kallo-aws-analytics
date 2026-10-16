@@ -163,6 +163,21 @@ async function noOverflow() {
   assert(Math.max(sizes.document, sizes.body) <= sizes.viewport + 1,
     `Horizontal overflow: ${JSON.stringify(sizes)}`);
 }
+async function readableSelection(id: string) {
+  await eventually(async () => page.locator('.trace-canvas-main').evaluate((canvas: HTMLElement, step: string) => {
+    const viewport = canvas.querySelector<HTMLElement>('.react-flow__viewport');
+    const node = Array.from(canvas.querySelectorAll<HTMLElement>('.react-flow__node')).find(el => el.dataset.id === step);
+    if (!viewport || !node) return false;
+    const zoom = new DOMMatrixReadOnly(getComputedStyle(viewport).transform).a;
+    const box = node.getBoundingClientRect(), area = canvas.getBoundingClientRect();
+    return zoom >= .85 - 1e-6 && box.x >= area.x && box.right <= area.right && box.y >= area.y && box.bottom <= area.bottom;
+  }, id), 'Selected step is too small or outside the visible canvas');
+}
+async function kpiLabelsFit() {
+  const clipped = await page.locator('section[aria-label="Summary"] span').evaluateAll((els: HTMLElement[]) =>
+    els.filter(el => el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1).map(el => el.textContent));
+  assert(!clipped.length, `Clipped KPI text: ${clipped.join('; ')}`);
+}
 async function selectStep(id: string, name?: string) {
   // React Flow exposes stable data-id attributes; its nodes are transformed and
   // may lie outside the viewport. Fit the whole graph before a physical click.
@@ -173,7 +188,7 @@ async function selectStep(id: string, name?: string) {
   }
   await page.locator('body').click({ position: { x: 2, y: 2 } });
   await page.keyboard.press('f');
-  // fitView animates for 180 ms; wait for the transform to finish before clicking.
+  // Allow React Flow to apply the fit transform before clicking.
   await new Promise(r => setTimeout(r, 350));
   const node = page.locator('.react-flow__node').filter({ has: page.locator(`strong[title=${JSON.stringify(name || id)}]`) });
   const target = name ? node : page.locator(`.react-flow__node[data-id=${JSON.stringify(id)}]`);
@@ -184,6 +199,7 @@ async function selectStep(id: string, name?: string) {
   await visible(panel);
   if (name) await visible(panel.getByRole('heading', { name, exact: true }));
   await settle();
+  await readableSelection(id);
   return panel;
 }
 
@@ -472,6 +488,14 @@ async function run() {
     return 'Refresh analytics snapshot control exists; left untouched';
   });
 
+  await check('KPI labels at 1280px', async () => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    for (const path of ['/', '/ai', '/ingredients', '/system', '/premium']) {
+      await goto(path); await kpiLabelsFit();
+      if (path === '/') await visible(page.getByText('Last full UTC day', { exact: true }));
+    }
+  });
+
   let firstSuccess: any, firstError: any;
   await check('Traces discover first success and error rows', async () => {
     const success = await readJson('/api/traces?w=30d&status=success&limit=25');
@@ -630,7 +654,9 @@ async function run() {
       assert(nextId && nextId !== 'nutrition', 'Nutrition has no following recorded step');
       await page.keyboard.press(']');
       await eventually(async () => new URL(page.url()).searchParams.get('step') === nextId, '] did not move to the next step in time order');
+      await readableSelection(nextId);
       await page.keyboard.press('['); await urlIs(`/traces/${row.id}`, { step: adjacentStep(graph.nodes, nextId, -1)! });
+      await readableSelection(adjacentStep(graph.nodes, nextId, -1)!);
       // Pan away first so f must make a visible viewport change.
       const viewport = page.locator('.react-flow__viewport');
       await page.getByRole('button', { name: /zoom out/i }).click();
@@ -659,7 +685,9 @@ async function run() {
   viewport = { width: 375, height: 812 };
   for (const [name, path] of pages) await check(`Mobile ${name} 375×812`, async () => {
     await page.setViewportSize({ width: 375, height: 812 });
-    await goto(path); await noOverflow(); await screenshot(`mobile-${name}`);
+    await goto(path); await noOverflow(); await kpiLabelsFit();
+    if (name === 'Overview') await visible(page.getByText('Last full UTC day', { exact: true }));
+    await screenshot(`mobile-${name}`);
     await page.getByRole('button', { name: 'Open navigation', exact: true }).click();
     const nav = page.getByRole('dialog', { name: 'Navigation', exact: true });
     await visible(nav);
@@ -674,7 +702,9 @@ async function run() {
     await noOverflow();
     const panel = page.getByRole('complementary', { name: 'Nutrition step details' });
     const box = await panel.boundingBox();
-    assert(box && box.x >= 0 && box.x + box.width <= 376 && Math.abs(box.y + box.height - 812) <= 1 && box.height < 812, 'Inspector is not a viewport-contained bottom sheet');
+    assert(box && box.x >= 0 && box.x + box.width <= 376 && Math.abs(box.y + box.height - 812) <= 1 && box.height <= 812 * .55 + 1, 'Inspector exceeds the 55dvh bottom sheet limit');
+    const summaryBox = await page.getByRole('region', { name: 'Meal summary' }).boundingBox();
+    assert(box && summaryBox && summaryBox.y + summaryBox.height <= box.y + 1, 'Inspector covers the compact meal summary');
     await screenshot('mobile-trace-panel');
     await page.getByRole('button', { name: 'Close step panel', exact: true }).click();
     await noOverflow(); await screenshot('mobile-trace-detail'); await health();

@@ -50,7 +50,7 @@ export function loggingDetail(request: Row, entries: unknown[], billed: number, 
   }));
   const calls = events.filter(e => e.type === 'llm').map(e => normalizeCall({ ...e, id: e.eventId, createdAt:e.entryTimestamp }));
   const result = final.summary || final.result || events.findLast(e => e.type === 'stage' && e.stage === 'assembly')?.output?.result || {};
-  return assembleDetail({ ...request, ...req, ...final, id: request.id }, stages, calls, result, 'logging', billed,
+  return assembleDetail({ ...request, ...req, ...final, id: request.id, createdAt: req.startedAt ?? req.createdAt ?? req.entryTimestamp ?? request.created_at }, stages, calls, result, 'logging', billed,
     truncated || incomplete || !events.some(e => e.type === 'request') || !events.some(e => e.type === 'final'));
 }
 async function loadLoggingCapture(request: Row, node?: {key: string; kind: 'stage' | 'call'}): Promise<{entries: unknown[]; incomplete: boolean} | null> {

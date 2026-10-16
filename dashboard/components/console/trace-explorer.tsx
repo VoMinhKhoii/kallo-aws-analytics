@@ -1,4 +1,5 @@
 "use client";
+import { plural } from '@/lib/traces-ui/graph';
 
 import * as React from "react";
 import Link from "next/link";
@@ -36,7 +37,7 @@ export function TraceExplorer() {
         <Panel
           title="Recent AI meal requests"
           description="Choose a request to inspect its exact bounded pipeline trace."
-          source={<SourceTag tone={requests.error ? "error" : requests.total ? "live" : "neutral"}>{requests.error ? "Supabase unavailable" : `${formatNumber(requests.total)} traces`}</SourceTag>}
+          source={<SourceTag tone={requests.error ? "error" : requests.total ? "live" : "neutral"}>{requests.error ? "Supabase unavailable" : plural(requests.total,'trace')}</SourceTag>}
         >
           <MetricState loading={requests.loading} error={requests.error} empty={requests.rows.length === 0} emptyMessage="No AI meal traces were recorded in this window.">
             <SimpleTable columns={["Request", "UTC", "Meal", { label: "Duration", align: "right" }, { label: "Ingredients", align: "right" }, "Verdicts"]} caption="Recent AI meal-analysis requests">

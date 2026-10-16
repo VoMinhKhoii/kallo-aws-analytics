@@ -1,4 +1,4 @@
-import { inferCallRole, responseCallRole } from './call-role';
+import { classifyRescues, inferCallRole, responseCallRole } from './call-role';
 import type { CallRole, Nutrient, TraceCall, TraceDetail, TraceItem, TraceStage } from './types';
 import { stageStats } from './stats';
 import { numberOrNull as n } from './query';
@@ -34,7 +34,7 @@ export function normalizeCall(c: Row): TraceCall {
     costUsd: n(c.costUsd ?? c.cost_usd), error: str(c.error ?? c.error_category), fallbackFrom: str(c.fallbackFrom ?? c.fallback_from),
     promptVersionId: str(c.promptVersionId ?? c.prompt_version_id),
     ...(c.prompt ?? c.prompt_rendered ? { prompt: String(c.prompt ?? c.prompt_rendered) } : {}),
-    ...(c.response ?? c.response_raw ? { response: String(c.response ?? c.response_raw) } : {}),
+    ...(c.response ?? c.response_raw ? { response: typeof (c.response ?? c.response_raw) === 'string' ? (c.response ?? c.response_raw) : JSON.stringify(c.response ?? c.response_raw) } : {}),
   };
 }
 export function assembleDetail(request: Row, stages: TraceStage[], calls: TraceCall[], result: Row, source: TraceDetail['source'], billed: number, truncated = false): TraceDetail {
@@ -47,6 +47,7 @@ export function assembleDetail(request: Row, stages: TraceStage[], calls: TraceC
   if (matching && nutritionStage) for (const key of ['matchedCount','unmatchedCount']) {
     if (nutritionStage.stats[key] != null) matching.stats[key] ??= nutritionStage.stats[key];
   }
+  classifyRescues(calls, stages);
   for (const s of stages) s.calls = calls.filter(c => c.stage === s.key || c.stage === s.name).map(c => c.id);
   const gaps: TraceDetail['gaps'] = [];
   for (let i=1; i<stages.length; i++) {

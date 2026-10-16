@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ReactFlow,Controls,Background,useReactFlow,useNodesInitialized } from '@xyflow/react';
+import { ReactFlow,Controls,Background,useReactFlow,useNodesInitialized,getViewportForBounds } from '@xyflow/react';
 import type { buildGraph,Step } from '@/lib/traces-ui/graph';
 import { TraceNode,type FlowNode } from './trace-node';
 import { GapEdge } from './gap-edge';
@@ -11,25 +11,52 @@ export function CanvasContent({graph,selected,onSelect,duration,fit,panelWidth}:
   const flow=useReactFlow();const initialized=useNodesInitialized();
   const canvas=useRef<HTMLDivElement>(null);
   const [hover,setHover]=useState<Step|null>(null);
-  const nodes:FlowNode[]=useMemo(()=>graph.nodes.map(s=>({id:s.id,type:s.kind,position:s.position,data:{...s},selected:s.id===selected,draggable:false})),[graph,selected]);
+  // Fixed sizes (same as TraceNode): the flow has no onNodesChange, so measured sizes never
+  // reach these node objects and React Flow's queued fitView never runs. We frame it ourselves.
+  const nodes:FlowNode[]=useMemo(()=>graph.nodes.map(s=>({id:s.id,type:s.kind,position:s.position,width:220,height:s.afterResponse?108:s.kind==='gap'?40:88,data:{...s},selected:s.id===selected,draggable:false})),[graph,selected]);
   const edges=useMemo(()=>graph.edges.map(e=>({...e,type:e.label?'gap':'smoothstep',style:{stroke:e.failed?'var(--console-brick)':'var(--console-muted)',strokeWidth:1,strokeDasharray:e.dotted?'2 4':e.dashed?'6 4':undefined},labelStyle:{fill:'var(--console-muted)',fontSize:11},labelBgStyle:{fill:'var(--console-bg)'}})),[graph]);
-  const fitGraph=useCallback(()=>{void flow.fitView({padding:.08,minZoom:.1,maxZoom:1});},[flow]);
-  const fitSpine=useCallback(()=>{
-    void flow.fitView({nodes:graph.nodes.filter(n=>['stage','ghost','response'].includes(n.kind)).map(n=>({id:n.id})),padding:.18,minZoom:.1,maxZoom:1});
-  },[flow,graph]);
-  const centreSelection=useCallback(()=>{
-    const node=graph.nodes.find(n=>n.id===selected);
-    if(!node)return;
-    const {zoom}=flow.getViewport();
-    const visible=Math.max(0,(canvas.current?.clientWidth??1000)-panelWidth);
-    // A full-width mobile inspector covers the graph; preserve the viewport until it closes.
-    if(visible<200)return;
-    void flow.setViewport({x:visible/2-(node.position.x+110)*zoom,y:(canvas.current?.clientHeight??520)/2-(node.position.y+44)*zoom,zoom},{duration:180});
-  },[flow,graph,selected,panelWidth]);
-  useEffect(()=>{const timer=setTimeout(centreSelection,80);return()=>clearTimeout(timer);},[centreSelection]);
-  useEffect(()=>{if(initialized)fitSpine();},[initialized,fitSpine]);
+  const closedZoom=useRef<number|null>(null);
+  const fitGraph=useCallback(()=>{
+    if(!canvas.current)return;
+    const {width,height}=canvas.current.getBoundingClientRect();
+    const viewport=getViewportForBounds(flow.getNodesBounds(flow.getNodes()),width,height,.1,1.25,{top:'60px',right:'60px',bottom:'60px',left:'40px'});
+    void flow.setViewport(viewport);
+    if(!panelWidth)closedZoom.current=viewport.zoom;
+  },[flow,panelWidth]);
+  const frameSelection=useCallback(()=>{
+    if(!canvas.current||!flow.getNodes().length)return;
+    const node=flow.getNode(selected);
+    if(!panelWidth||!node){void fitGraph();return;}
+    // Only vertical call attachments belong to this group; spine edges do not.
+    const parent=graph.edges.find(e=>e.target===selected&&e.sourceHandle==='bottom')?.source??selected;
+    const ids=new Set([parent,selected,...graph.edges.filter(e=>e.source===parent&&e.sourceHandle==='bottom').map(e=>e.target)]);
+    const bounds=flow.getNodesBounds(flow.getNodes().filter(n=>ids.has(n.id)));
+    const own=flow.getNodesBounds([node]);
+    const {width,height}=canvas.current.getBoundingClientRect();
+    const fullWidth=width+(window.matchMedia('(min-width: 768px)').matches?panelWidth:0);
+    const fullZoom=closedZoom.current??getViewportForBounds(flow.getNodesBounds(flow.getNodes()),fullWidth,height,.1,1.25,.2).zoom;
+    const zoom=Math.max(.85,fullZoom);
+    // Centre the group, but keep the selected node inside the visible canvas
+    // when a wide chunk group cannot all fit at a readable zoom.
+    const centre=(start:number,size:number,ownStart:number,ownSize:number,available:number)=>{
+      const room=Math.max(0,available/(2*zoom)-ownSize/2-16/zoom);
+      const middle=ownStart+ownSize/2;
+      return Math.max(middle-room,Math.min(middle+room,start+size/2));
+    };
+    // setViewport from our own measurement: setCenter reads React Flow's stored size,
+    // which still holds the pre-panel width when the panel has just opened.
+    const x=centre(bounds.x,bounds.width,own.x,own.width,width),y=centre(bounds.y,bounds.height,own.y,own.height,height);
+    void flow.setViewport({x:width/2-x*zoom,y:height/2-y*zoom,zoom});
+  },[initialized,flow,selected,panelWidth,graph,fitGraph]);
+  useEffect(()=>{frameSelection();},[frameSelection]);
   const previousFit=useRef(fit);
-  useEffect(()=>{if(previousFit.current!==fit){previousFit.current=fit;fitGraph();}},[fit,fitGraph]);
-  useEffect(()=>{if(!canvas.current)return;const observer=new ResizeObserver(centreSelection);observer.observe(canvas.current);return()=>observer.disconnect();},[centreSelection]);
-  return <div className="trace-canvas flex h-full min-h-[520px] flex-col"><div ref={canvas} className="trace-canvas-main min-h-[480px] flex-1"><ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} onNodeClick={(_,n)=>onSelect(n.id)} onNodeMouseEnter={(_,n)=>setHover(n.data)} onNodeMouseLeave={()=>setHover(null)} minZoom={.1} maxZoom={1.5} nodesConnectable={false} colorMode="dark" proOptions={{hideAttribution:true}}><Background gap={24} color="var(--console-rule)"/><Controls position="bottom-left" showInteractive={false} fitViewOptions={{padding:.08,minZoom:.1,maxZoom:1}}/></ReactFlow></div><TimelineRuler step={hover} duration={duration}/></div>;
+  useEffect(()=>{if(previousFit.current!==fit){previousFit.current=fit;void fitGraph();}},[fit,fitGraph]);
+  useEffect(()=>{
+    if(!canvas.current)return;
+    let frame=0;
+    const observer=new ResizeObserver(()=>{cancelAnimationFrame(frame);frame=requestAnimationFrame(frameSelection);});
+    observer.observe(canvas.current);
+    return()=>{observer.disconnect();cancelAnimationFrame(frame);};
+  },[frameSelection]);
+  return <div className="trace-canvas flex h-full min-h-[520px] flex-col"><div ref={canvas} className="trace-canvas-main min-h-[480px] flex-1"><ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} onNodeClick={(_,n)=>onSelect(n.id)} onNodeMouseEnter={(_,n)=>setHover(n.data)} onNodeMouseLeave={()=>setHover(null)} minZoom={.1} maxZoom={1.5} nodesConnectable={false} colorMode="dark" proOptions={{hideAttribution:true}}><Background gap={24} color="var(--console-rule)"/><Controls position="top-right" showInteractive={false} fitViewOptions={{padding:.2,minZoom:.1,maxZoom:1.25}}/></ReactFlow></div><TimelineRuler steps={graph.nodes} step={hover} duration={duration}/></div>;
 }

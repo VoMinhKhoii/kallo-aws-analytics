@@ -10,7 +10,8 @@ export function aggregateGaps(rows: IngredientGapRow[]) {
   for (const row of rows) {
     const key = `${row.ingredient_query}\u0000${row.verdict}\u0000${row.reject_bucket}`;
     const current = groups.get(key);
-    groups.set(key, { ...row, count: (current?.count ?? 0) + row.count });
+    const latest = !current || (row.last_seen??row.date??'') >= (current.last_seen??current.date??'') ? row : current;
+    groups.set(key, { ...latest, count: (current?.count ?? 0) + row.count });
   }
   return [...groups.values()].sort((a, b) => b.count - a.count || a.ingredient_query.localeCompare(b.ingredient_query)).map((row, index) => ({ ...row, rank: index + 1 }));
 }

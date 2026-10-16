@@ -58,3 +58,16 @@ test('after response uses request origin, dropped status and compact unattribute
   assert.equal(after.status,'dropped');assert.equal(after.count,'finished +31.3 s · 14.9 s after response');
   assert.equal(g.nodes.find(n=>n.id==='unattributed')?.position.y,228);
 });
+
+test('timeline ends at the latest real span and treats Response as an instant',async()=>{
+  const { timelineEnd }=await import('../graph');
+  const f=fixture();
+  let graph=buildGraph(f);
+  assert.equal(graph.nodes.find(n=>n.id==='response')?.duration,0);
+  assert.equal(timelineEnd(graph.nodes,10000),10000);
+  f.calls=[call('late',11000,'unknown',{latencyMs:1500})];
+  graph=buildGraph(f);
+  assert.equal(timelineEnd(graph.nodes,10000),12500);
+  f.calls=[];f.stages[1].durationMs=7000;
+  assert.equal(timelineEnd(buildGraph(f).nodes,10000),13000);
+});

@@ -4,6 +4,8 @@ import { decimal, ms, pct, usd } from "@/lib/ai-usage/format";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "@/components/charts/recharts";
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 
+import { currencyAxis } from "@/lib/ai-usage/chart-data";
+
 type Point = { date: string } & Record<string, unknown>;
 type Series = { key: string; label: string; color: string };
 
@@ -27,13 +29,14 @@ export function TimeSeriesChart({
     item.key,
     data.filter((point) => typeof point[item.key] === "number" && Number.isFinite(point[item.key])).length,
   ]));
+  const currency = currencyAxis(data.flatMap(point => series.map(item => Number(point[item.key]))));
   const valueFormatter = format === "duration" ? ms : format === "percent" ? pct : format === "currency" ? usd : decimal;
   return (
     <ChartContainer config={config} className="h-64 w-full aspect-auto" role="img" aria-label={ariaLabel}>
       <LineChart data={data} margin={{ top: 12, right: 14, bottom: 0, left: 8 }}>
         <CartesianGrid vertical={false} strokeDasharray="3 3" />
         <XAxis dataKey="date" tickLine={false} axisLine={false} minTickGap={20} tickMargin={10} />
-        <YAxis tickLine={false} axisLine={false} width={62} tickMargin={8} tickFormatter={(value) => valueFormatter(Number(value))} />
+        <YAxis domain={format === "currency" ? currency.domain : undefined} ticks={format === "currency" ? currency.ticks : undefined} tickLine={false} axisLine={false} width={62} tickMargin={8} tickFormatter={(value) => (format === "currency" ? currency.format : valueFormatter)(Number(value))} />
         <ChartTooltip
           content={(props) => (
             <ChartTooltipContent
