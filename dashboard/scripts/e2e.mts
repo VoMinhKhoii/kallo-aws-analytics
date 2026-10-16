@@ -347,8 +347,13 @@ async function run() {
     });
     await check(`${name} window URL and rendered selection`, async () => {
       if (!windowPages.has(name)) return 'N/A — this page has no window control';
-      const previous = new URL(page.url()).searchParams.get('w') || (name === 'Traces' ? '24h' : '7d');
-      const target = previous === '7d' ? '30d' : '7d';
+      // Read the selected window from the page: defaults differ per page.
+      const windows = await page.locator('main [role="radio"], main button[aria-pressed]').evaluateAll((els: HTMLElement[]) =>
+        els.map(el => ({ name: (el.textContent || '').trim(), on: el.getAttribute('aria-checked') === 'true' || el.getAttribute('aria-pressed') === 'true' || el.dataset.state === 'on' }))
+          .filter(w => /^\d+[hd]$/.test(w.name)));
+      const previous = windows.find(w => w.on)?.name ?? new URL(page.url()).searchParams.get('w') ?? '';
+      const target = windows.find(w => !w.on && w.name !== previous)?.name;
+      assert(target, `No alternative window control (found ${windows.map(w => w.name).join(', ') || 'none'})`);
       const control = page.getByRole('radio', { name: target, exact: true }).or(page.getByRole('button', { name: target, exact: true })).first();
       const before = await page.locator('main').innerText();
       renderedWindows.set(`${path}:${previous}`, before);
