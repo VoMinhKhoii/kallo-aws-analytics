@@ -120,4 +120,4 @@
 .trace-step-panel { position: absolute; inset: 0 0 0 auto; z-index: 20; width: var(--drawer-width); max-width: 65%; display: flex; flex-direction: column; box-shadow: -8px 0 24px rgb(0 0 0 / .16); }
 .trace-panel-scroll { min-height: 0; flex: 1; }
 .react-flow { --xy-background-color: var(--console-bg); --xy-controls-button-background-color: var(--console-panel); --xy-controls-button-color: var(--console-ink); --xy-controls-button-border-color: var(--console-rule); }
-@media (max-width: 767px) { .trace-step-panel { width: 100%; max-width: 100%; } }
+@media (max-width: 767px) { .trace-step-panel { position: fixed; inset: auto 0 0; width: 100%; max-width: 100%; height: 65dvh; border-left: 0; border-top: 1px solid var(--console-rule); } }

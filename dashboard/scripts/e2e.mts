@@ -12,6 +12,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve, isAbsolute } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
+import { adjacentStep, buildGraph } from '../lib/traces-ui/graph.ts';
 
 // Structural types keep the runner usable with an externally installed library.
 type PW = any;
@@ -22,10 +23,17 @@ const timeout = 45_000;
 let base: URL;
 let username = '', password = '';
 let browser: PW, context: PW, page: PW, anonymous: PW;
+let chromium: PW;
+let storageState: PW;
+let recoveryUrl = '', crashed = false, writesProtected = false;
+let viewport = { width: 1440, height: 900 };
+let configureContext: () => Promise<void>;
+let attachPage: () => void;
 let protectWrites: () => Promise<unknown> = async () => {};
 let counter = 0;
 const issues: { kind: string; detail: string }[] = [];
 const blocked: string[] = [];
+const renderedWindows = new Map<string, string>();
 const pending = new Set<PW>();
 let lastNetwork = Date.now();
 const pages = [
@@ -67,10 +75,39 @@ async function screenshot(name: string) {
 async function check(name: string, run: () => Promise<string | void>) {
   const start = Date.now();
   const result: Check = { name, pass: true, detail: '', duration: 0 };
-  try { result.detail = clean((await run()) || 'OK'); }
+  try {
+    if (page && (crashed || page.isClosed() || !browser.isConnected())) {
+      pending.clear();
+      if (crashed && !page.isClosed()) await page.close().catch(() => {});
+      try {
+        if (!browser.isConnected()) throw new Error('Browser disconnected');
+        page = await context.newPage();
+      } catch {
+        if (!browser.isConnected()) browser = await chromium.launch({ headless: true });
+        context = await browser.newContext({ viewport, storageState, serviceWorkers: 'block' });
+        await configureContext();
+        if (writesProtected) await protectWrites();
+        page = await context.newPage();
+      }
+      crashed = false;
+      attachPage();
+      await page.setViewportSize(viewport);
+      if (recoveryUrl) await goto(recoveryUrl);
+    }
+    if (page && !page.isClosed()) {
+      recoveryUrl = page.url();
+      viewport = page.viewportSize() || viewport;
+    }
+    result.detail = clean((await run()) || 'OK');
+    if (page && !page.isClosed()) {
+      recoveryUrl = page.url();
+      viewport = page.viewportSize() || viewport;
+    }
+  }
   catch (error) {
     result.pass = false;
     result.detail = clean(error instanceof Error ? error.message : error);
+    if (/Target page, context or browser has been closed|Page crashed/i.test(result.detail)) crashed = true;
     try { result.screenshot = await screenshot(`failure-${name}`); }
     catch { result.detail += ' (failure screenshot unavailable)'; }
   }
@@ -174,10 +211,27 @@ async function run() {
     const imported = await import(isAbsolute(modulePath) ? pathToFileURL(modulePath).href : modulePath);
     const pw = imported.chromium ? imported : imported.default;
     assert(pw?.chromium && pw?.request, 'Playwright module must export chromium and request');
-    browser = await pw.chromium.launch({ headless: true });
+    chromium = pw.chromium;
+    browser = await chromium.launch({ headless: true });
     context = await browser.newContext({ viewport: { width: 1440, height: 900 }, serviceWorkers: 'block' });
-    context.setDefaultTimeout(timeout);
-    context.setDefaultNavigationTimeout(timeout);
+    configureContext = async () => {
+      context.setDefaultTimeout(timeout);
+      context.setDefaultNavigationTimeout(timeout);
+      // tsx (esbuild keepNames) wraps functions passed to page.evaluate in __name().
+      await context.addInitScript('globalThis.__name = globalThis.__name || ((fn) => fn);');
+      // Copy assertions use the real API with an in-memory mirror. This also works
+      // on HTTP staging hosts where Chromium disables the system clipboard API.
+      await context.addInitScript(() => {
+        const original = navigator.clipboard?.writeText?.bind(navigator.clipboard);
+        Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {
+          writeText: async (text: string) => {
+            (window as any).__e2eCopied = text;
+            if (original) { try { await original(text); } catch { /* no system clipboard permission */ } }
+          },
+        } });
+      });
+    };
+    await configureContext();
     // Fail closed for all browser writes, including accidental future UI changes.
     // Installed after the login checks (see protectWrites below): with the route
     // in place, Chromium blocked the second login POST (ERR_BLOCKED_BY_CLIENT).
@@ -196,35 +250,28 @@ async function run() {
     });
     anonymous = await pw.request.newContext({ baseURL: base.origin, timeout });
     page = await context.newPage();
-    page.on('console', (msg: PW) => {
-      if (msg.type() === 'error') issues.push({ kind: 'console', detail: clean(msg.text()) });
-    });
-    page.on('pageerror', (error: Error) => issues.push({ kind: 'pageerror', detail: clean(error.message) }));
-    page.on('request', (r: PW) => { pending.add(r); lastNetwork = Date.now(); });
-    const done = (r: PW) => { pending.delete(r); lastNetwork = Date.now(); };
-    page.on('requestfinished', done);
-    page.on('requestfailed', (r: PW) => {
-      done(r);
-      const error = r.failure()?.errorText || 'unknown transport failure';
-      const prefetch = r.headers()['next-router-prefetch'] || r.headers().purpose === 'prefetch';
-      // AbortController cancellations also occur on window/filter changes.
-      if (/ERR_ABORTED|NS_BINDING_ABORTED|aborted/i.test(error)) return;
-      issues.push({ kind: 'requestfailed', detail: `${r.method()} ${safeUrl(r.url())}: ${error}${prefetch ? ' (prefetch)' : ''}` });
-    });
-    page.on('response', (r: PW) => {
-      if (r.status() >= 400) issues.push({ kind: 'http', detail: `HTTP ${r.status()} ${safeUrl(r.url())}` });
-    });
-    // Copy assertions use the real API with an in-memory mirror. This also works
-    // on HTTP staging hosts where Chromium disables the system clipboard API.
-    await context.addInitScript(() => {
-      const original = navigator.clipboard?.writeText?.bind(navigator.clipboard);
-      Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {
-        writeText: async (text: string) => {
-          (window as any).__e2eCopied = text;
-          if (original) { try { await original(text); } catch { /* no system clipboard permission */ } }
-        },
-      } });
-    });
+    attachPage = () => {
+      page.on('crash', () => { crashed = true; });
+      page.on('console', (msg: PW) => {
+        if (msg.type() === 'error') issues.push({ kind: 'console', detail: clean(msg.text()) });
+      });
+      page.on('pageerror', (error: Error) => issues.push({ kind: 'pageerror', detail: clean(error.message) }));
+      page.on('request', (r: PW) => { pending.add(r); lastNetwork = Date.now(); });
+      const done = (r: PW) => { pending.delete(r); lastNetwork = Date.now(); };
+      page.on('requestfinished', done);
+      page.on('requestfailed', (r: PW) => {
+        done(r);
+        const error = r.failure()?.errorText || 'unknown transport failure';
+        const prefetch = r.headers()['next-router-prefetch'] || r.headers().purpose === 'prefetch';
+        // AbortController cancellations also occur on window/filter changes.
+        if (/ERR_ABORTED|NS_BINDING_ABORTED|aborted/i.test(error)) return;
+        issues.push({ kind: 'requestfailed', detail: `${r.method()} ${safeUrl(r.url())}: ${error}${prefetch ? ' (prefetch)' : ''}` });
+      });
+      page.on('response', (r: PW) => {
+        if (r.status() >= 400) issues.push({ kind: 'http', detail: `HTTP ${r.status()} ${safeUrl(r.url())}` });
+      });
+    };
+    attachPage();
     return `Chromium headless; desktop 1440×900; output ${out}`;
   });
   if (!page) return;
@@ -263,6 +310,8 @@ async function run() {
   });
   if (!loggedIn) return;
   await protectWrites();
+  writesProtected = true;
+  storageState = await context.storageState();
   // Expected wrong-password 401s above must not pollute page health checks.
   issues.length = 0;
   let healthCursor = 0;
@@ -270,7 +319,9 @@ async function run() {
     await settle();
     const found = issues.slice(healthCursor); healthCursor = issues.length;
     assert(!found.length, found.map(i => `${i.kind}: ${i.detail}`).join('; '));
-    assert(await page.getByRole('alert').count() === 0, 'Page displays an error alert');
+    // Next's route announcer lives outside main and is not a page error.
+    const alerts = page.locator('main [role="alert"]:visible').filter({ hasText: /\S/ });
+    assert(await alerts.count() === 0, 'Page displays an error alert');
   }
   for (const [name, path] of pages) {
     await check(`Shell ${name} navigation and highlight`, async () => {
@@ -289,14 +340,35 @@ async function run() {
       const file = await screenshot(`page-${name}`);
       return `No console errors, failed requests, or alerts; screenshot ${file}`;
     });
-    await check(`${name} window URL and refetch`, async () => {
+    await check(`${name} window URL and rendered selection`, async () => {
       if (!windowPages.has(name)) return 'N/A — this page has no window control';
       const target = new URL(page.url()).searchParams.get('w') === '7d' ? '30d' : '7d';
-      await apiAction(async () => {
-        await page.getByRole('button', { name: target, exact: true }).click();
+      const control = page.getByRole('button', { name: target, exact: true });
+      const before = await page.locator('main').innerText();
+      const previous = new URL(page.url()).searchParams.get('w') || (name === 'Traces' ? '24h' : '7d');
+      renderedWindows.set(`${path}:${previous}`, before);
+      const responses: PW[] = [];
+      const onResponse = (response: PW) => {
+        const url = new URL(response.url());
+        if (response.request().method() === 'GET' && url.origin === base.origin &&
+            url.pathname.startsWith('/api/') && !url.pathname.startsWith('/api/auth/')) responses.push(response);
+      };
+      page.on('response', onResponse);
+      try {
+        await control.click();
         await urlIs(path, { w: target });
-      }, u => u.pathname.startsWith('/api/') && !u.pathname.startsWith('/api/auth/'));
-      return `?w=${target}; successful data refetch`;
+        await eventually(async () => await control.getAttribute('aria-pressed') === 'true', 'Visible window control did not update');
+        await settle();
+        await visible(page.getByRole('heading', { level: 1 }).first());
+        await eventually(async () => {
+          const after = await page.locator('main').innerText();
+          return after !== before || renderedWindows.get(`${path}:${target}`) === after || responses.some(r => r.ok());
+        }, 'Window changed in the URL but no updated data, cached rendering, or successful response was observed');
+        assert(responses.every(r => r.ok()), 'Window data request failed');
+        assert(await page.locator('main [aria-label="Loading data"]').count() === 0, 'Window still loading');
+        renderedWindows.set(`${path}:${target}`, await page.locator('main').innerText());
+        return `?w=${target}; visible selection plus updated/cached data or successful response`;
+      } finally { page.off('response', onResponse); }
     });
     await check(`${name} Refresh`, async () => {
       const button = page.getByRole('button', { name: 'Refresh', exact: true });
@@ -356,6 +428,9 @@ async function run() {
     await goto('/premium?tab=overview');
     await enabled(page.getByRole('button', { name: 'Save welcome offer', exact: true }));
     await page.getByRole('tab', { name: 'Give / End', exact: true }).click(); await settle();
+    for (const name of ['Who', 'Action', 'Mode', 'Length'])
+      await enabled(page.getByRole('combobox', { name, exact: true }));
+    await enabled(page.getByRole('textbox', { name: 'Reason', exact: true }));
     await enabled(page.getByRole('button', { name: 'Preview affected accounts', exact: true }));
     const actions = await page.getByLabel('Action', { exact: true }).locator('option').allTextContents();
     assert(actions.includes('Give free Premium') && actions.includes('End free Premium'), 'Give/end actions missing');
@@ -373,8 +448,14 @@ async function run() {
     return `Open filter refetched; ${await controls.count()} inline status controls left unchanged`;
   });
   await check('System founder snapshot control (no run)', async () => {
-    await goto('/system'); await enabled(page.getByRole('button', { name: 'Run snapshot', exact: true }));
-    return 'Run snapshot is enabled; left untouched';
+    await goto('/system');
+    const to = new Date(), from = new Date(to);
+    from.setUTCDate(from.getUTCDate() - 6);
+    const direct = await readJson(`/api/cloud-monitoring?from=${from.toISOString().slice(0,10)}&to=${to.toISOString().slice(0,10)}`);
+    if (direct.delivery_source === 'cloudflare-direct') return 'N/A — direct monitoring delivery omits the Snapshot section';
+    await visible(page.getByText('Refresh analytics snapshot', { exact: true }));
+    await visible(page.getByRole('button', { name: /^(Run snapshot|Run in progress|Server guard · \d+s)$/ }));
+    return 'Refresh analytics snapshot control exists; left untouched';
   });
 
   let firstSuccess: any, firstError: any;
@@ -393,7 +474,7 @@ async function run() {
     const text = await row.innerText();
     assert(text.includes(id.slice(0,8)) && /kcal/.test(text) && /(?:\d[\d,.]*\s*(?:ms|s|min)|—)/.test(text), 'Row lacks id, latency or kcal');
     assert(await row.locator('[title]').first().getAttribute('title'), 'Meal text missing');
-    await visible(page.locator('[aria-live="polite"]').filter({ hasText: /1–\d+/ }));
+    await visible(page.locator('[aria-live="polite"]').filter({ hasText: /\d+ shown/ }));
   });
   await check('Traces status, model and flag filters combine', async () => {
     await goto('/traces?w=30d');
@@ -464,11 +545,18 @@ async function run() {
       const summary = page.getByRole('region', { name: 'Meal summary' });
       await visible(summary);
       assert((await summary.innerText()).includes(kind === 'error' ? 'No result' : 'kcal'), 'Summary lacks expected nutrition/result label');
-      for (const id of ['request','decomposition','matching','nutrition','assembly','response'])
+      for (const id of ['decomposition','matching','nutrition','assembly','response'])
         await visible(page.locator(`.react-flow__node[data-id="${id}"]`));
+      assert(await page.locator('.react-flow__node[data-id="request"]').count() === 0, 'Removed Request node reappeared');
+      const graph = buildGraph(await readJson(`/api/traces/${row.id}`));
+      for (const edge of graph.edges.filter(edge => edge.label)) {
+        await visible(page.getByText(edge.label!, { exact: true }));
+        const path = page.locator(`.react-flow__edge[data-id=${JSON.stringify(edge.id)}] .react-flow__edge-path`);
+        assert(await path.evaluate((el: SVGElement) => getComputedStyle(el).strokeDasharray !== 'none'), 'Gap edge is not dashed');
+      }
       await screenshot(`trace-${kind}`);
     });
-    for (const [id, name] of [['request','Request'],['decomposition','Decomposition'],['matching','Matching'],
+    for (const [id, name] of [['decomposition','Decomposition'],['matching','Matching'],
       ['nutrition','Nutrition'],['assembly','Assembly'],['response','Response']]) {
       await check(`Trace ${kind} node ${name}`, async () => {
         if (new URL(page.url()).pathname !== `/traces/${row.id}`) await goto(`/traces/${row.id}`);
@@ -476,6 +564,7 @@ async function run() {
       });
     }
     await check(`Trace ${kind} group call list`, async () => {
+      await goto(`/traces/${row.id}`);
       const nodes = page.locator('.react-flow__node');
       const ids = await nodes.evaluateAll((els: HTMLElement[]) => els.map(el => el.dataset.id || ''));
       const id = ids.find((id: string) => /selector|chunk|after-response/.test(id));
@@ -483,9 +572,17 @@ async function run() {
       const panel = await selectStep(id);
       const calls = panel.locator('details').filter({ has: page.locator('summary', { hasText: /^Calls$/ }) });
       await visible(calls);
-      assert(await calls.getByRole('button', { name: /attempt/ }).count() > 0, 'Group has no call list rows');
+      const call = calls.getByRole('button', { name: /^#\d+ ·/ }).first();
+      await visible(call);
+      assert(await call.evaluate((el: HTMLElement) => el.getBoundingClientRect().height) === 28, 'Call row is not 28 px');
+      await call.click();
+      await eventually(async () => await call.getAttribute('aria-expanded') === 'true', 'Call did not expand');
+      await settle();
+      await call.click();
+      assert(await call.getAttribute('aria-expanded') === 'false', 'Call did not collapse');
     });
     await check(`Trace ${kind} Output JSON expand, collapse and copy`, async () => {
+      await goto(`/traces/${row.id}`);
       // Response always provides a local JSON result, including failed traces.
       const panel = await selectStep('response', 'Response');
       const output = panel.locator('details').filter({ has: page.locator('summary', { hasText: /^Output$/ }) });
@@ -514,9 +611,12 @@ async function run() {
       await settle();
       // Blur controls before testing global shortcuts.
       await page.locator('body').click({ position: { x: 2, y: 2 } });
+      const graph = buildGraph(await readJson(`/api/traces/${row.id}`));
+      const nextId = adjacentStep(graph.nodes, 'nutrition', 1);
+      assert(nextId && nextId !== 'nutrition', 'Nutrition has no following recorded step');
       await page.keyboard.press(']');
-      await eventually(async () => new URL(page.url()).searchParams.get('step') !== 'nutrition', '] did not move node');
-      await page.keyboard.press('['); await urlIs(`/traces/${row.id}`, { step: 'nutrition' });
+      await eventually(async () => new URL(page.url()).searchParams.get('step') === nextId, '] did not move to the next step in time order');
+      await page.keyboard.press('['); await urlIs(`/traces/${row.id}`, { step: adjacentStep(graph.nodes, nextId, -1)! });
       // Pan away first so f must make a visible viewport change.
       const viewport = page.locator('.react-flow__viewport');
       await page.getByRole('button', { name: 'zoom out', exact: true }).click();
@@ -542,8 +642,9 @@ async function run() {
     healthCursor = issues.length;
     assert(!unexpected.length, unexpected.map(i => i.detail).join('; '));
   });
-  await page.setViewportSize({ width: 375, height: 812 });
+  viewport = { width: 375, height: 812 };
   for (const [name, path] of pages) await check(`Mobile ${name} 375×812`, async () => {
+    await page.setViewportSize({ width: 375, height: 812 });
     await goto(path); await noOverflow(); await screenshot(`mobile-${name}`);
     await page.getByRole('button', { name: 'Open navigation', exact: true }).click();
     const nav = page.getByRole('dialog', { name: 'Navigation', exact: true });
@@ -556,7 +657,13 @@ async function run() {
   if (firstSuccess) await check('Mobile trace detail and panel 375×812', async () => {
     await goto(`/traces/${firstSuccess.id}?step=nutrition`);
     await visible(page.getByRole('complementary', { name: 'Nutrition step details' }));
-    await noOverflow(); await screenshot('mobile-trace-panel'); await health();
+    await noOverflow();
+    const panel = page.getByRole('complementary', { name: 'Nutrition step details' });
+    const box = await panel.boundingBox();
+    assert(box && box.x >= 0 && box.x + box.width <= 376 && Math.abs(box.y + box.height - 812) <= 1 && box.height < 812, 'Inspector is not a viewport-contained bottom sheet');
+    await screenshot('mobile-trace-panel');
+    await page.getByRole('button', { name: 'Close step panel', exact: true }).click();
+    await noOverflow(); await screenshot('mobile-trace-detail'); await health();
   });
   await check('Auth logout returns to login', async () => {
     await page.getByRole('button', { name: 'Log out', exact: true }).click();
