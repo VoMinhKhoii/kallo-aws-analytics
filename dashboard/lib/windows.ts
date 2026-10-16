@@ -4,9 +4,14 @@ export type Window = typeof WINDOWS[number];
 export function validChoice<T extends string>(raw: string | null, fallback: T, choices?: readonly T[]): T {
   return raw && (!choices || choices.includes(raw as T)) ? raw as T : fallback;
 }
+/** UTC hour containing an instant, independent of the host timezone. */
+export function floorHour(instant: string): string {
+  return new Date(Math.floor(Date.parse(instant) / 3600000) * 3600000).toISOString();
+}
+/** 24 complete hourly bucket origins plus the current hour. */
 export function hourRange(to: string, hours = 24): string[] {
-  const end = Date.parse(to);
-  return Array.from({length: hours}, (_, i) => new Date(end - (hours - i) * 3600000).toISOString());
+  const end = Date.parse(floorHour(to));
+  return Array.from({length: hours + 1}, (_, i) => new Date(end - (hours - i) * 3600000).toISOString());
 }
 export function rangeWindow(range: Window, now = new Date()) {
   const days = range === '24h' ? 1 : Number(range.slice(0, -1));

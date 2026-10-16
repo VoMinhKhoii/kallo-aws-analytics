@@ -1,3 +1,4 @@
+import { hourRange } from '../windows';
 import { sql } from 'drizzle-orm';
 import type { AppDb } from './db/client';
 import { activePromoSql, payingSql, promoEndsSql } from './premium/targets/plan-sql';
@@ -14,6 +15,8 @@ export async function loadOverview(db:AppDb, window:number|'24h', now=new Date()
   if (window !== '24h' && window !== 7 && window !== 30) throw new Error('Invalid date window.');
   const hourly=window === '24h', days=hourly ? 1 : window as number;
   const today=now.toISOString().slice(0,10);
+  const activeDays=hourly?7:days;
+  const grid=hourRange(now.toISOString());
   const boundary=(offset:number)=>sql`((${today}::date+${offset}::int)::timestamp AT TIME ZONE 'UTC')`;
   const midnight=boundary(0), dayEnd=boundary(1);
   const instant=(hours:number)=>sql`${new Date(now.getTime()+hours*3600000).toISOString()}::timestamptz`;
@@ -33,7 +36,7 @@ export async function loadOverview(db:AppDb, window:number|'24h', now=new Date()
       (SELECT count(*)::int FROM auth.users WHERE created_at>=lo AND created_at<hi) AS signups,
       (SELECT count(DISTINCT user_hash)::int FROM analytics.v_meals WHERE logged_at>=hi-interval '1 day' AND logged_at<hi AND user_hash<>'') AS dau
     FROM windows w`),
-    db.execute(sql`WITH dates AS (SELECT generate_series((${today}::date-${days}::int)::timestamp,${today}::date::timestamp,interval '1 day') AT TIME ZONE 'UTC' AS d)
+    db.execute(sql`WITH dates AS (SELECT generate_series((${today}::date-${activeDays}::int)::timestamp,${today}::date::timestamp,interval '1 day') AT TIME ZONE 'UTC' AS d)
     SELECT to_char(d AT TIME ZONE 'UTC','YYYY-MM-DD') AS date,
       (SELECT count(*)::int FROM public.analysis_model_budget_events e WHERE ${reservation} AND e.created_at>=d AND e.created_at<d+interval '1 day') AS analysed,
       CASE WHEN d>=${midnight}-interval '6 days' THEN (SELECT count(*)::int FROM public.pipeline_requests WHERE created_at>=d AND created_at<d+interval '1 day' AND status='error' AND to_jsonb(pipeline_requests)->>'error_code' IS DISTINCT FROM 'non_food_input' AND to_jsonb(pipeline_requests)->>'replay_of_request_id' IS NULL) END AS errors,
@@ -47,10 +50,10 @@ export async function loadOverview(db:AppDb, window:number|'24h', now=new Date()
     db.execute(sql`SELECT
       (SELECT count(*)::int FROM public.pipeline_requests r WHERE created_at>=${boundary(-6)} AND created_at<${end} AND status='error' AND to_jsonb(r)->>'error_code' IS DISTINCT FROM 'non_food_input' AND to_jsonb(r)->>'replay_of_request_id' IS NULL) AS errors,
       (SELECT count(*)::int FROM public.analysis_model_budget_events e WHERE ${reservation} AND created_at>=${boundary(-6)} AND created_at<${end}) AS meals`),
-    hourly ? db.execute(sql`WITH hours AS (SELECT generate_series(${start},${end}-interval '1 hour',interval '1 hour') AS d)
+    hourly ? db.execute(sql`WITH hours AS (SELECT generate_series(${grid[0]}::timestamptz,${grid.at(-1)}::timestamptz,interval '1 hour') AS d)
       SELECT to_char(d AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS date,
-      (SELECT count(*)::int FROM public.analysis_model_budget_events e WHERE ${reservation} AND e.created_at>=d AND e.created_at<d+interval '1 hour') AS analysed,
-      (SELECT count(*)::int FROM public.pipeline_requests r WHERE created_at>=d AND created_at<d+interval '1 hour' AND status='error' AND to_jsonb(r)->>'error_code' IS DISTINCT FROM 'non_food_input' AND to_jsonb(r)->>'replay_of_request_id' IS NULL) AS errors
+      (SELECT count(*)::int FROM public.analysis_model_budget_events e WHERE ${reservation} AND e.created_at>=d AND e.created_at<LEAST(d+interval '1 hour',${end})) AS analysed,
+      (SELECT count(*)::int FROM public.pipeline_requests r WHERE created_at>=d AND created_at<LEAST(d+interval '1 hour',${end}) AND status='error' AND to_jsonb(r)->>'error_code' IS DISTINCT FROM 'non_food_input' AND to_jsonb(r)->>'replay_of_request_id' IS NULL) AS errors
       FROM hours ORDER BY d`) : Promise.resolve([]),
   ]);
   const value=totals.find(r=>r.key==='value')!, current=totals.find(r=>r.key==='comparison')!, prev=totals.find(r=>r.key==='previous')!;

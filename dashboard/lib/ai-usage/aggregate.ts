@@ -60,6 +60,8 @@ export interface UsageInput {
   /** Whole-window rows: percentiles over raw attempts, not daily averages. */
   window: AiModelUsageRow[];
   mealWindow: AiMealsRow | undefined;
+  previousWindow?: AiModelUsageRow[];
+  previousMealWindow?: AiMealsRow;
   to: string;
   win: WindowDays;
 }
@@ -152,16 +154,31 @@ export function summarize(input: UsageInput, models: ModelMeta[]): Summary {
   const firstLoaded = input.daily.map((r) => r.date).sort()[0];
   const change = (f: (days: string[]) => number | null) => (hasPrev ? { cur: f(done), prev: f(prev) } : { cur: null, prev: null });
 
+  const windowCache = (rows: AiModelUsageRow[]) => {
+    const tokens = sum(rows.map(r => r.input_tokens));
+    return tokens ? sum(rows.map(r => r.cached_tokens)) / tokens : null;
+  };
+  const rollingChange = (key: 'spend' | 'calls' | 'cache' | 'meal') => {
+    if (win !== 1 || input.previousWindow === undefined) return {};
+    if (!hasPrev) return {cur: null, prev: null};
+    const value = (rows: AiModelUsageRow[], meal: AiMealsRow | undefined) => {
+      if (key === 'spend') return rows.length && rows.every(r => r.spend_usd == null) ? null : sum(rows.map(r => r.spend_usd ?? 0));
+      if (key === 'calls') return sum(rows.map(r => r.calls));
+      if (key === 'cache') return windowCache(rows);
+      return meal?.priced_meals && meal.spend_usd != null ? meal.spend_usd / meal.priced_meals * 1000 : null;
+    };
+    return {cur: value(input.window, meals), prev: value(input.previousWindow, input.previousMealWindow)};
+  };
   return {
     models: summaries,
-    spend: { value: windowSpend, ...change(spendOf), spark: cur.map(daySpend) },
-    calls: { value: windowCalls, ...change((days) => total(days, d => dayCalls(d) ?? 0)), spark: cur.map(dayCalls) },
+    spend: { value: windowSpend, ...change(spendOf), ...rollingChange('spend'), spark: cur.map(daySpend) },
+    calls: { value: windowCalls, ...change((days) => total(days, d => dayCalls(d) ?? 0)), ...rollingChange('calls'), spark: cur.map(dayCalls) },
     perKMeals: {
       value: meals?.priced_meals && meals.spend_usd != null ? (meals.spend_usd / meals.priced_meals) * 1000 : null,
-      ...change((days) => perKOf(mealsIn(days))),
+      ...change((days) => perKOf(mealsIn(days))), ...rollingChange('meal'),
       spark: cur.map(dayPerK),
     },
-    cacheRate: { value: cacheOf(cur), ...change(cacheOf), spark: cur.map(dayCache) },
+    cacheRate: { value: win === 1 ? windowCache(input.window) : cacheOf(cur), ...change(cacheOf), ...rollingChange('cache'), spark: cur.map(dayCache) },
     mealP95: meals?.p95_meal_usd ?? null,
     mealCount: meals?.meals ?? 0,
     today: { spend: spendOf([to]), meals: todayRows?.meals ?? 0 },
@@ -181,8 +198,9 @@ export type VolumeRow = { date: string; partial: boolean; active: boolean; total
 /** One row per day of the window (gaps filled), one numeric column per model key. */
 export function volumeRows(input: UsageInput, metric: VolumeMetric): VolumeRow[] {
   const byDay = group(input.daily);
+  const partialDate = input.win === 1 ? hourRange(input.to).at(-1) : input.to;
   return usageRange(input.to, input.win).map((date) => {
-    const row: VolumeRow = { date, partial: input.win !== 1 && date === input.to, active: byDay.has(date), total: 0 };
+    const row: VolumeRow = { date, partial: date === partialDate, active: byDay.has(date), total: 0 };
     for (const r of byDay.get(date) ?? []) {
       const v = metric === "spend" ? r.spend_usd ?? 0 : metric === "calls" ? r.calls : r.input_tokens + r.output_tokens + r.thought_tokens;
       row[modelKey(r.model)] = v;

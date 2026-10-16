@@ -709,6 +709,22 @@ async function run() {
     healthCursor = issues.length;
     assert(!unexpected.length, unexpected.map(i => i.detail).join('; '));
   });
+  await check('24h chart labels and active-user context', async () => {
+    for (const path of ['/', '/ai', '/system', '/ingredients']) {
+      await goto(`${path}?w=24h`);
+      const hourly = path === '/' ? page.locator('section').filter({has: page.getByRole('heading', {name: 'Meals per hour', exact: true})})
+        : path === '/ai' ? page.locator('section').filter({has: page.getByRole('heading', {name: 'Usage by model', exact: true})})
+        : path === '/system' ? page.locator('section').filter({has: page.getByRole('heading', {name: 'Requests and 5xx', exact: true})})
+        : page.locator('section').filter({has: page.getByRole('heading', {name: 'Ingredient matches', exact: true})});
+      const labels = await hourly.locator('.recharts-xAxis .recharts-cartesian-axis-tick-value').allTextContents();
+      assert(labels.every((label: string) => /^\d{2}:00$/.test(label)), `${path}: hourly ticks must be whole UTC hours`);
+      if (path === '/') {
+        const active = page.locator('section').filter({has: page.getByRole('heading', {name: 'Active users', exact: true})});
+        await visible(active.getByText('last 7 days', {exact: true}));
+      }
+      if (path === '/ai') await visible(hourly.getByText('Hourly, UTC. Current hour is still filling (hatched).', {exact: true}));
+    }
+  });
   viewport = { width: 375, height: 812 };
   for (const [name, path] of pages) await check(`Mobile ${name} 375×812`, async () => {
     await page.setViewportSize({ width: 375, height: 812 });

@@ -29,13 +29,14 @@ export function AiUsage({ win, setWin }: { win: WindowDays; setWin: (win: Window
   // change badges compare complete days only (today left out).
   const daily = useMetricBundle(DAILY, win === 1 ? new Date(Date.parse(today) - 2 * 86400000).toISOString() : dayRange(today, win * 2 + 1)[0], today);
   const totals = useMetricBundle(WINDOW, from, today);
+  // Whole-window aggregates keep KPI comparisons rolling when the chart grid is floored.
+  const previous = useMetricBundle(WINDOW, win === 1 ? new Date(Date.parse(from) - 86400000).toISOString() : from, from, win === 1);
 
-  // A manual refresh reloads both bundles independently; show their data only
-  // once both have reloaded, so one fresh bundle never meets a stale one.
-  const [shown, setShown] = React.useState({ daily: daily.data, totals: totals.data });
-  const settled = !daily.loading && !totals.loading && !daily.refreshing && !totals.refreshing;
-  if (settled && (shown.daily !== daily.data || shown.totals !== totals.data)) {
-    setShown({ daily: daily.data, totals: totals.data });
+  // Publish the bundles together after refresh, so fresh data never meets stale totals.
+  const [shown, setShown] = React.useState({ daily: daily.data, totals: totals.data, previous: previous.data });
+  const settled = !daily.loading && !totals.loading && !daily.refreshing && !totals.refreshing && !previous.loading && !previous.refreshing;
+  if (settled && (shown.daily !== daily.data || shown.totals !== totals.data || shown.previous !== previous.data)) {
+    setShown({ daily: daily.data, totals: totals.data, previous: previous.data });
   }
 
   const input: UsageInput | null = React.useMemo(() => {
@@ -45,6 +46,8 @@ export function AiUsage({ win, setWin }: { win: WindowDays; setWin: (win: Window
       mealsDaily: (shown.daily?.ai_meals_daily ?? []) as AiMealsDailyRow[],
       window: (shown.totals?.ai_model_window ?? []) as AiModelUsageRow[],
       mealWindow: ((shown.totals?.ai_meal_window ?? []) as AiMealsRow[])[0],
+      previousWindow: win === 1 ? (shown.previous?.ai_model_window ?? []) as AiModelUsageRow[] : undefined,
+      previousMealWindow: win === 1 ? ((shown.previous?.ai_meal_window ?? []) as AiMealsRow[])[0] : undefined,
       to: today,
       win,
     };
@@ -55,11 +58,11 @@ export function AiUsage({ win, setWin }: { win: WindowDays; setWin: (win: Window
   const mealDailyError = daily.error ?? daily.errors.ai_meals_daily;
   const totalsError = totals.error ?? totals.errors.ai_model_window;
   const mealTotalsError = totals.error ?? totals.errors.ai_meal_window;
-  const error = dailyError ?? mealDailyError ?? totalsError ?? mealTotalsError;
-  const retry = () => { setAsOf(new Date().toISOString()); daily.refresh(); totals.refresh(); };
+  const error = dailyError ?? mealDailyError ?? totalsError ?? mealTotalsError ?? (win === 1 ? previous.error ?? previous.errors.ai_model_window ?? previous.errors.ai_meal_window : null);
+  const retry = () => { setAsOf(new Date().toISOString()); daily.refresh(); totals.refresh(); previous.refresh(); };
   useRefocus(retry);
 
-  if (daily.loading || totals.loading) return <PageSkeleton title="AI" charts={6} cells={5} />;
+  if (daily.loading || totals.loading || previous.loading) return <PageSkeleton title="AI" charts={6} cells={5} />;
   return (
     <div className="mx-auto flex max-w-[1320px] flex-col gap-3 py-4">
       <header className="flex flex-wrap items-end justify-between gap-4">
@@ -75,7 +78,7 @@ export function AiUsage({ win, setWin }: { win: WindowDays; setWin: (win: Window
               </ToggleGroupItem>
             ))}
           </ToggleGroup>
-          <RefreshButton refreshing={daily.refreshing || totals.refreshing} onClick={retry} />
+          <RefreshButton refreshing={daily.refreshing || totals.refreshing || previous.refreshing} onClick={retry} />
         </div>
       </header>
 

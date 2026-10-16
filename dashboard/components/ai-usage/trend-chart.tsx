@@ -3,8 +3,8 @@
 import * as React from "react";
 import { Bar, CartesianGrid, Cell, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "@/components/charts/recharts";
 
-import { observedRows, timeTicks, numericAxis, lastObservation } from "@/lib/ai-usage/chart-data";
-import { shortDate } from "@/lib/ai-usage/format";
+import { observedRows, timeTicks, numericAxis, lastObservation, durationTicks } from "@/lib/ai-usage/chart-data";
+import { shortDate, msAxis } from "@/lib/ai-usage/format";
 import type { ModelMeta } from "@/lib/ai-usage/models";
 import { SeriesRail } from "@/components/charts/series-rail";
 import { ModelRail, useLocalFocus } from "./model-rail";
@@ -14,7 +14,7 @@ type TrendRow = { date: string } & Record<string, unknown>;
 
 /** One full-width daily trend, one line per model, with its own model rail. */
 export function TrendChart({
-  title,
+  title, subtitle,
   rows: inputRows,
   models,
   format,
@@ -28,6 +28,7 @@ export function TrendChart({
   emptyMessage = "Nothing recorded in this window yet.",
 }: {
   title: string;
+  subtitle?: string;
   rows: TrendRow[];
   models: ModelMeta[];
   format: (v: number) => string;
@@ -53,6 +54,8 @@ export function TrendChart({
   const byKey = React.useMemo(() => new Map(models.map((m) => [m.key, m])), [models]);
   const since = rows[0]?.date;
   const numeric = numericAxis(stacked ? rows.map(r=>({...r,__total:shown.reduce((n,m)=>n+(typeof r[m.key]==='number'?r[m.key] as number:0),0)})) : rows, stacked ? ['__total'] : shown.map(m => m.key), percent, integer || bars);
+  const duration = durationAxis ? durationTicks(rows.flatMap(r => shown.map(m => typeof r[m.key] === 'number' ? r[m.key] as number : 0))) : null;
+  const axisFormat = duration ? (v: number) => msAxis(v, duration.at(-1)!) : axis;
   const rail = shown.map((meta) => {
     const last = lastObservation(rows, meta.key);
     const v = hoveredRow ? typeof hoveredRow[meta.key] === "number" ? hoveredRow[meta.key] as number : null : totals ? rows.reduce((sum,row)=>sum+(typeof row[meta.key]==='number'?row[meta.key] as number:0),0) : last.value;
@@ -64,7 +67,7 @@ export function TrendChart({
       <div className="mb-2 flex items-center justify-between gap-3">
         <div className="flex flex-wrap items-baseline gap-x-3">
           <h2 className="text-[15px] font-semibold">{title}</h2>
-          <span className="text-muted-foreground text-[12px]">{since ? `since ${shortDate(since.slice(0,10))}` : ""}</span>
+          <span className="text-muted-foreground text-[12px]">{subtitle ?? (since ? `since ${shortDate(since.slice(0,10))}` : "")}</span>
         </div>
         {action}
       </div>
@@ -79,7 +82,7 @@ export function TrendChart({
                 {bars && <defs>{shown.map(m => <pattern key={m.key} id={`${hatchId}-${m.key}`} width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="5" height="5" fill={m.color} fillOpacity={0.25} /><line x1="0" y1="0" x2="0" y2="5" stroke={m.color} strokeWidth={2} /></pattern>)}</defs>}
                 <CartesianGrid vertical={false} stroke="var(--console-rule)" />
                 <XAxis dataKey="date" ticks={ticks} tickFormatter={v => hourly ? String(v).slice(11, 16) : shortDate(String(v).slice(0,10))} tickLine={false} axisLine={false} minTickGap={36} tick={{ fill: "var(--console-muted)", fontSize: 11 }} />
-                <YAxis allowDecimals={!bars&&!integer} domain={durationAxis?[0,durationMax(rows,shown.map(m=>m.key))]:numeric.domain} allowDataOverflow={percent} ticks={durationAxis?durationTicks(rows,shown.map(m=>m.key)):numeric.ticks} tickFormatter={axis} tickLine={false} axisLine={false} width={64} tick={({x, y, payload}) => <text x={Number(x) - 8} y={y} textAnchor="end" dominantBaseline="central" fill="var(--console-muted)" fontSize={11}>{axis(Number(payload.value))}</text>} />
+                <YAxis allowDecimals={!bars&&!integer} domain={duration?[0,duration.at(-1)!]:numeric.domain} allowDataOverflow={percent} ticks={duration??numeric.ticks} tickFormatter={axisFormat} tickLine={false} axisLine={false} width={64} tick={({x, y, payload}) => <text x={Number(x) - 8} y={y} textAnchor="end" dominantBaseline="central" fill="var(--console-muted)" fontSize={11}>{axisFormat(Number(payload.value))}</text>} />
                 <Tooltip
                   allowEscapeViewBox={{x: false, y: false}}
                   cursor={{ stroke: "var(--console-muted)", strokeDasharray: "3 3" }}
@@ -92,7 +95,7 @@ export function TrendChart({
                 ) : (
                   <Line
                     key={m.key}
-                    type={step?"stepAfter":"monotoneX"}
+                    type={step?"stepBefore":"monotoneX"}
                     dataKey={m.key}
                     stroke={m.color}
                     strokeOpacity={focus.opacity(m.key)}
@@ -120,15 +123,6 @@ export function TrendChart({
   );
 }
 
-// Millisecond data with whole-second, evenly spaced, nice axis ticks.
-function durationTicks(rows:TrendRow[],keys:string[]) {
-  const max=Math.max(1000,...rows.flatMap(r=>keys.map(k=>typeof r[k]==='number'?r[k] as number:0)));
-  const raw=max/4000, magnitude=10**Math.floor(Math.log10(raw));
-  const step=([1,2,4,5,10].find(n=>n*magnitude>=raw)??10)*magnitude*1000;
-  const nice=Math.max(1000,step), top=Math.ceil(max/nice)*nice;
-  return Array.from({length:Math.round(top/nice)+1},(_,i)=>i*nice);
-}
-function durationMax(rows:TrendRow[],keys:string[]) {return durationTicks(rows,keys).at(-1)!;}
 function isolated(rows:TrendRow[],key:string,i:number) {
   const has=(j:number)=>typeof rows[j]?.[key]==='number';
   return has(i)&&!has(i-1)&&!has(i+1);

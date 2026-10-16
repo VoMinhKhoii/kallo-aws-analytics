@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { observedRows, timeTicks, currencyAxis } from '../chart-data';
+import { observedRows, timeTicks, currencyAxis, durationTicks } from '../chart-data';
 import { matchRateRows } from '../../../components/ingredients/aggregate';
 import { compact, decimal, msAxis } from '../format';
 
@@ -100,4 +100,21 @@ test('currency axes use nice equal intervals and consistent decimal precision', 
     assert.equal(new Set(scale.ticks.slice(1).map(v => scale.format(v).split('.')[1]?.length ?? 0)).size, 1);
   }
   assert.deepEqual(currencyAxis([]).ticks, currencyAxis([0]).ticks);
+});
+
+
+test('duration axes use the top tick unit for zero and every tick', () => {
+  assert.deepEqual([0, 200, 400, 800].map(v => msAxis(v, 800)), ['0 ms', '200 ms', '400 ms', '800 ms']);
+  assert.deepEqual([0, 2000, 4000].map(v => msAxis(v, 4000)), ['0 s', '2 s', '4 s']);
+  assert.equal(msAxis(500, 2000), '0.5 s');
+  for (const max of [0, 950, 1000, 4800, 6500, 65000, 1000000, NaN, Infinity]) {
+    const ticks = durationTicks([max]);
+    const top = ticks.at(-1)!;
+    assert.equal(ticks[0], 0);
+    assert.ok(top >= (Number.isFinite(max) ? max : 0));
+    assert.ok(ticks.every((t, i) => t === i * ticks[1] && t % 1000 === 0));
+    assert.ok(ticks.map(v => msAxis(v, top)).every(label => label.endsWith(' s')));
+    assert.equal(new Set(ticks.map(v => msAxis(v, top))).size, ticks.length);
+  }
+  assert.deepEqual(durationTicks([6500]), [0, 2000, 4000, 6000, 8000]);
 });

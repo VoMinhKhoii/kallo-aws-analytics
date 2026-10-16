@@ -124,15 +124,15 @@ test('AI meal metrics sum each primary analysis and leave out unpriced ones', as
   }
 });
 
-test('timestamp bounds use exact half-open hours and keep meal windows whole',async()=>{
+test('timestamp bounds stay half-open while buckets use UTC hours and keep meal windows whole',async()=>{
   const pg=new PGlite();try {
     await pg.exec(SCHEMA+ROWS);
     const query=(name:MetricName,from:string,to:string)=>{const q=new PgDialect().sqlToQuery(metricQuery(name,from,to));return pg.query<Record<string,any>>(q.sql,q.params);};
     const from='2026-10-04T01:30:00.000Z',to='2026-10-05T01:30:00.000Z';
     const hourly=(await query('ai_usage_daily',from,to)).rows;
-    assert.ok(hourly.every(r=>r.date.includes('T')&&r.date.endsWith(':30:00.000Z')));
+    assert.ok(hourly.every(r=>r.date.includes('T')&&r.date.endsWith(':00:00.000Z')));
     assert.equal(hourly.reduce((n,r)=>n+r.calls,0),10);
-    assert.equal(hourly.find(r=>r.date==='2026-10-04T01:30:00.000Z'&&r.model==='claude-haiku-5-5')?.calls,1);
+    assert.equal(hourly.find(r=>r.date==='2026-10-04T02:00:00.000Z'&&r.model==='claude-haiku-5-5')?.calls,1);
     const totals=(await query('ai_model_window',from,to)).rows;
     assert.equal(totals.reduce((n,r)=>n+r.calls,0),hourly.reduce((n,r)=>n+r.calls,0));
     const atBoundary=(await query('ai_usage_daily','2026-10-04T02:00:01.000Z','2026-10-04T02:00:03.000Z')).rows;

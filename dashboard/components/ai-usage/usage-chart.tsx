@@ -31,6 +31,9 @@ export function UsageChart({ input, models }: { input: UsageInput; models: Model
   const def = METRICS.find((m) => m.key === metric) ?? METRICS[0];
   const byKey = React.useMemo(() => new Map(models.map((m) => [m.key, m])), [models]);
   const shown = models.filter((m) => rows.some((r) => typeof r[m.key] === "number"));
+  const metricTotal = (key: VolumeMetric) => input.win === 1
+    ? input.window.reduce((n, r) => n + (key === 'spend' ? r.spend_usd ?? 0 : key === 'calls' ? r.calls : r.input_tokens + r.output_tokens + r.thought_tokens), 0)
+    : all[key].reduce((n, r) => n + r.total, 0);
   const total = rows.reduce((s, r) => s + r.total, 0);
   // Average over complete days since the first one with data, not the empty
   // days before history begins.
@@ -46,12 +49,12 @@ export function UsageChart({ input, models }: { input: UsageInput; models: Model
       <div className="flex flex-wrap items-stretch border-b border-border">
         <div className="flex min-w-56 flex-1 flex-col justify-center gap-0.5 px-4 py-2.5">
           <h2 className="text-[15px] font-semibold">Usage by model</h2>
-          <p className="text-muted-foreground text-[12.5px]">{input.win === 1 ? "Hourly, rolling last 24 hours (UTC)." : "Daily, UTC. Today is still filling (hatched)."}</p>
+          <p className="text-muted-foreground text-[12.5px]">{input.win === 1 ? "Hourly, UTC. Current hour is still filling (hatched)." : "Daily, UTC. Today is still filling (hatched)."}</p>
         </div>
         <div className="flex" role="tablist" aria-label="Metric">
           {METRICS.map((m) => {
             const on = m.key === metric;
-            const t = all[m.key].reduce((s, r) => s + r.total, 0);
+            const t = metricTotal(m.key);
             return (
               <button
                 key={m.key}
