@@ -184,50 +184,36 @@ test('restart replaces effective Premium expiry in both environments and undo re
   } finally { await f.pg.close(); }
 });
 
-test('undoing an older restart keeps a later end in place', async () => {
-  const f = await fixture();
-  try {
-    const restart = await givePremium(admin, input([ids.promo], 'restart'), { db: f.db, now: () => f.now });
-    await endFreePremium(admin, endInputSchema.parse({ who: { kind: 'users', userIds: [ids.promo] }, confirm: 'END', reason: 'End after restart' }), { db: f.db });
-    await undoAction(admin, restart.auditId, 'Undo the older restart', { db: f.db });
-    assert.equal((await f.rows("SELECT * FROM entitlement_grants WHERE user_id=$1 AND status='active'", [ids.promo])).length, 0);
-  } finally { await f.pg.close(); }
-});
+const later = (f: { now: Date }, s: number) => () => new Date(f.now.getTime() + s * 1000);
+const endUser = (reason: string) => endInputSchema.parse({ who: { kind: 'users', userIds: [ids.promo] }, confirm: 'END', reason });
+const activeRefs = async (f: { rows: (q: string, p: unknown[]) => Promise<Record<string, unknown>[]> }) =>
+  (await f.rows("SELECT external_ref FROM entitlement_grants WHERE user_id=$1 AND status='active' ORDER BY environment", [ids.promo])).map((r) => r.external_ref);
 
-test('out-of-order undo of two restarts restores the original grants, not the undone one', async () => {
-  const f = await fixture();
-  try {
-    const a = await givePremium(admin, input([ids.promo], 'restart'), { db: f.db, now: () => f.now });
-    const b = await givePremium(admin, input([ids.promo], 'restart'), { db: f.db, now: () => f.now });
-    await undoAction(admin, a.auditId, 'Undo the first restart', { db: f.db });
-    await undoAction(admin, b.auditId, 'Undo the second restart', { db: f.db });
-    const active = await f.rows("SELECT external_ref FROM entitlement_grants WHERE user_id=$1 AND status='active'", [ids.promo]);
-    assert.deepEqual(active.map((r) => r.external_ref), ['fixture', 'fixture']);
-  } finally { await f.pg.close(); }
-});
-
-test('restart, end, undo restart, undo end restores the original grants, not the undone restart', async () => {
-  const f = await fixture();
-  try {
-    const a = await givePremium(admin, input([ids.promo], 'restart'), { db: f.db, now: () => f.now });
-    const b = await endFreePremium(admin, endInputSchema.parse({ who: { kind: 'users', userIds: [ids.promo] }, confirm: 'END', reason: 'End after restart' }), { db: f.db });
-    await undoAction(admin, a.auditId, 'Undo the restart', { db: f.db });
-    await undoAction(admin, b.auditId, 'Undo the end', { db: f.db });
-    const active = await f.rows("SELECT external_ref FROM entitlement_grants WHERE user_id=$1 AND status='active'", [ids.promo]);
-    assert.deepEqual(active.map((r) => r.external_ref), ['fixture', 'fixture']);
-  } finally { await f.pg.close(); }
-});
-
-test('undoing an older end keeps a later restart in place', async () => {
-  const f = await fixture();
-  try {
-    const a = await endFreePremium(admin, endInputSchema.parse({ who: { kind: 'users', userIds: [ids.promo] }, confirm: 'END', reason: 'End first' }), { db: f.db });
-    const b = await givePremium(admin, input([ids.promo], 'restart'), { db: f.db, now: () => f.now });
-    await undoAction(admin, a.auditId, 'Undo the older end', { db: f.db });
-    const active = await f.rows("SELECT external_ref FROM entitlement_grants WHERE user_id=$1 AND status='active'", [ids.promo]);
-    assert.ok(active.length > 0 && active.every((r) => String(r.external_ref).startsWith(`admin:${b.auditId}:`)), JSON.stringify(active));
-  } finally { await f.pg.close(); }
-});
+for (const [name, first, second] of [
+  ['restart then restart', 'restart', 'restart'],
+  ['restart then end', 'restart', 'end'],
+  ['end then restart', 'end', 'restart'],
+] as const) {
+  test(`undo goes newest-first per account: ${name}`, async () => {
+    const f = await fixture();
+    try {
+      const run = (kind: 'restart' | 'end', at: number) => kind === 'restart'
+        ? givePremium(admin, input([ids.promo], 'restart'), { db: f.db, now: later(f, at) })
+        : endFreePremium(admin, endUser(`End ${at}`), { db: f.db, now: later(f, at) });
+      const before = await activeRefs(f);
+      const a = await run(first, 1);
+      const b = await run(second, 2);
+      const afterB = await activeRefs(f);
+      // The older action cannot be undone while the later one is in force, and nothing changes.
+      await assert.rejects(undoAction(admin, a.auditId, 'Out of order', { db: f.db }), /later action/);
+      assert.deepEqual(await activeRefs(f), afterB);
+      // Newest-first restores each prior state exactly, ending at the original grants.
+      await undoAction(admin, b.auditId, 'Undo the later action', { db: f.db });
+      await undoAction(admin, a.auditId, 'Undo the earlier action', { db: f.db });
+      assert.deepEqual(await activeRefs(f), before);
+    } finally { await f.pg.close(); }
+  });
+}
 
 test('end preview counts exactly the distinct accounts changed by end', async () => {
   const f = await fixture();
