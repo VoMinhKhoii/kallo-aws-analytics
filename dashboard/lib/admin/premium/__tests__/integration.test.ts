@@ -206,6 +206,18 @@ test('out-of-order undo of two restarts restores the original grants, not the un
   } finally { await f.pg.close(); }
 });
 
+test('restart, end, undo restart, undo end restores the original grants, not the undone restart', async () => {
+  const f = await fixture();
+  try {
+    const a = await givePremium(admin, input([ids.promo], 'restart'), { db: f.db, now: () => f.now });
+    const b = await endFreePremium(admin, endInputSchema.parse({ who: { kind: 'users', userIds: [ids.promo] }, confirm: 'END', reason: 'End after restart' }), { db: f.db });
+    await undoAction(admin, a.auditId, 'Undo the restart', { db: f.db });
+    await undoAction(admin, b.auditId, 'Undo the end', { db: f.db });
+    const active = await f.rows("SELECT external_ref FROM entitlement_grants WHERE user_id=$1 AND status='active'", [ids.promo]);
+    assert.deepEqual(active.map((r) => r.external_ref), ['fixture', 'fixture']);
+  } finally { await f.pg.close(); }
+});
+
 test('end preview counts exactly the distinct accounts changed by end', async () => {
   const f = await fixture();
   try {

@@ -13,6 +13,20 @@ interface OfferSnapshot {
   autoOffAt: string | null;
 }
 
+// Restoring what an action canceled walks the replacement chain: a canceled grant
+// created by an action that was already undone stands in for the grants that action
+// replaced, and grants from undone actions are never re-activated. Used with a
+// recursive `replaced(id, user_id, external_ref)` CTE seeded by the action's cancels.
+const replacedChainStep = sql`
+  SELECT g.id, g.user_id, g.external_ref FROM replaced AS r
+  JOIN public.premium_grant_audit AS a
+    ON a.undone_at IS NOT NULL AND r.external_ref LIKE 'admin:' || a.id::text || ':%'
+  JOIN public.entitlement_grants AS g
+    ON g.status = 'canceled' AND g.canceled_by_action = a.id AND g.user_id = r.user_id`;
+const notFromUndoneAction = sql`NOT EXISTS (
+  SELECT 1 FROM public.premium_grant_audit AS a
+  WHERE a.undone_at IS NOT NULL AND g.external_ref LIKE 'admin:' || a.id::text || ':%')`;
+
 /**
  * Reverses exactly what one action did, and logs the undo:
  *  - grant: cancels the grants it created that are still active;
@@ -55,8 +69,6 @@ export async function undoAction(
     if (action.action === 'grant') {
       // Restore the grants a Restart replaced only for accounts whose grants from
       // this action were still in force: a later End or Restart stays in place.
-      // A replaced grant that came from an action already undone stands in for
-      // the grants that action replaced, so out-of-order undos never revive it.
       const rows = (await db.execute(sql`
         WITH RECURSIVE undone AS (
           UPDATE public.entitlement_grants
@@ -69,19 +81,12 @@ export async function undoAction(
           SELECT g.id, g.user_id, g.external_ref FROM public.entitlement_grants AS g
           WHERE g.status = 'canceled' AND g.canceled_by_action = ${actionId}::uuid
             AND g.user_id IN (SELECT user_id FROM undone)
-          UNION
-          SELECT g.id, g.user_id, g.external_ref FROM replaced AS r
-          JOIN public.premium_grant_audit AS a
-            ON a.undone_at IS NOT NULL AND r.external_ref LIKE 'admin:' || a.id::text || ':%'
-          JOIN public.entitlement_grants AS g
-            ON g.status = 'canceled' AND g.canceled_by_action = a.id AND g.user_id = r.user_id
+          UNION ${replacedChainStep}
         ), restored AS (
           UPDATE public.entitlement_grants AS g SET status = 'active', canceled_by_action = NULL,
             updated_at = ${nowIso}::timestamptz
           FROM replaced AS r
-          WHERE g.id = r.id AND NOT EXISTS (
-            SELECT 1 FROM public.premium_grant_audit AS a
-            WHERE a.undone_at IS NOT NULL AND g.external_ref LIKE 'admin:' || a.id::text || ':%')
+          WHERE g.id = r.id AND ${notFromUndoneAction}
           RETURNING 1
         )
         SELECT user_id::text AS user_id FROM undone
@@ -89,11 +94,17 @@ export async function undoAction(
       userCount = new Set(rows.map((row) => row.user_id)).size;
     } else if (action.action === 'end') {
       const rows = (await db.execute(sql`
-        UPDATE public.entitlement_grants
+        WITH RECURSIVE replaced(id, user_id, external_ref) AS (
+          SELECT g.id, g.user_id, g.external_ref FROM public.entitlement_grants AS g
+          WHERE g.status = 'canceled' AND g.canceled_by_action = ${actionId}::uuid
+          UNION ${replacedChainStep}
+        )
+        UPDATE public.entitlement_grants AS g
         SET status = 'active', canceled_by_action = NULL,
             updated_at = ${nowIso}::timestamptz
-        WHERE status = 'canceled' AND canceled_by_action = ${actionId}::uuid
-        RETURNING user_id::text AS user_id
+        FROM replaced AS r
+        WHERE g.id = r.id AND ${notFromUndoneAction}
+        RETURNING g.user_id::text AS user_id
       `)) as unknown as { user_id: string }[];
       userCount = new Set(rows.map((row) => row.user_id)).size;
     } else if (action.action === 'offer') {
