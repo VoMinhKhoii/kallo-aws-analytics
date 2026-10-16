@@ -194,6 +194,18 @@ test('undoing an older restart keeps a later end in place', async () => {
   } finally { await f.pg.close(); }
 });
 
+test('out-of-order undo of two restarts restores the original grants, not the undone one', async () => {
+  const f = await fixture();
+  try {
+    const a = await givePremium(admin, input([ids.promo], 'restart'), { db: f.db, now: () => f.now });
+    const b = await givePremium(admin, input([ids.promo], 'restart'), { db: f.db, now: () => f.now });
+    await undoAction(admin, a.auditId, 'Undo the first restart', { db: f.db });
+    await undoAction(admin, b.auditId, 'Undo the second restart', { db: f.db });
+    const active = await f.rows("SELECT external_ref FROM entitlement_grants WHERE user_id=$1 AND status='active'", [ids.promo]);
+    assert.deepEqual(active.map((r) => r.external_ref), ['fixture', 'fixture']);
+  } finally { await f.pg.close(); }
+});
+
 test('end preview counts exactly the distinct accounts changed by end', async () => {
   const f = await fixture();
   try {

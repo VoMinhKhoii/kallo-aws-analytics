@@ -55,19 +55,33 @@ export async function undoAction(
     if (action.action === 'grant') {
       // Restore the grants a Restart replaced only for accounts whose grants from
       // this action were still in force: a later End or Restart stays in place.
+      // A replaced grant that came from an action already undone stands in for
+      // the grants that action replaced, so out-of-order undos never revive it.
       const rows = (await db.execute(sql`
-        WITH undone AS (
+        WITH RECURSIVE undone AS (
           UPDATE public.entitlement_grants
           SET status = 'canceled', canceled_by_action = ${undoId}::uuid,
               updated_at = ${nowIso}::timestamptz
           WHERE source = 'promo' AND status = 'active'
             AND external_ref LIKE ${`admin:${actionId}:%`}
           RETURNING user_id
+        ), replaced(id, user_id, external_ref) AS (
+          SELECT g.id, g.user_id, g.external_ref FROM public.entitlement_grants AS g
+          WHERE g.status = 'canceled' AND g.canceled_by_action = ${actionId}::uuid
+            AND g.user_id IN (SELECT user_id FROM undone)
+          UNION
+          SELECT g.id, g.user_id, g.external_ref FROM replaced AS r
+          JOIN public.premium_grant_audit AS a
+            ON a.undone_at IS NOT NULL AND r.external_ref LIKE 'admin:' || a.id::text || ':%'
+          JOIN public.entitlement_grants AS g
+            ON g.status = 'canceled' AND g.canceled_by_action = a.id AND g.user_id = r.user_id
         ), restored AS (
-          UPDATE public.entitlement_grants SET status = 'active', canceled_by_action = NULL,
+          UPDATE public.entitlement_grants AS g SET status = 'active', canceled_by_action = NULL,
             updated_at = ${nowIso}::timestamptz
-          WHERE status = 'canceled' AND canceled_by_action = ${actionId}::uuid
-            AND user_id IN (SELECT user_id FROM undone)
+          FROM replaced AS r
+          WHERE g.id = r.id AND NOT EXISTS (
+            SELECT 1 FROM public.premium_grant_audit AS a
+            WHERE a.undone_at IS NOT NULL AND g.external_ref LIKE 'admin:' || a.id::text || ':%')
           RETURNING 1
         )
         SELECT user_id::text AS user_id FROM undone
