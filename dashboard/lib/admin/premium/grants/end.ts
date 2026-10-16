@@ -7,6 +7,7 @@ import type { ActionDeps, ActionResult } from '@/lib/admin/premium/grants/give';
 import type { ParsedEndInput } from '@/lib/admin/premium/grants/grant-input';
 import { whoCondition } from '@/lib/admin/premium/targets/resolve-who';
 import type { AppDb } from '@/lib/admin/db/client';
+import { lockPremiumWrites } from './write-lock';
 
 /**
  * End free Premium now. Cancels only active promo grants (welcome and admin);
@@ -24,6 +25,7 @@ export async function endFreePremium(
 
   return deps.db.transaction(async (tx) => {
     const db = tx as unknown as AppDb;
+    await lockPremiumWrites(db);
     const ended = (await db.execute(sql`
       UPDATE public.entitlement_grants AS g
       SET status = 'canceled',

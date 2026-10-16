@@ -5,6 +5,7 @@ import { recordAudit } from '@/lib/admin/premium/activity/audit';
 import { writeWelcomeOffer } from '@/lib/admin/premium/offer/offer';
 import { Errors } from '@/lib/admin/errors';
 import type { AppDb } from '@/lib/admin/db/client';
+import { lockPremiumWrites } from '@/lib/admin/premium/grants/write-lock';
 import { premiumGrantAudit } from '@/lib/admin/db/schema';
 
 interface OfferSnapshot {
@@ -26,6 +27,13 @@ const replacedChainStep = sql`
 const notFromUndoneAction = sql`NOT EXISTS (
   SELECT 1 FROM public.premium_grant_audit AS a
   WHERE a.undone_at IS NOT NULL AND g.external_ref LIKE 'admin:' || a.id::text || ':%')`;
+// A later action still in force wins: never restore next to another active complimentary
+// grant (the undone action's own grants are excluded; they are being canceled).
+const noOtherActiveGrant = (actionId: string) => sql`NOT EXISTS (
+  SELECT 1 FROM public.entitlement_grants AS later
+  WHERE later.user_id = g.user_id AND later.source = 'promo' AND later.status = 'active'
+    AND (later.expires_at IS NULL OR later.expires_at > now())
+    AND COALESCE(later.external_ref, '') NOT LIKE ${`admin:${actionId}:%`})`;
 
 /**
  * Reverses exactly what one action did, and logs the undo:
@@ -47,6 +55,7 @@ export async function undoAction(
 
   return deps.db.transaction(async (tx) => {
     const db = tx as unknown as AppDb;
+    await lockPremiumWrites(db);
     // Claim the action first: a concurrent second undo finds nothing left.
     const [action] = await db
       .update(premiumGrantAudit)
@@ -86,7 +95,7 @@ export async function undoAction(
           UPDATE public.entitlement_grants AS g SET status = 'active', canceled_by_action = NULL,
             updated_at = ${nowIso}::timestamptz
           FROM replaced AS r
-          WHERE g.id = r.id AND ${notFromUndoneAction}
+          WHERE g.id = r.id AND ${notFromUndoneAction} AND ${noOtherActiveGrant(actionId)}
           RETURNING 1
         )
         SELECT user_id::text AS user_id FROM undone
@@ -103,7 +112,7 @@ export async function undoAction(
         SET status = 'active', canceled_by_action = NULL,
             updated_at = ${nowIso}::timestamptz
         FROM replaced AS r
-        WHERE g.id = r.id AND ${notFromUndoneAction}
+        WHERE g.id = r.id AND ${notFromUndoneAction} AND ${noOtherActiveGrant(actionId)}
         RETURNING g.user_id::text AS user_id
       `)) as unknown as { user_id: string }[];
       userCount = new Set(rows.map((row) => row.user_id)).size;

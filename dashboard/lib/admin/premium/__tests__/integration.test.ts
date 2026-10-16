@@ -218,6 +218,17 @@ test('restart, end, undo restart, undo end restores the original grants, not the
   } finally { await f.pg.close(); }
 });
 
+test('undoing an older end keeps a later restart in place', async () => {
+  const f = await fixture();
+  try {
+    const a = await endFreePremium(admin, endInputSchema.parse({ who: { kind: 'users', userIds: [ids.promo] }, confirm: 'END', reason: 'End first' }), { db: f.db });
+    const b = await givePremium(admin, input([ids.promo], 'restart'), { db: f.db, now: () => f.now });
+    await undoAction(admin, a.auditId, 'Undo the older end', { db: f.db });
+    const active = await f.rows("SELECT external_ref FROM entitlement_grants WHERE user_id=$1 AND status='active'", [ids.promo]);
+    assert.ok(active.length > 0 && active.every((r) => String(r.external_ref).startsWith(`admin:${b.auditId}:`)), JSON.stringify(active));
+  } finally { await f.pg.close(); }
+});
+
 test('end preview counts exactly the distinct accounts changed by end', async () => {
   const f = await fixture();
   try {

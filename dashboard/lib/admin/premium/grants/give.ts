@@ -7,6 +7,7 @@ import { promoEndsSql } from '@/lib/admin/premium/targets/plan-sql';
 import { whoCondition } from '@/lib/admin/premium/targets/resolve-who';
 import { Errors } from '@/lib/admin/errors';
 import type { AppDb } from '@/lib/admin/db/client';
+import { lockPremiumWrites } from './write-lock';
 
 // Free Premium from /admin/premium. Each grant is an ordinary
 // `entitlement_grants` row (source 'promo'), so it reads as real Premium and
@@ -65,6 +66,7 @@ export async function givePremium(
 
   return deps.db.transaction(async (tx) => {
     const db = tx as unknown as AppDb;
+    await lockPremiumWrites(db);
     // One statement, one snapshot: recipients are resolved before Restart cancels
     // anything (canceling a complimentary grant can change group membership), and
     // the set never leaves PostgreSQL. Undo finds the replaced grants by the marker.
