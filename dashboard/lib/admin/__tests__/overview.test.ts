@@ -13,7 +13,7 @@ test('overview uses durable reservations, complete UTC comparisons, honest error
       CREATE TABLE auth.users(id uuid,created_at timestamptz);
       CREATE TABLE analysis_model_budget_events(request_id text,created_at timestamptz,route text,work_kind text,request_count int);
       CREATE TABLE pipeline_runs(created_at timestamptz,total_ms int,request_id text);
-      CREATE TABLE pipeline_requests(id uuid,created_at timestamptz,status text,replay_of_request_id uuid);
+      CREATE TABLE pipeline_requests(id uuid,created_at timestamptz,status text,replay_of_request_id uuid,error_code text);
       CREATE TABLE user_feedback(created_at timestamptz,status text);
       CREATE TABLE analytics.v_meals(logged_at timestamptz,user_hash text);
       CREATE TABLE entitlement_grants(user_id uuid,status text,source text,environment text,entitlement_key text,starts_at timestamptz,expires_at timestamptz);
@@ -23,6 +23,8 @@ test('overview uses durable reservations, complete UTC comparisons, honest error
       INSERT INTO auth.users VALUES ('00000000-0000-4000-8000-000000000001','2026-10-15T23:30Z');
       INSERT INTO analytics.v_meals VALUES ('2026-10-15T23:30Z','a'),('2026-10-15T20:00Z','a'),('2026-10-10Z','b'),('2026-10-16Z','today');
       INSERT INTO pipeline_requests VALUES ('00000000-0000-4000-8000-000000000001','2026-10-16Z','error',NULL),('00000000-0000-4000-8000-000000000002','2026-10-16Z','error','00000000-0000-4000-8000-000000000001');
+      -- Rejected non-meal input is the user's mistake, not a failed analysis: never counted.
+      INSERT INTO pipeline_requests VALUES ('00000000-0000-4000-8000-000000000003','2026-10-16Z','error',NULL,'non_food_input');
       INSERT INTO user_feedback VALUES ('2026-10-10Z','open'),('2026-10-16Z','open'),('2026-10-10Z','resolved');
       INSERT INTO entitlement_grants VALUES ('00000000-0000-4000-8000-000000000001','active','promo','production','premium',now()-interval '1 day',now()+interval '2 days');`);
     for (const days of [7,30]) {
