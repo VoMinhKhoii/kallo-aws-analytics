@@ -74,6 +74,10 @@ test('Logging rescue mini-meal uses production 73a8c32f timings without doubling
   assert.equal(graph.nodes.find(n=>n.kind==='rescue')?.name,'Rescue · Synthetic stew');
   assert.ok(graph.edges.some(e=>e.source==='nutrition'&&e.target==='rescue-1'));
   assert.ok(!graph.nodes.some(n=>n.name.includes('re-ask')));
+  // A stage's call total is the calls drawn under it; the rescue's calls count only in Rescue.
+  const under=(id:string)=>graph.edges.filter(e=>e.source===id&&e.sourceHandle==='bottom'&&!e.dashed).flatMap(e=>graph.nodes.find(n=>n.id===e.target)!.calls);
+  for(const stage of ['decomposition','matching','nutrition'])assert.deepEqual(graph.nodes.find(n=>n.id===stage)?.calls,under(stage),stage);
+  assert.deepEqual(['decomposition','matching','nutrition'].map(s=>graph.nodes.find(n=>n.id===s)?.calls.length),[1,8,1]);
   assert.equal(timelineEnd(graph.nodes,detail.durationMs!),9226);
   assert.ok(Math.abs(timelineEnd(graph.nodes,detail.durationMs!)-9251)<30);
 });

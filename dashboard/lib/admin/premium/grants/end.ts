@@ -1,4 +1,5 @@
 import 'server-only';
+import { endablePromoSql } from '../targets/plan-sql';
 import { sql } from 'drizzle-orm';
 import type { AdminUser } from '@/lib/admin/operator';
 import { recordAudit } from '@/lib/admin/premium/activity/audit';
@@ -6,6 +7,7 @@ import type { ActionDeps, ActionResult } from '@/lib/admin/premium/grants/give';
 import type { ParsedEndInput } from '@/lib/admin/premium/grants/grant-input';
 import { whoCondition } from '@/lib/admin/premium/targets/resolve-who';
 import type { AppDb } from '@/lib/admin/db/client';
+import { lockPremiumWrites } from './write-lock';
 
 /**
  * End free Premium now. Cancels only active promo grants (welcome and admin);
@@ -23,6 +25,7 @@ export async function endFreePremium(
 
   return deps.db.transaction(async (tx) => {
     const db = tx as unknown as AppDb;
+    const ranAt = await lockPremiumWrites(db);
     const ended = (await db.execute(sql`
       UPDATE public.entitlement_grants AS g
       SET status = 'canceled',
@@ -30,9 +33,7 @@ export async function endFreePremium(
           updated_at = ${now.toISOString()}::timestamptz
       FROM auth.users AS u
       WHERE g.user_id = u.id
-        AND g.source = 'promo'
-        AND g.status = 'active'
-        AND (g.expires_at IS NULL OR g.expires_at > now())
+        AND ${endablePromoSql('g')}
         AND ${whoCondition(input.who)}
       RETURNING g.user_id::text AS user_id
     `)) as unknown as { user_id: string }[];
@@ -50,7 +51,7 @@ export async function endFreePremium(
         targetUserIds: input.who.kind === 'users' ? input.who.userIds : null,
         details: { who: input.who },
       },
-      now
+      ranAt
     );
     return { auditId, userCount };
   });

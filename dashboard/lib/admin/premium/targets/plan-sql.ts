@@ -65,3 +65,8 @@ export function planSql(userId: SQL): SQL {
     ELSE 'free'
   END`;
 }
+
+/** Grants canceled by End; shared verbatim with its preview. */
+export const endablePromoSql = (alias: string) => sql`${sql.raw(alias)}.source = 'promo'
+  AND ${sql.raw(alias)}.status = 'active'
+  AND (${sql.raw(alias)}.expires_at IS NULL OR ${sql.raw(alias)}.expires_at > now())`;

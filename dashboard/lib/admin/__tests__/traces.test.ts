@@ -84,6 +84,12 @@ test('Postgres list and detail work before and after summary expansion with tied
     assert.equal(second.items[0].id,id); assert.equal(second.items[0].calls,2); assert.equal(second.items[0].kcal,100); assert.equal(second.nextCursor,null);
     assert.equal((await listTraces(db,{...f,status:'success',q:'rice'},'secret')).items[0].id,id);
     assert.equal((await listTraces(db,{...f,q:'%'},'secret')).items.length,0);
+    // The terminal refresh uses the list's exact enrichment and filter predicates,
+    // restricted to the transitioned IDs rather than only the first list page.
+    const completed = await listTraces(db,{...f,limit:50},'secret',[id]);
+    assert.equal(completed.rows.length,1);assert.equal(completed.rows[0].kcal,100);assert.equal(completed.rows[0].calls,2);
+    assert.equal((await listTraces(db,{...f,limit:50,status:'pending'},'secret',[id])).rows.length,0);
+    assert.equal((await listTraces(db,{...f,limit:50,status:'error'},'secret',[id])).rows.length,0);
     const row = await traceRequest(db,id); const detail = await loadPostgresDetail(db,row!);
     assert.equal(detail.calls.length,2); assert.equal(detail.calls[0].prompt,'synthetic template');
     assert.equal(detail.calls[0].cachedTokens,5); assert.equal(detail.summary.kcal,100); assert.equal(detail.summary.items[0].grams,100);

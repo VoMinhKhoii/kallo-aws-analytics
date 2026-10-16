@@ -11,7 +11,7 @@ test('lightweight batch polling covers appended pages and preserves terminal row
     const rows=[{...row('finished'),status:'success'},row('appended')];
     const result=await refreshPending(rows,new AbortController().signal,now);
     assert.equal(result.failed,false);assert.equal(result.rows[0],rows[0]);assert.equal(result.rows[1].status,'success');assert.equal(result.rows[1].durationMs,4200);
-    assert.deepEqual(urls,['/api/traces/status?ids=appended']);
+    assert.equal(urls[0],'/api/traces/status?ids=appended');assert.ok(urls[1].includes('summary=1'));
   }finally{globalThis.fetch=original;}
 });
 test('expires abandoned pending rows after ten minutes and stops on deleted IDs/404',async()=>{
@@ -30,5 +30,26 @@ test('one failed batch preserves successful row updates and missing tombstones',
   try {
     const result=await refreshPending(Array.from({length:51},(_,i)=>row(`r${i}`)),new AbortController().signal,now);
     assert.equal(result.failed,true);assert.equal(result.rows[0].status,'success');assert.ok(!result.rows.some(r=>r.id==='r1'));assert.equal(result.rows.at(-1)?.status,'pending');
+  }finally{globalThis.fetch=original;}
+});
+
+test('terminal transition fetches full summary with active filters and removes rows that no longer match',async()=>{
+  const original=globalThis.fetch,urls:string[]=[];
+  globalThis.fetch=async url=>{urls.push(String(url));return String(url).includes('summary=1')?Response.json({rows:[],missing:['done']}):Response.json({rows:[{id:'done',status:'success'}],missing:[]});};
+  try {
+    const result=await refreshPending([row('done')],new AbortController().signal,now,'w=24h&status=pending');
+    assert.deepEqual(result.rows,[]);
+    assert.ok(urls.some(url=>url.includes('summary=1')&&url.includes('status=pending')));
+  }finally{globalThis.fetch=original;}
+});
+test('terminal summary replaces all stale metrics and failed summary remains retryable',async()=>{
+  const original=globalThis.fetch;
+  let fail=false;
+  globalThis.fetch=async url=>String(url).includes('summary=1')?(fail?Response.json({}, {status:502}):Response.json({rows:[{...row('done'),status:'success',kcal:600,models:['new'],costUsd:.02}],missing:[]})):Response.json({rows:[{id:'done',status:'success'}],missing:[]});
+  try {
+    let result=await refreshPending([row('done')],new AbortController().signal,now);
+    assert.equal(result.rows[0].kcal,600);assert.deepEqual(result.rows[0].models,['new']);
+    fail=true;result=await refreshPending([row('done')],new AbortController().signal,now);
+    assert.equal(result.failed,true);assert.equal(result.rows[0].status,'pending');
   }finally{globalThis.fetch=original;}
 });

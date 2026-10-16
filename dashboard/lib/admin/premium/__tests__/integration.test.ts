@@ -139,6 +139,7 @@ test('audit failure rolls back grant, end, offer, and undo changes atomically', 
     const invalidAdmin = { ...admin, id: '00000000-0000-4000-8000-000000000099' };
     const baseline = await f.rows('SELECT * FROM entitlement_grants ORDER BY id');
     await assert.rejects(givePremium(invalidAdmin, input([ids.free]), { db: f.db }));
+    await assert.rejects(givePremium(invalidAdmin, input([ids.promo], 'restart'), { db: f.db }));
     await assert.rejects(endFreePremium(invalidAdmin, endInputSchema.parse({ who: { kind: 'users', userIds: [ids.promo] }, reason: 'Fail isolated end' }), { db: f.db }));
     await assert.rejects(saveWelcomeOffer(invalidAdmin, offerInputSchema.parse({ enabled: false, days: 28, autoOffOn: null, reason: 'Fail isolated offer' }), { db: f.db }));
     assert.deepEqual(await f.rows('SELECT * FROM entitlement_grants ORDER BY id'), baseline);
@@ -167,5 +168,59 @@ test('preview and group targeting agree on plans and inclusive UTC signup dates'
     assert.equal(result.userCount, 1);
     const changed = await f.rows('SELECT DISTINCT user_id FROM entitlement_grants WHERE external_ref LIKE $1', [`admin:${result.auditId}:%`]);
     assert.deepEqual(changed.map(row => row.user_id), [ids.free]);
+  } finally { await f.pg.close(); }
+});
+
+
+test('restart replaces effective Premium expiry in both environments and undo restores prior grants', async () => {
+  const f = await fixture();
+  try {
+    const result = await givePremium(admin, input([ids.promo], 'restart'), { db: f.db, now: () => f.now });
+    const active = await f.rows("SELECT environment,max(expires_at) AS expires FROM entitlement_grants WHERE user_id=$1 AND status='active' GROUP BY environment", [ids.promo]);
+    assert.equal(active.length, 2);
+    for (const row of active) assert.equal((row.expires instanceof Date ? row.expires : new Date(String(row.expires))).getTime(), f.now.getTime()+3*day);
+    await undoAction(admin, result.auditId, 'Restore previous Premium', {db:f.db});
+    assert.equal((await f.rows("SELECT * FROM entitlement_grants WHERE user_id=$1 AND external_ref='fixture' AND status='active'", [ids.promo])).length, 2);
+  } finally { await f.pg.close(); }
+});
+
+const later = (f: { now: Date }, s: number) => () => new Date(f.now.getTime() + s * 1000);
+const endUser = (reason: string) => endInputSchema.parse({ who: { kind: 'users', userIds: [ids.promo] }, confirm: 'END', reason });
+const activeRefs = async (f: { rows: (q: string, p: unknown[]) => Promise<Record<string, unknown>[]> }) =>
+  (await f.rows("SELECT external_ref FROM entitlement_grants WHERE user_id=$1 AND status='active' ORDER BY environment", [ids.promo])).map((r) => r.external_ref);
+
+for (const [name, first, second] of [
+  ['restart then restart', 'restart', 'restart'],
+  ['restart then end', 'restart', 'end'],
+  ['end then restart', 'end', 'restart'],
+] as const) {
+  test(`undo goes newest-first per account: ${name}`, async () => {
+    const f = await fixture();
+    try {
+      const run = (kind: 'restart' | 'end', at: number) => kind === 'restart'
+        ? givePremium(admin, input([ids.promo], 'restart'), { db: f.db, now: later(f, at) })
+        : endFreePremium(admin, endUser(`End ${at}`), { db: f.db, now: later(f, at) });
+      const before = await activeRefs(f);
+      const a = await run(first, 1);
+      const b = await run(second, 2);
+      const afterB = await activeRefs(f);
+      // The older action cannot be undone while the later one is in force, and nothing changes.
+      await assert.rejects(undoAction(admin, a.auditId, 'Out of order', { db: f.db }), /later action/);
+      assert.deepEqual(await activeRefs(f), afterB);
+      // Newest-first restores each prior state exactly, ending at the original grants.
+      await undoAction(admin, b.auditId, 'Undo the later action', { db: f.db });
+      await undoAction(admin, a.auditId, 'Undo the earlier action', { db: f.db });
+      assert.deepEqual(await activeRefs(f), before);
+    } finally { await f.pg.close(); }
+  });
+}
+
+test('end preview counts exactly the distinct accounts changed by end', async () => {
+  const f = await fixture();
+  try {
+    const who = {kind:'everyone'} as const;
+    const preview = await countWho(f.db, who, 'end');
+    const result = await endFreePremium(admin, endInputSchema.parse({who,confirm:'END',reason:'Verify end preview'}), {db:f.db});
+    assert.equal(preview.accounts, result.userCount);
   } finally { await f.pg.close(); }
 });

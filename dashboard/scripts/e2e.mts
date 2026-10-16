@@ -616,9 +616,26 @@ async function run() {
       const call = calls.getByRole('button', { name: /^#\d+ ·/ }).first();
       await visible(call);
       assert(await call.evaluate((el: HTMLElement) => el.getBoundingClientRect().height) === 28, 'Call row is not 28 px');
+      const payloadResponse = page.waitForResponse((r: PW) => {
+        const url = new URL(r.url());
+        return url.pathname === `/api/traces/${row.id}/payload` && url.searchParams.get('kind') === 'call';
+      });
       await call.click();
       await eventually(async () => await call.getAttribute('aria-expanded') === 'true', 'Call did not expand');
+      const fetched = await (await payloadResponse).json();
       await settle();
+      const exportButton = calls.getByRole('button', { name: 'Download JSON', exact: true });
+      await visible(exportButton);
+      const downloadEvent = page.waitForEvent('download');
+      await exportButton.click();
+      const download = await downloadEvent;
+      const stream = await download.createReadStream();
+      const chunks: Buffer[] = [];
+      for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+      const exported = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+      assert(JSON.stringify(exported.payload) === JSON.stringify(fetched), 'Call export differs from full fetched payload');
+      assert(download.suggestedFilename().includes(exported.metadata.id), 'Call export filename lacks its call ID');
+      await download.delete();
       await call.click();
       assert(await call.getAttribute('aria-expanded') === 'false', 'Call did not collapse');
     });
@@ -637,6 +654,13 @@ async function run() {
       await output.getByRole('button', { name: 'Expand all', exact: true }).click();
       await visible(output.getByRole('button', { name: 'Collapse root', exact: true }));
       await visible(output.getByRole('button', { name: 'Copy status', exact: true }));
+      const branches = output.locator('button[aria-expanded="true"]');
+      const branchLabels = await branches.evaluateAll((els: HTMLElement[]) => els.map(el => el.getAttribute('aria-label')).filter(label => label !== 'Collapse root'));
+      if (branchLabels.length) {
+        await output.getByRole('button', { name: branchLabels[0], exact: true }).first().click();
+        await visible(output.getByRole('button', { name: 'Collapse root', exact: true }));
+        await visible(output.getByRole('button', { name: 'Copy status', exact: true }));
+      }
       await page.evaluate(() => { (window as any).__e2eCopied = null; });
       await output.getByRole('button', { name: 'Copy all', exact: true }).click();
       await visible(output.getByRole('button', { name: 'Copied', exact: true }));

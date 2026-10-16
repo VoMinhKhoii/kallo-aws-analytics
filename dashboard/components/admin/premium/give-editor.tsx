@@ -1,6 +1,7 @@
 'use client';
 import { int } from '@/lib/ai-usage/format';
-import { useState } from 'react';
+import { PreviewReview } from '@/lib/premium-preview';
+import { useRef, useState } from 'react';
 import { AccountSearch } from './account-search';
 import { api, field, button, secondary, type Account } from './shared';
 
@@ -13,16 +14,21 @@ export function GiveEditor({ onSaved }: { onSaved: () => void }) {
   const [unit, setUnit] = useState('days'); const [days, setDays] = useState(14); const [until, setUntil] = useState('');
   const [reason, setReason] = useState(''); const [confirm, setConfirm] = useState('');
   const [preview, setPreview] = useState<{ accounts: number; payingSkipped: number } | null>(null);
+  const reviews = useRef(new PreviewReview<{action:string;input:unknown}>());
+  const [snapshot,setSnapshot] = useState<{action:string;input:unknown}|null>(null);
+  const [result,setResult] = useState<number|null>(null);
   const [busy, setBusy] = useState(false); const [error, setError] = useState('');
   const who = kind === 'users' ? { kind, userIds: selected.map(a => a.id) } : kind === 'group' ? { kind, plan, joinedFrom: from || undefined, joinedTo: to || undefined } : { kind };
-  function change(fn: () => void) { fn(); setPreview(null); setConfirm(''); }
+  function change(fn: () => void) { reviews.current.invalidate(); fn(); setPreview(null); setSnapshot(null); setConfirm(''); }
   async function review(e: React.FormEvent) {
     e.preventDefault(); setBusy(true); setError('');
-    try { setPreview(await api('', { action: 'preview', input: who })); } catch(e) { setError((e as Error).message); } finally { setBusy(false); }
+    const ticket=reviews.current.begin({action,input:{who,reason,mode,length:unit === 'days'?{unit,days}:{unit,until}}});
+    try { const counts=await api<{accounts:number;payingSkipped:number}>('', { action: 'preview', input: {who,operation:action} }); const reviewed=reviews.current.accept(ticket); if(reviewed){setSnapshot(reviewed);setPreview(counts);} } catch(e) { setError((e as Error).message); } finally { setBusy(false); }
   }
   async function apply() {
+    if(!snapshot)return;
     setBusy(true); setError('');
-    try { await api('', { action, input: { who, reason, confirm, mode, length: unit === 'days' ? { unit, days } : { unit, until } } }); setPreview(null); setConfirm(''); onSaved(); }
+    try { const saved=await api<{userCount:number}>('', { ...snapshot, input: {...snapshot.input as object,confirm} }); setResult(saved.userCount); setPreview(null); setConfirm(''); onSaved(); }
     catch(e) { setError((e as Error).message); } finally { setBusy(false); }
   }
   return <div className="grid gap-5">
@@ -36,7 +42,8 @@ export function GiveEditor({ onSaved }: { onSaved: () => void }) {
       <p className="text-xs text-[var(--console-muted)]">Paying subscribers are protected. Each change is recorded and can be undone.</p>
       <div><button className={secondary} disabled={busy}>{busy ? 'Checking…' : 'Preview affected accounts'}</button></div>
     </form>
-    {preview && <div className="grid gap-4 rounded-md border border-[var(--console-rule)] bg-[var(--console-panel)] p-5"><p className="text-sm font-medium">{int(preview.accounts)} eligible accounts · {int(preview.payingSkipped)} paying accounts skipped</p>{kind === 'everyone' && <label className="grid gap-2 text-sm">Type {action === 'end' ? 'END' : 'EVERYONE'} to confirm<input className={field} value={confirm} onChange={e => setConfirm(e.target.value)} /></label>}<div className="flex flex-wrap gap-3"><button className={button} onClick={() => void apply()} disabled={busy || preview.accounts === 0 || (kind === 'everyone' && confirm !== (action === 'end' ? 'END' : 'EVERYONE'))}>{busy ? 'Applying…' : action === 'end' ? 'Confirm end free Premium' : 'Confirm give Premium'}</button><button className={secondary} onClick={() => setPreview(null)} disabled={busy}>Cancel</button></div></div>}
+    {preview && <div className="grid gap-4 rounded-md border border-[var(--console-rule)] bg-[var(--console-panel)] p-5"><p className="text-sm font-medium">{int(preview.accounts)} eligible accounts · {int(preview.payingSkipped)} paying accounts skipped</p>{kind === 'everyone' && <label className="grid gap-2 text-sm">Type {action === 'end' ? 'END' : 'EVERYONE'} to confirm<input className={field} value={confirm} onChange={e => setConfirm(e.target.value)} /></label>}<div className="flex flex-wrap gap-3"><button className={button} onClick={() => void apply()} disabled={busy || preview.accounts === 0 || (kind === 'everyone' && confirm !== (action === 'end' ? 'END' : 'EVERYONE'))}>{busy ? 'Applying…' : action === 'end' ? 'Confirm end free Premium' : 'Confirm give Premium'}</button><button className={secondary} onClick={() => {reviews.current.invalidate();setSnapshot(null);setPreview(null);}} disabled={busy}>Cancel</button></div></div>}
+    {result !== null && <p role="status">{int(result)} accounts changed.</p>}
     {error && <p role="alert" className="text-sm text-[var(--console-brick)]">{error}</p>}
   </div>;
 }

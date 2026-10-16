@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from '@/lib/api-fetch';
 
 import * as React from "react";
 import { LogOut, Menu, Search, ShieldCheck } from "lucide-react";
@@ -17,7 +18,7 @@ function useHealth(enabled = true): { state: "checking" | "live" | "down"; detai
   React.useEffect(() => {
     if (!enabled) return;
     let active = true;
-    fetch("/api/admin/status", { cache: "no-store" })
+    apiFetch("/api/admin/status", { cache: "no-store" })
       .then((response) => response.json())
       .then((body) => active && setHealth(body))
       .catch(() => active && setFailed(true));
@@ -57,7 +58,7 @@ export function Topbar() {
 
   const logout = async () => {
     try {
-      const response = await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" });
+      const response = await apiFetch("/api/auth/logout", { method: "POST", credentials: "same-origin" });
       if (response.ok) window.location.assign("/login");
     } catch {
       // A failed best-effort logout leaves the server session untouched; do
@@ -97,7 +98,7 @@ export function Topbar() {
         </div>
         }<div className="flex items-center gap-1.5 border-l border-[var(--console-rule)] pl-3" title={auth.expiresAt ? `Session expires ${new Date(auth.expiresAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}` : undefined}>
           <ShieldCheck className="size-3.5 text-[var(--console-muted)]" aria-hidden="true" />
-          <span className="text-[11px] font-medium text-[var(--console-muted)]">{auth.loading ? "Checking access" : auth.role === "founder" ? "Founder" : auth.role === "reviewer" ? "Reviewer" : "No session"}</span>
+          <span className="text-[11px] font-medium text-[var(--console-muted)]">{auth.error ? "Session unavailable" : auth.loading ? "Checking access" : auth.role === "founder" ? "Founder" : auth.role === "reviewer" ? "Reviewer" : "No session"}</span>
           {auth.role ? <button type="button" onClick={() => void logout()} className="ml-1 rounded p-1 text-[var(--console-muted)] hover:bg-[var(--console-surface)] hover:text-[var(--console-ink)] focus-visible:outline-2 focus-visible:outline-[var(--console-blue)]" aria-label="Log out"><LogOut className="size-3.5" /></button> : null}
         </div>
       </header>

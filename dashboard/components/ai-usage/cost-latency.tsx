@@ -96,7 +96,7 @@ export function CostLatency({ models }: { models: ModelSummary[] }) {
         <h2 className="text-[15px] font-semibold">Cost vs latency</h2>
         <p className="text-muted-foreground text-[12.5px]">$ / 1k calls against p95. Bubble size is call volume.</p>
       </div>
-      {models.filter(m=>m.p95==null).map(m=><p key={m.meta.key} className="px-4 pt-2 text-xs text-muted-foreground">{m.meta.label}: no per-call latency in this window.</p>)}
+      {models.filter(m=>m.p95==null&&m.calls>0).map(m=><p key={m.meta.key} className="px-4 pt-2 text-xs text-muted-foreground">{m.meta.label}: no per-call latency in this window.</p>)}
       {points.length === 0 ? (
         <p className="text-muted-foreground px-4 py-10 text-center text-[13px]">No per-call latency in this window yet.</p>
       ) : (
