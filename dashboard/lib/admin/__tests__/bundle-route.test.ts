@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { GET } from '../../../app/api/metrics/route';
 import { createSessionToken } from '../../auth';
 import { METRIC_NAMES } from '../../../app/lib/types';
+import { GET as overview } from '../../../app/api/admin/overview/route';
+import { GET as monitoring } from '../../../app/api/cloud-monitoring/route';
 import { GET as payload } from '../../../app/api/traces/[id]/payload/route';
 
 test('metrics bundle runs at most four concurrent loads, caches results, and sets refresh headers',async t=>{
@@ -13,6 +15,9 @@ test('metrics bundle runs at most four concurrent loads, caches results, and set
   globalThis.fetch=async()=>{running++;loads++;peak=Math.max(peak,running);await new Promise(resolve=>setTimeout(resolve,15));running--;return Response.json({items:[{date:'2026-08-01',payload:[]}]});};
   const headers={cookie:'kallo_session='+createSessionToken('founder')};
   const url='https://admin.kallo.fit/api/metrics?metrics='+METRIC_NAMES.slice(0,6).join(',')+'&from=2026-08-01&to=2026-08-01';
+  for (const query of ['w=90d','days=90']) assert.equal((await overview(new Request('https://admin.kallo.fit/api/admin/overview?'+query,{headers}))).status,400);
+  assert.equal((await GET(new Request(url+'&w=90d',{headers}))).status,400);
+  assert.equal((await monitoring(new Request('https://admin.kallo.fit/api/cloud-monitoring?from=2026-07-19&to=2026-10-16',{headers}))).status,400);
   const response=await GET(new Request(url,{headers}));
   assert.equal(response.status,200);assert.equal(peak,4);assert.equal(loads,6);
   assert.equal(response.headers.get('cache-control'),'private, max-age=30, stale-while-revalidate=300');

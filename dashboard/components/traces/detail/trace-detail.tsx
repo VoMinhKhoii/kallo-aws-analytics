@@ -38,7 +38,7 @@ export default function TraceDetail({id}:{id:string}) {
     {error&&<p role="alert" className="py-2 text-xs text-destructive">{error} <button onClick={refresh} className="underline">Retry</button></p>}
     {(!terminal(t.status)||t.completeness.stagesFound<t.completeness.stagesExpected||t.completeness.truncated)&&<p className="py-2 text-xs text-[var(--console-amber)]">{!terminal(t.status)&&'Live · updates every 5 s · '}{t.completeness.stagesFound} of {t.completeness.stagesExpected} stages recorded{t.completeness.truncated&&' · Partial capture'}</p>}
     {step&&!selected&&<p className="py-2 text-xs text-[var(--console-amber)]">Step not recorded: {step} <button className="underline" onClick={close}>Close</button></p>}
-    <MealSummary trace={t} openAssembly={openItem}/><div className="trace-detail-body relative min-w-0 flex-1"><div className="h-full min-w-0"><PipelineCanvas graph={graph} selected={selected?.id??''} onSelect={setStep} duration={t.durationMs??0} fit={fit} panelWidth={selected?panelWidth:0}/></div>{selected&&<StepPanel key={selected.id} trace={t} step={selected} close={close} navigate={navigate} onWidthChange={setPanelWidth}/>}</div>
+    <MealSummary trace={t} openAssembly={openItem}/><div className="trace-detail-body relative mt-4 min-w-0 flex-1"><div className="h-full min-w-0"><PipelineCanvas graph={graph} selected={selected?.id??''} onSelect={setStep} duration={t.durationMs??0} fit={fit} panelWidth={selected?panelWidth:0}/></div>{selected&&<StepPanel key={selected.id} trace={t} step={selected} close={close} navigate={navigate} onWidthChange={setPanelWidth}/>}</div>
     {shortcuts&&<ShortcutSheet close={()=>setShortcuts(false)}/>}
   </div>;
 }

@@ -26,13 +26,13 @@ export function pct(v: number | null | undefined, digits = 1): string {
 }
 
 export function shortDate(iso: string): string {
-  const d = new Date(`${iso}T00:00:00Z`);
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+  const d = new Date(iso.includes('T') ? iso : `${iso}T00:00:00Z`);
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC", ...(iso.includes('T') ? {hour:'2-digit' as const, minute:'2-digit' as const, hour12:false} : {}) });
 }
 
 export function longDate(iso: string): string {
-  const d = new Date(`${iso}T00:00:00Z`);
-  return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
+  const d = new Date(iso.includes('T') ? iso : `${iso}T00:00:00Z`);
+  return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC", ...(iso.includes('T') ? {hour:'2-digit' as const, minute:'2-digit' as const, hour12:false} : {}) });
 }
 
 /** Relative change, or percentage points for a rate (40% → 44% is +4.0 pt, not +10%). */

@@ -1,10 +1,11 @@
 export type ChartRow = { date: string } & Record<string, unknown>;
 
 /** Keep missing observations null, trim only the unknown prefix, never interior gaps. */
-export function observedRows(rows: ChartRow[], keys: string[]): ChartRow[] {
+export function observedRows(rows: ChartRow[], keys: string[], trimStart = true): ChartRow[] {
   const normalized = rows.map(row => ({ ...row, ...Object.fromEntries(keys.map(key => [
     key, typeof row[key] === 'number' && Number.isFinite(row[key]) ? row[key] : null,
   ])) }));
+  if (!trimStart) return normalized;
   const first = normalized.findIndex(row => keys.some(key => row[key] != null));
   return first < 0 ? [] : normalized.slice(first);
 }

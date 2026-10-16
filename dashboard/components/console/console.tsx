@@ -28,13 +28,7 @@ export const RANGE_LABELS: Record<ConsoleRange, string> = {
   "30d": "30 days",
 };
 
-export function rangeWindow(range: ConsoleRange, now = new Date()) {
-  const to = now.toISOString().slice(0, 10);
-  const days = range === "24h" ? 1 : Number(range.slice(0, -1));
-  const fromDate = new Date(`${to}T00:00:00Z`);
-  fromDate.setUTCDate(fromDate.getUTCDate() - Math.max(days - 1, 0));
-  return { from: fromDate.toISOString().slice(0, 10), to, days };
-}
+export { rangeWindow } from '@/lib/windows';
 
 export function formatNumber(value: number | null | undefined): string {
   return value == null || !Number.isFinite(value) ? "No data" : int(value);

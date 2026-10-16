@@ -55,6 +55,16 @@ test('every SQL metric runs; the original thirteen preserve counts, dimensions, 
         ('2026-10-04','ID only','missing','missing',1,NULL,NULL,NULL,NULL,NULL,NULL,'id-only'),
         ('2026-10-05','Rice','accepted',NULL,1,1,'rice','Rice','catalog',0.95,'Rice','rice');
     `);
+    await pg.exec(`ALTER TABLE analytics.v_ingredient_decisions ADD COLUMN occurred_at timestamptz;
+      UPDATE analytics.v_ingredient_decisions SET occurred_at=occurred_on::timestamp AT TIME ZONE 'UTC';
+      UPDATE analytics.v_ingredient_decisions SET occurred_at='2026-10-04T23:15Z' WHERE ingredient_query='Brown rice';`);
+    const rolling=(metric:MetricName)=>{const q=dialect.sqlToQuery(metricQuery(metric,'2026-10-04T22:15:00.000Z','2026-10-05T22:15:00.000Z'));return pg.query<Record<string,any>>(q.sql,q.params);};
+    const demand=(await rolling('ingredient_demand')).rows;
+    assert.equal(demand.reduce((n,r)=>n+r.count,0),2);
+    assert.deepEqual(demand.map(r=>r.ingredient_query).sort(),['brown rice','rice']);
+    const matches=(await rolling('match_rate')).rows;
+    assert.ok(matches.every(r=>r.date.includes('T')));
+    assert.equal(matches.reduce((n,r)=>n+r.matched_count,0),13);
     const results = new Map<MetricName, Record<string, any>[]>();
     for (const name of METRIC_NAMES) {
       const query = dialect.sqlToQuery(metricQuery(name, '2026-10-04', '2026-10-04'));

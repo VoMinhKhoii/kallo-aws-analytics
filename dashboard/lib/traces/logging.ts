@@ -9,13 +9,16 @@ export function reassemble(entries: unknown[], requestId: string): { events: Row
   const groups = new Map<string, { header: z.infer<typeof envelope>; chunks: Map<number, Row> }>();
   let bytes = 0, truncated = false;
   for (const raw of entries) {
+    const entry = raw as {jsonPayload?:unknown; timestamp?:unknown} | null;
+    const payload = entry?.jsonPayload ?? raw;
     const serialized = JSON.stringify(raw);
     if (serialized === undefined) { truncated = true; continue; }
     bytes += Buffer.byteLength(serialized);
     if (bytes > 2500000) { truncated = true; break; }
-    const parsed = envelope.safeParse(raw);
+    const parsed = envelope.safeParse(payload);
     if (!parsed.success || parsed.data.requestId !== requestId) { truncated = true; continue; }
     const e = parsed.data;
+    if (typeof entry?.timestamp === 'string' && Number.isFinite(Date.parse(entry.timestamp))) e.entryTimestamp = entry.timestamp;
     truncated ||= Boolean(e.truncated);
     let group = groups.get(e.eventId);
     if (!group) { group = { header: e, chunks: new Map() }; groups.set(e.eventId, group); }
@@ -30,7 +33,7 @@ export function reassemble(entries: unknown[], requestId: string): { events: Row
       const chunked = header.parts > 1 || typeof sorted[0].payload === 'string';
       if (chunked && sorted.some(e => typeof e.payload !== 'string')) { truncated = true; continue; }
       const payload = chunked ? JSON.parse(sorted.map(e => e.payload).join('')) : sorted[0];
-      events.push({ ...payload, eventId: header.eventId, seq: header.seq, type: header.type });
+      events.push({ ...payload, eventId: header.eventId, seq: header.seq, type: header.type, entryTimestamp: sorted[0].entryTimestamp ?? header.entryTimestamp });
     } catch { truncated = true; }
   }
   return { events: events.sort((a,b) => a.seq-b.seq), truncated };
@@ -45,7 +48,7 @@ export function loggingDetail(request: Row, entries: unknown[], billed: number, 
     key: String(e.eventId), name: String(e.stage || 'unknown'), index: Number(e.index || 0), startedAt: e.startedAt || request.created_at,
     stats: stageStats(e.input, e.output, e.output?.result), durationMs: e.durationMs ?? null, status: e.status || 'unknown', error: e.error ?? null, input: e.input ?? null, output: e.output ?? null, calls: [],
   }));
-  const calls = events.filter(e => e.type === 'llm').map(e => normalizeCall({ ...e, id: e.eventId }));
+  const calls = events.filter(e => e.type === 'llm').map(e => normalizeCall({ ...e, id: e.eventId, createdAt:e.entryTimestamp }));
   const result = final.summary || final.result || events.findLast(e => e.type === 'stage' && e.stage === 'assembly')?.output?.result || {};
   return assembleDetail({ ...request, ...req, ...final, id: request.id }, stages, calls, result, 'logging', billed,
     truncated || incomplete || !events.some(e => e.type === 'request') || !events.some(e => e.type === 'final'));
@@ -83,8 +86,8 @@ async function loadLoggingCapture(request: Row, node?: {key: string; kind: 'stag
         }
         text += decoder.decode();
       } finally { reader.releaseLock(); }
-      const body = JSON.parse(text) as { entries?: { jsonPayload?: unknown }[]; nextPageToken?: string };
-      entries.push(...(body.entries || []).map(e => e.jsonPayload));
+      const body = JSON.parse(text) as { entries?: { jsonPayload?: unknown; timestamp?: string }[]; nextPageToken?: string };
+      entries.push(...(body.entries || []));
       pageToken = body.nextPageToken;
       if (!pageToken) return {entries, incomplete:false};
       if (seenTokens.has(pageToken)) break;

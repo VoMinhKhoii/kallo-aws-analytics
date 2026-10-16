@@ -36,4 +36,16 @@ test('Monitoring preserves distribution weights and combines request/error count
   assert.equal(result.series[0].request_count,10);
   assert.equal(result.series[0].error_count,3);
   assert.equal(result.series[0].error_rate,0.3);
+  calls.length=0;
+  const rolling=await getDirectMonitoring('2026-10-03T12:17:00.000Z','2026-10-04T12:17:00.000Z',true);
+  assert.equal(rolling.alignment_seconds,3600);
+  assert.equal(rolling.window_p95_ms,100);assert.equal(rolling.window_p99_ms,100);
+  assert.equal(calls.filter(c=>c.searchParams.get('aggregation.alignmentPeriod')==='3600s').length,8);
+  assert.equal(calls.filter(c=>c.searchParams.get('aggregation.alignmentPeriod')==='86400s').length,2);
+  for(const call of calls) {
+    assert.equal(call.searchParams.get('interval.startTime'),'2026-10-03T12:17:00.000Z');
+    assert.equal(call.searchParams.get('interval.endTime'),'2026-10-04T12:17:00.000Z');
+    assert.ok(['3600s','86400s'].includes(call.searchParams.get('aggregation.alignmentPeriod')!));
+  }
+
 });

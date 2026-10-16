@@ -49,7 +49,7 @@ export function TrendChart({
   partialLast?: boolean; stacked?: boolean; step?: boolean; integer?: boolean; totals?: boolean; windowLabel?: string; durationAxis?: boolean;
   emptyMessage?: string;
 }) {
-  const rows = observedRows(inputRows, models.map(m => m.key));
+  const rows = observedRows(inputRows, models.map(m => m.key), !hourly);
   const ticks = timeTicks(rows, hourly);
   const hatchId = React.useId().replace(/:/g, "");
   const today = new Date().toISOString().slice(0, 10);
@@ -91,7 +91,7 @@ export function TrendChart({
                 />
                 {shown.map((m, index) => bars ? (
                   <Bar key={m.key} dataKey={m.key} stackId={stacked?"counts":undefined} maxBarSize={stacked||index === 0 ? 36 : 14} fill={m.color} fillOpacity={focus.opacity(m.key)} isAnimationActive={animate} onAnimationEnd={() => setAnimate(false)} animationDuration={600}>
-                    {rows.map(row => <Cell key={row.date} fill={(partialLast ? row.date===rows.at(-1)?.date && row.date.slice(0,10)===today : row.date.slice(0,10)===today) ? `url(#${hatchId}-${m.key})` : m.color} />)}
+                    {rows.map(row => <Cell key={row.date} fill={(hourly ? partialLast && row.date===rows.at(-1)?.date && row.date.slice(0,10)===today : row.date.slice(0,10)===today) ? `url(#${hatchId}-${m.key})` : m.color} />)}
                   </Bar>
                 ) : (
                   <Line

@@ -14,18 +14,20 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { AiMealsDailyRow, AiMealsRow, AiModelUsageRow, AiUsageDailyRow } from "@/app/lib/types";
 import { dayRange, modelsOf, summarize, type UsageInput, type WindowDays } from "@/lib/ai-usage/aggregate";
 import { int, shortDate, usd } from "@/lib/ai-usage/format";
+import { useRefocus } from "@/lib/use-refocus";
 import { useMetricBundle } from "@/lib/use-metric-bundle";
 
-const WINDOWS: WindowDays[] = [7, 30, 90];
+const WINDOWS: WindowDays[] = [1, 7, 30];
 const DAILY = ["ai_usage_daily", "ai_meals_daily"] as const;
 const WINDOW = ["ai_model_window", "ai_meal_window"] as const;
 
 export function AiUsage({ win, setWin }: { win: WindowDays; setWin: (win: WindowDays) => void }) {
-  const today = React.useMemo(() => new Date().toISOString().slice(0, 10), []);
-  const from = dayRange(today, win)[0];
+  const [asOf, setAsOf] = React.useState(() => new Date().toISOString());
+  const today = win === 1 ? asOf : asOf.slice(0, 10);
+  const from = win === 1 ? new Date(Date.parse(today) - 86400000).toISOString() : dayRange(today, win)[0];
   // Daily rows span this window and the one before it plus a day, since the
   // change badges compare complete days only (today left out).
-  const daily = useMetricBundle(DAILY, dayRange(today, win * 2 + 1)[0], today);
+  const daily = useMetricBundle(DAILY, win === 1 ? new Date(Date.parse(today) - 2 * 86400000).toISOString() : dayRange(today, win * 2 + 1)[0], today);
   const totals = useMetricBundle(WINDOW, from, today);
 
   // A manual refresh reloads both bundles independently; show their data only
@@ -54,7 +56,8 @@ export function AiUsage({ win, setWin }: { win: WindowDays; setWin: (win: Window
   const totalsError = totals.error ?? totals.errors.ai_model_window;
   const mealTotalsError = totals.error ?? totals.errors.ai_meal_window;
   const error = dailyError ?? mealDailyError ?? totalsError ?? mealTotalsError;
-  const retry = () => { daily.refresh(); totals.refresh(); };
+  const retry = () => { setAsOf(new Date().toISOString()); daily.refresh(); totals.refresh(); };
+  useRefocus(retry);
 
   if (daily.loading || totals.loading) return <PageSkeleton title="AI" charts={6} cells={5} />;
   return (
@@ -62,23 +65,23 @@ export function AiUsage({ win, setWin }: { win: WindowDays; setWin: (win: Window
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="grid gap-1">
           <h1 className="text-[22px] font-semibold tracking-tight">AI usage</h1>
-          <p className="text-muted-foreground text-[13px]">Spend, latency and reliability per model · UTC days · cost priced by Kallo from provider token counts</p>
+          <p className="text-muted-foreground text-[13px]">Spend, latency and reliability per model · {win === 1 ? "rolling 24 hours" : "UTC days"} · cost priced by Kallo from provider token counts</p>
         </div>
         <div className="flex items-center gap-2">
           <ToggleGroup type="single" value={String(win)} onValueChange={(v) => v && setWin(Number(v) as WindowDays)} aria-label="Window">
             {WINDOWS.map((w) => (
               <ToggleGroupItem key={w} value={String(w)} className="tabular px-3">
-                {w}d
+                {w === 1 ? "24h" : `${w}d`}
               </ToggleGroupItem>
             ))}
           </ToggleGroup>
-          <RefreshButton refreshing={daily.refreshing || totals.refreshing} onClick={() => { daily.refresh(); totals.refresh(); }} />
+          <RefreshButton refreshing={daily.refreshing || totals.refreshing} onClick={retry} />
         </div>
       </header>
 
       {!input && error ? <MetricSection title="AI usage" error={error} retry={retry} /> : null}
       {input && summary ? <>
-        {error ? <MetricSection title="Summary" error={error} retry={retry} /> : <KpiStrip summary={summary} unit={`${win}d`} />}
+        {error ? <MetricSection title="Summary" error={error} retry={retry} /> : <KpiStrip summary={summary} unit={win === 1 ? "24h" : `${win}d`} />}
         {dailyError || mealDailyError ? <MetricSection title="Usage" error={dailyError ?? mealDailyError} retry={retry} /> : <UsageChart input={input} models={models} />}
         {totalsError ? <MetricSection title="Cost vs latency" error={totalsError} retry={retry} /> : <CostLatency models={summary.models} />}
         {dailyError ? <MetricSection title="Trends" error={dailyError} retry={retry} /> : <Trends input={input} models={models} />}

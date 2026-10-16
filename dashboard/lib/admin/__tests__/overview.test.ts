@@ -25,7 +25,7 @@ test('overview uses durable reservations, complete UTC comparisons, honest error
       INSERT INTO pipeline_requests VALUES ('00000000-0000-4000-8000-000000000001','2026-10-16Z','error',NULL),('00000000-0000-4000-8000-000000000002','2026-10-16Z','error','00000000-0000-4000-8000-000000000001');
       INSERT INTO user_feedback VALUES ('2026-10-10Z','open'),('2026-10-16Z','open'),('2026-10-10Z','resolved');
       INSERT INTO entitlement_grants VALUES ('00000000-0000-4000-8000-000000000001','active','promo','production','premium',now()-interval '1 day',now()+interval '2 days');`);
-    for (const days of [7,30,90]) {
+    for (const days of [7,30]) {
       const r=await loadOverview(db,days,new Date('2026-10-16T12:00Z'));
       assert.equal(r.kpis.meals.value,days); assert.equal(r.kpis.meals.comparisonValue,days); assert.equal(r.kpis.meals.previousValue,days);
       assert.equal(r.kpis.p95MealLatencyMs.value,1000); assert.equal(r.kpis.p95MealLatencyMs.previousValue,1000);
@@ -36,6 +36,18 @@ test('overview uses durable reservations, complete UTC comparisons, honest error
       assert.equal(r.needsAttention.failedMealsToday,1); assert.equal(r.needsAttention.feedbackOpenOver48h,1); assert.equal(r.needsAttention.grantsEndingWithin3Days,1);
       if(days>7) assert.equal(r.mealsDaily[0].errors,null);
     }
+    const rolling=await loadOverview(db,'24h',new Date('2026-10-16T12:15Z'));
+    assert.equal(rolling.mealsDaily.length,24);
+    assert.equal(rolling.mealsDaily[0].date,'2026-10-15T12:15:00.000Z');
+    assert.equal(rolling.mealsDaily.at(-1)?.date,'2026-10-16T11:15:00.000Z');
+    assert.equal(rolling.kpis.meals.value,1);
+    assert.equal(rolling.kpis.meals.comparisonValue,1);
+    assert.equal(rolling.kpis.meals.previousValue,1);
+    assert.equal(rolling.kpis.errorRate.value,1);
+    assert.equal(rolling.kpis.errorRate.previousValue,0);
+    assert.equal(rolling.kpis.dau.value,1);
+    assert.equal(rolling.mealsDaily.reduce((n,r)=>n+r.analysed,0),1);
+    await assert.rejects(()=>loadOverview(db,90),/Invalid date window/);
     await pg.exec(`INSERT INTO pipeline_requests VALUES ('00000000-0000-4000-8000-000000000003','2026-10-15Z','error',NULL);
       INSERT INTO pipeline_runs VALUES ('2026-10-15Z',9999999,'00000000-0000-4000-8000-000000000002');`);
     const replay=await loadOverview(db,30,new Date('2026-10-16T12:00Z'));

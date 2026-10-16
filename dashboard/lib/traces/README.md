@@ -48,11 +48,14 @@ All three trace endpoints require a founder session. Types are client-safe in
   fetches only that node's payload without the graph loader's cumulative cap.
 
 `TraceCall.role` is `call1 | selector | call2_chunk | rescue_call1 |
-rescue_selector | rescue_call2 | unknown`. Logging `callRole`/`call_role` wins,
-then known stage names. Postgres explicit role/stage IDs win; historical billed
+rescue_selector | rescue_call2 | unknown`. Both sources share one classifier:
+known explicit roles, decomposition → call1, and nutrition/matching response
+JSON top keys `ranking` → selector, `mealItems` → call2_chunk. JSON shape
+outranks token heuristics. Legacy selectors use <=64 output and <4000 input
+tokens within matching/nutrition. Postgres can recover stale role metadata
+from that shape when no response JSON evidence is available. Historical billed
 attempt completion timestamps are compared with each stage's
-`[created_at-duration_ms,created_at]` window. Decomposition maps to call1,
-nutrition to call2_chunk, matching maps to selector only at <=64 output tokens.
+`[created_at-duration_ms,created_at]` window.
 Overlapping windows use the first stage in recorded order. Attempts completed
 after `request.created_at+duration_ms` have `afterResponse:true`; unmatched
 attempts retain unknown roles. Timing cannot reliably identify historical
@@ -80,17 +83,20 @@ failure, 401 missing session, 403 reviewer, 503 auth not configured.
 
 ## Overview
 
-`GET /api/admin/overview?days=7|30|90` (alias `w=7d|30d|90d`, default 30)
+`GET /api/admin/overview?w=24h|7d|30d` (legacy `days=7|30`, default 30d)
 requires any dashboard session. It returns `Overview` from `../admin/overview.ts`
 plus `collectedAt`:
 
-- `days`, `through` (today's UTC date).
+- `days` (1 for 24h), `through` (today's UTC date).
 - `kpis`: `meals,errorRate,p95MealLatencyMs,dau,newSignups,openFeedback`, each an
   `OverviewKpi {value:number|null,comparisonValue:number|null,previousValue:number|null}`.
   `value` includes today for window KPIs; DAU uses yesterday, the latest complete
   UTC day. Change pills must compare `comparisonValue` (N complete days ending
   yesterday) against `previousValue` (the preceding N complete days), never
-  `value` against the prior window. DAU comparisons use the final day of each
+  `value` against the prior window. For 24h, values cover [now−24h, now),
+  comparisons use that interval and [now−48h, now−24h); meal series have exactly
+  24 one-hour buckets anchored at the interval start. DAU/WAU keep their UTC
+  daily definition; DAU has no rolling comparison badge. DAU comparisons use the final day of each
   complete window. Prior values require >=ceil(0.8*N) observed reservation days
   in both windows (run days for p95). Zero-traffic days conservatively do not
   establish telemetry coverage. Missing coverage suppresses the prior value.
@@ -108,14 +114,16 @@ Meals count primary `/api/analyze-meal` reservation events (`request_count=1`),
 which the application writes once per analysis. These include failed attempts
 that never emit a pipeline run, unlike `pipeline_runs`; they are the most
 complete retained analysis-count source. Both budget events and runs have no
-TTL reaper in the checked application schema, covering the 181-day query
-horizon needed for 90-day comparisons. Writes are best effort, so coverage
+TTL reaper in the checked application schema, covering the 61-day query
+horizon needed for 30-day comparisons. Writes are best effort, so coverage
 is observed telemetry, not a completeness guarantee. Known replay requests
 are excluded from reservations while their debug summary exists.
 `pipeline_runs` has `total_ms` but no status; p95 is recorded pipeline duration,
 not end-to-end HTTP latency, and may omit runs that fail before persistence.
 Errors use the seven-day request store: rate = errors/reserved meals for the
-7-day window; 30/90-day rates and all error-rate comparisons are null.
+7-day history even when 30d is selected (labeled as such). The 24h rate and
+its preceding-24h comparison use errors/reservations in those exact intervals.
+Longer-window error-rate comparisons are null.
 Open feedback is a current snapshot; prior counts cannot be reconstructed
 without status history and are null. Signups count retained `auth.users` rows;
 deleted accounts are absent. Long-term replay identity cannot be recovered
@@ -126,7 +134,10 @@ from budget events after debug summaries expire.
 `GET /api/metrics?metrics=<comma-separated allowlist>&from=&to=&refresh=1`
 keeps its existing bundle contract and per-metric partial errors. Loads run in
 `Promise.all` batches of at most four, with a 60 s isolate cache keyed by metric,
-source, role and dates. Overview also caches 60 s, scoped by database, role,
+source, role and exact bounds. ISO timestamp bounds request hourly live
+Postgres facts (up to 48h, including comparison history); daily snapshots are
+never substituted for rolling facts. Date ranges are limited to 61 days for
+30d comparison history. `w=90d` and 90-day date ranges are rejected. Overview also caches 60 s, scoped by database, role,
 days and UTC date. Both return `private, max-age=30, stale-while-revalidate=300`;
 refresh returns no-store. Refresh bypasses a completed cache entry immediately;
 concurrent identical in-flight loads still coalesce. Failed loads do not cache.
@@ -148,3 +159,28 @@ Google Logging uses `GOOGLE_MONITORING_CREDENTIALS` with logging.read scope,
 `GCP_PROJECT_ID` and optional `GCP_CLOUD_RUN_SERVICE`/`GCP_CLOUD_RUN_LOCATION`.
 Production query plans, row volumes, capture coverage and IAM need deployment
 verification; all backend tests use synthetic fixtures and fake transports.
+
+## Dashboard windows
+
+All page controls offer 24h, 7d and 30d. Overview, AI and Ingredients default to
+30d; System defaults to 7d. Old `?w=90d` page links use those defaults. Traces
+keeps its existing window control.
+
+24h means rolling [now−24h, now), with 24 one-hour chart buckets where exact
+facts exist. AI badges compare the preceding 24h. System requests that exact
+interval from Cloud Monitoring with hourly chart alignment. Its 24h p95/p99
+KPIs use separate whole-window distribution queries; hourly quantiles are
+never averaged into a window quantile.
+Ingredients filters decisions by `occurred_at`, added by Kallo migration
+`20261016035816_ingredient_decisions_30d_with_time.sql` (Kallo PR #463; the copy in
+this repo's `supabase/migrations/` only feeds the PGlite tests). Deploy Kallo first;
+until it is live those metrics report a source error. Daily top-50 sampling still
+applies to decision KPIs. Catalog checks and open feedback remain snapshots.
+
+Logging adapters preserve each entry timestamp through multipart reassembly.
+Call start = emit timestamp minus latency; missing timestamps omit the offset.
+The shared classifier uses decomposition → Call 1, nutrition response top key
+`ranking` → selector, `mealItems` → Call 2, then legacy token shape. Later
+Call 1 calls are re-asks; Call 2 indexes are ordered per trace. Response lazily
+loads Assembly's `result` plus request status/error/duration, while Assembly
+retains its own output.

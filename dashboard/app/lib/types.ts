@@ -289,6 +289,8 @@ export type CloudMonitoringResponse = {
   from: string;
   to: string;
   alignment_seconds: number;
+  window_p95_ms?: number | null;
+  window_p99_ms?: number | null;
   collected_at: string;
   route_source?: "cloud-logging-dynamodb";
   route_points?: number;

@@ -22,19 +22,21 @@ export async function googleAccessToken(scope = 'https://www.googleapis.com/auth
 interface GoogleSeries { metric?: { labels?: Record<string,string> }; points?: { interval: { endTime: string }; value: { doubleValue?: number; int64Value?: string } }[] }
 
 export async function getDirectMonitoring(from: string, to: string, refresh = false, role = "founder"): Promise<CloudMonitoringResponse> {
-  return (await aggregateCache.get(`monitoring:v1:${role}:${from}:${to}`, 300000, () => collectMonitoring(from, to), refresh)).value;
+  return (await aggregateCache.get(`monitoring:v2:${role}:${from}:${to}`, 300000, () => collectMonitoring(from, to), refresh)).value;
 }
 async function collectMonitoring(from: string, to: string): Promise<CloudMonitoringResponse> {
   const token = await googleAccessToken();
   const project = process.env.GCP_PROJECT_ID || 'cal-487315';
   const service = process.env.GCP_CLOUD_RUN_SERVICE || 'kallo-prod';
   const location = process.env.GCP_CLOUD_RUN_LOCATION || 'asia-southeast1';
+  const hourly=from.includes('T');
   const days = (Date.parse(to) - Date.parse(from)) / 86400000 + 1;
-  const alignment = days <= 7 ? 3600 : days <= 30 ? 21600 : 86400;
-  const end = new Date(Math.min(Date.parse(to) + 86400000, Date.now())).toISOString();
+  const alignment = hourly ? 3600 : days <= 7 ? 3600 : days <= 30 ? 21600 : 86400;
+  const end = new Date(Math.min(Date.parse(to) + (hourly ? 0 : 86400000), Date.now())).toISOString();
   const rows = new Map<string, CloudRunSystemPoint>();
-  async function collect(field: keyof CloudRunSystemPoint, metric: string, aligner: string, reducer: string, count = false) {
-    const params = new URLSearchParams({ filter: `metric.type = "${metric}" AND resource.type = "cloud_run_revision" AND resource.labels.service_name = "${service}" AND resource.labels.location = "${location}"`, 'interval.startTime': from + 'T00:00:00Z', 'interval.endTime': end, view: 'FULL', 'aggregation.alignmentPeriod': alignment + 's', 'aggregation.perSeriesAligner': aligner, 'aggregation.crossSeriesReducer': reducer, pageSize: '10000' });
+  const windowRows = new Map<string, CloudRunSystemPoint>();
+  async function collect(field: keyof CloudRunSystemPoint, metric: string, aligner: string, reducer: string, count = false, period = alignment, destination = rows) {
+    const params = new URLSearchParams({ filter: `metric.type = "${metric}" AND resource.type = "cloud_run_revision" AND resource.labels.service_name = "${service}" AND resource.labels.location = "${location}"`, 'interval.startTime': hourly ? from : from + 'T00:00:00Z', 'interval.endTime': end, view: 'FULL', 'aggregation.alignmentPeriod': period + 's', 'aggregation.perSeriesAligner': aligner, 'aggregation.crossSeriesReducer': reducer, pageSize: '10000' });
     if (count) params.append('aggregation.groupByFields', 'metric.labels.response_code_class');
     do {
       const r = await fetch(`https://monitoring.googleapis.com/v3/projects/${project}/timeSeries?${params}`, { headers: { Authorization: 'Bearer ' + token }, cache: 'no-store' });
@@ -42,17 +44,18 @@ async function collectMonitoring(from: string, to: string): Promise<CloudMonitor
       const body = await r.json() as { timeSeries?: GoogleSeries[]; nextPageToken?: string };
       for (const series of body.timeSeries || []) for (const point of series.points || []) {
         const timestamp = point.interval.endTime;
-        const row = rows.get(timestamp) || { timestamp };
+        const row = destination.get(timestamp) || { timestamp };
         const value = Number(point.value.doubleValue ?? point.value.int64Value ?? 0);
         if (count) { row.request_count = (row.request_count || 0) + value; if (series.metric?.labels?.response_code_class?.startsWith('5')) row.error_count = (row.error_count || 0) + value; }
         else Object.assign(row, { [field]: value });
-        rows.set(timestamp, row);
+        destination.set(timestamp, row);
       }
       if (!body.nextPageToken) break;
       params.set('pageToken', body.nextPageToken);
     } while (true);
   }
   await Promise.all([
+    ...(hourly ? [95,99].map(n => collect(`p${n}_ms` as keyof CloudRunSystemPoint,'run.googleapis.com/request_latencies','ALIGN_SUM',`REDUCE_PERCENTILE_${n}`,false,86400,windowRows)) : []),
     ...[50,95,99].map(n => collect(`p${n}_ms` as keyof CloudRunSystemPoint,'run.googleapis.com/request_latencies','ALIGN_SUM',`REDUCE_PERCENTILE_${n}`)),
     collect('request_count','run.googleapis.com/request_count','ALIGN_SUM','REDUCE_SUM',true),
     collect('startup_p95_ms','run.googleapis.com/container/startup_latencies','ALIGN_SUM','REDUCE_PERCENTILE_95'),
@@ -60,6 +63,6 @@ async function collectMonitoring(from: string, to: string): Promise<CloudMonitor
     collect('memory_p95','run.googleapis.com/container/memory/utilizations','ALIGN_SUM','REDUCE_PERCENTILE_95'),
     collect('instances','run.googleapis.com/container/instance_count','ALIGN_MEAN','REDUCE_SUM'),
   ]);
-  const value: CloudMonitoringResponse = { source: 'google-cloud-monitoring', delivery_source: 'cloudflare-direct', project, service, location, from, to, alignment_seconds: alignment, collected_at: new Date().toISOString(), series: [...rows.values()].sort((a,b) => a.timestamp.localeCompare(b.timestamp)).map(row => ({ ...row, error_count: row.error_count || 0, error_rate: row.request_count ? (row.error_count || 0) / row.request_count : 0 })) };
+  const value: CloudMonitoringResponse = { source: 'google-cloud-monitoring', delivery_source: 'cloudflare-direct', project, service, location, from, to, alignment_seconds: alignment, collected_at: new Date().toISOString(), ...(hourly ? {window_p95_ms:[...windowRows.values()].at(-1)?.p95_ms ?? null,window_p99_ms:[...windowRows.values()].at(-1)?.p99_ms ?? null} : {}), series: [...rows.values()].sort((a,b) => a.timestamp.localeCompare(b.timestamp)).map(row => ({ ...row, error_count: row.error_count || 0, error_rate: row.request_count ? (row.error_count || 0) / row.request_count : 0 })) };
   return value;
 }

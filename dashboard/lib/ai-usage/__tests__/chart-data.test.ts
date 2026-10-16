@@ -38,3 +38,10 @@ test('compact counts, axis durations and decimals hide floating point noise', ()
   assert.equal(msAxis(950), '950 ms');
   assert.equal(decimal(0.9900000001, 3), '0.990');
 });
+
+
+test('hourly charts keep unknown leading buckets to display the entire rolling interval',()=>{
+  const rows=[{date:'2026-10-15T12:17:00.000Z'},{date:'2026-10-15T13:17:00.000Z',calls:2}];
+  assert.equal(observedRows(rows,['calls'],false).length,2);
+  assert.equal(observedRows(rows,['calls'],false)[0].calls,null);
+});

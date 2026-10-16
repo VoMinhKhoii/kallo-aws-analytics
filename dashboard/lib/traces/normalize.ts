@@ -1,3 +1,4 @@
+import { inferCallRole, responseCallRole } from './call-role';
 import type { CallRole, Nutrient, TraceCall, TraceDetail, TraceItem, TraceStage } from './types';
 import { stageStats } from './stats';
 import { numberOrNull as n } from './query';
@@ -23,14 +24,11 @@ export function nutrition(result: Row = {}): TraceDetail['summary'] {
   return { ...values(result), items };
 }
 export function callRole(value: unknown, stage?: unknown): CallRole {
-  const roles = ['call1','selector','call2_chunk','rescue_call1','rescue_selector','rescue_call2','unknown'];
-  if (roles.includes(String(value))) return value as CallRole;
-  if (roles.includes(String(stage))) return stage as CallRole;
-  return stage === 'decomposition' ? 'call1' : stage === 'matching' ? 'selector' : stage === 'nutrition' ? 'call2_chunk' : 'unknown';
+  return inferCallRole({role:value, stage});
 }
 export function normalizeCall(c: Row): TraceCall {
-  return { ...(c.created_at || c.createdAt ? {createdAt: timestamp(c.created_at || c.createdAt)} : {}), stageLogId: str(c.stage_log_id ?? c.stageLogId), workKind: str(c.work_kind ?? c.workKind), hasPrompt: c.has_prompt ?? (c.prompt != null || c.prompt_rendered != null), hasResponse: c.has_response ?? (c.response != null || c.response_raw != null), role: callRole(c.callRole ?? c.call_role, c.stage), ...(c.promptIsTemplate ? {promptIsTemplate: true} : {}), id: String(c.id || c.eventId), stage: str(c.stage), attempt: Number(c.attempt || 1), provider: str(c.provider) || (String(c.model).includes('claude') ? 'anthropic' : String(c.model).includes('gemini') ? 'google' : null),
-    model: String(c.model || 'unknown'), ...(c.startedAt || c.created_at ? { startedAt: c.startedAt ? timestamp(c.startedAt) : new Date(Date.parse(c.created_at) - Number(c.latency_ms || 0)).toISOString() } : {}),
+  return { ...(responseCallRole(c.response ?? c.response_raw) ? {roleEvidence:'response' as const} : {}), ...(c.created_at || c.createdAt ? {createdAt: timestamp(c.created_at || c.createdAt)} : {}), stageLogId: str(c.stage_log_id ?? c.stageLogId), workKind: str(c.work_kind ?? c.workKind), hasPrompt: c.has_prompt ?? (c.prompt != null || c.prompt_rendered != null), hasResponse: c.has_response ?? (c.response != null || c.response_raw != null), role: inferCallRole({role:c.callRole ?? c.call_role, stage:c.stage, response:c.response ?? c.response_raw, inputTokens:n(c.inputTokens ?? c.input_tokens), outputTokens:n(c.outputTokens ?? c.output_tokens)}), ...(c.promptIsTemplate ? {promptIsTemplate: true} : {}), id: String(c.id || c.eventId), stage: str(c.stage), attempt: Number(c.attempt || 1), provider: str(c.provider) || (String(c.model).includes('claude') ? 'anthropic' : String(c.model).includes('gemini') ? 'google' : null),
+    model: String(c.model || 'unknown'), ...(c.startedAt || c.created_at || c.createdAt ? { startedAt: c.startedAt ? timestamp(c.startedAt) : new Date(Date.parse(c.created_at || c.createdAt) - Number(c.latencyMs ?? c.latency_ms ?? 0)).toISOString() } : {}),
     latencyMs: n(c.latencyMs ?? c.latency_ms), inputTokens: n(c.inputTokens ?? c.input_tokens), cachedTokens: n(c.cachedTokens ?? c.cached_tokens),
     cacheWriteTokens: n(c.cacheWriteTokens ?? c.cache_write_tokens), outputTokens: n(c.outputTokens ?? c.output_tokens), thoughtTokens: n(c.thoughtTokens ?? c.thought_tokens),
     costUsd: n(c.costUsd ?? c.cost_usd), error: str(c.error ?? c.error_category), fallbackFrom: str(c.fallbackFrom ?? c.fallback_from),
@@ -89,8 +87,7 @@ export function postgresDetail(request: Row, rows: Row[], callRows: Row[], budge
     const stage = stages.find(s => s.key === c.stage) || window;
     if (stage) {
       c.stage = stage.key;
-      if (stages.some(s => ['matching','nutrition'].includes(s.name) && at >= Date.parse(s.startedAt) && at <= Date.parse(s.startedAt) + Number(s.durationMs || 0)) && c.outputTokens !== null && c.outputTokens <= 64 && c.inputTokens !== null && c.inputTokens < 4000) c.role = 'selector';
-      else if (c.role === 'unknown') c.role = stage.name === 'nutrition' ? ((c.outputTokens ?? 0) > 64 ? 'call2_chunk' : 'unknown') : stage.name === 'matching' ? 'unknown' : callRole(null, stage.name);
+      c.role = inferCallRole({role:c.role, stage:stage.name, response:raw?.response_raw, inputTokens:c.inputTokens, outputTokens:c.outputTokens, legacyTokenShape:true});
     }
   }
   const result = rows.find(s => s.stage === 'assembly')?.output_json?.result || {};

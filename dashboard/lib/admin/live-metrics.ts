@@ -6,10 +6,13 @@ import type { MetricName, MetricBundle, MetricPayloadMap } from '@/app/lib/types
 // Read the same privacy-reduced views used by Glue, aggregating inside Postgres.
 // This keeps the permanent console independent of an expired Academy session.
 export function metricQuery(metric: MetricName, from: string, to: string): SQL {
-  const time = (column: SQL) => sql`${column} >= (${from}::date::timestamp AT TIME ZONE 'UTC') AND ${column} < ((${to}::date + 1)::timestamp AT TIME ZONE 'UTC')`;
-  const day = (column: SQL) => sql`to_char(${column} AT TIME ZONE 'UTC', 'YYYY-MM-DD')`;
+  const hourly=from.includes('T');
+  const lower=hourly?sql`${from}::timestamptz`:sql`(${from}::date::timestamp AT TIME ZONE 'UTC')`;
+  const upper=hourly?sql`${to}::timestamptz`:sql`((${to}::date + 1)::timestamp AT TIME ZONE 'UTC')`;
+  const time = (column: SQL) => sql`${column} >= ${lower} AND ${column} < ${upper}`;
+  const day = (column: SQL) => hourly ? sql`to_char(date_bin(interval '1 hour', ${column}, ${lower}) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')` : sql`to_char(${column} AT TIME ZONE 'UTC', 'YYYY-MM-DD')`;
   const normalizedQuery = sql`lower(btrim(regexp_replace(ingredient_query, '[[:space:]]+', ' ', 'g')))`;
-  const decisions = sql`SELECT * FROM analytics.v_ingredient_decisions WHERE occurred_on BETWEEN ${from}::date AND ${to}::date`;
+  const decisions = sql`SELECT * FROM analytics.v_ingredient_decisions WHERE ${hourly ? time(sql`occurred_at`) : sql`occurred_on BETWEEN ${from}::date AND ${to}::date`}`;
   const validDecisions = sql`SELECT d.*, ${normalizedQuery} AS normalized_query FROM (${decisions}) d
     WHERE length(btrim(regexp_replace(ingredient_query, '[[:space:]]+', ' ', 'g'))) BETWEEN 1 AND 160`;
   // AI usage: attempt rows only (request_count = 0); the per-analysis
@@ -41,7 +44,7 @@ export function metricQuery(metric: MetricName, from: string, to: string): SQL {
     count(*) FILTER (WHERE request_count = 0) AS calls,
     count(*) FILTER (WHERE request_count = 0 AND cost_usd IS NULL AND input_tokens + output_tokens + thought_tokens > 0) AS unpriced
     FROM analytics.v_budget_events
-    WHERE created_at >= ((${from}::date - 1)::timestamp AT TIME ZONE 'UTC') AND created_at < ((${to}::date + 2)::timestamp AT TIME ZONE 'UTC')
+    WHERE created_at >= ${lower}-interval '1 day' AND created_at < ${upper}+interval '1 day'
       AND route = '/api/analyze-meal' AND work_kind = 'primary' AND request_id IS NOT NULL
     GROUP BY request_id HAVING ${time(sql`min(created_at)`)}`;
   const mealColumns = sql`count(*)::int AS meals, coalesce(sum(calls), 0)::int AS calls, count(*) FILTER (WHERE unpriced = 0)::int AS priced_meals,

@@ -1,4 +1,5 @@
 "use client";
+import { validChoice } from './windows';
 import { useSyncExternalStore } from 'react';
 const subscribe = (fn: () => void) => {
   window.addEventListener('popstate', fn); window.addEventListener('dashboard-url', fn);
@@ -7,7 +8,7 @@ const subscribe = (fn: () => void) => {
 export function useUrlState<T extends string>(key: string, fallback: T, choices?: readonly T[]) {
   const search = useSyncExternalStore(subscribe, () => window.location.search, () => null);
   const raw = new URLSearchParams(search ?? '').get(key) as T | null;
-  const value = raw && (!choices || choices.includes(raw)) ? raw : fallback;
+  const value = validChoice(raw, fallback, choices);
   const set = (next: string) => {
     if (choices && !choices.includes(next as T)) return;
     const url = new URL(window.location.href); url.searchParams.set(key, next);
