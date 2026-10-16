@@ -123,7 +123,9 @@ async function settle() {
   // Next prefetches can be cancelled during navigation. Track actual requests
   // rather than relying on networkidle, which pending traces may never reach.
   await eventually(async () => pending.size === 0 && Date.now() - lastNetwork > 650,
-    'Page requests did not settle');
+    'Page requests did not settle').catch((error: Error) => {
+    throw new Error(`${error.message}: ${[...pending].map(r => `${r.method()} ${safeUrl(r.url())}`).join(', ')}`);
+  });
   await eventually(async () => await page.locator('.animate-pulse').count() === 0,
     'Loading skeleton did not settle');
 }
