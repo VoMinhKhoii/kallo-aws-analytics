@@ -5,6 +5,7 @@ import * as React from "react";
 import { Area, Bar, ComposedChart, ResponsiveContainer, Tooltip } from "@/components/charts/recharts";
 import type { Kpi, Summary } from "@/lib/ai-usage/aggregate";
 import { compact, decimal, delta, pct, usd } from "@/lib/ai-usage/format";
+import { plural } from '@/lib/traces-ui/graph';
 import { cn } from "@/lib/utils";
 
 import { Cell } from "@/components/shared/kpi-cell";
@@ -45,7 +46,7 @@ function DeltaPill({ kpi, good, unit, points }: { kpi: Kpi; good: Good; unit: st
   const better = good === "up" ? d.up : !d.up;
   const Icon = d.up ? ArrowUpRight : ArrowDownRight;
   return (
-    <span className="flex shrink-0 items-center gap-1.5 text-[11px]" title={`Last ${unit} of complete days vs the ${unit} before`}>
+    <span className="flex shrink-0 items-center gap-1.5 text-[11px]" title={unit === "24h" ? "Rolling last 24 hours vs preceding 24 hours" : `Last ${unit} of complete days vs the ${unit} before`}>
       <span className={cn("tabular inline-flex items-center gap-0.5 rounded px-1 py-px font-medium", better ? "bg-[var(--console-green)]/12 text-[var(--console-green)]" : "bg-[var(--console-amber)]/12 text-[var(--console-amber)]")}>
         <Icon className="size-3" />
         {d.text}
@@ -61,7 +62,7 @@ export function KpiStrip({ summary, unit }: { summary: Summary; unit: string }) 
   return (
     <section aria-label="Summary" className="grid grid-cols-2 divide-border overflow-hidden rounded-xl border border-border bg-card md:grid-cols-5 md:divide-x [&>*]:border-border max-md:[&>*]:border-b">
       <Cell label="Spend" value={usd(spend.value)} delta={<DeltaPill kpi={spend} good="down" unit={unit} />} spark={<Sparkline values={spend.spark} color="var(--model-1)" format={usd} />} />
-      <Cell label="Today so far" value={usd(summary.today.spend)} sub={`${compact(summary.today.meals)} meals analysed`} />
+      <Cell label={unit === "24h" ? "Meals analysed" : "Today so far"} value={unit === "24h" ? compact(summary.mealCount) : usd(summary.today.spend)} sub={unit === "24h" ? "Rolling last 24 hours" : `${plural(summary.today.meals, 'meal')} analysed`} />
       <Cell
         label="Cost / 1k meals"
         value={usd(perKMeals.value)}

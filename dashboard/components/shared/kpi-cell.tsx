@@ -7,7 +7,7 @@ export function Cell({ label, value, delta: d, sub, spark, title }: { label: str
         {d}
       </div>
       <span title={title} className="tabular text-[24px] leading-none font-medium tracking-tight">{value}</span>
-      {sub ? <span className="text-muted-foreground truncate text-[11.5px]">{sub}</span> : null}
+      {sub ? <span className="text-muted-foreground whitespace-normal break-words text-[11.5px]">{sub}</span> : null}
       {spark ? <div className="mt-auto">{spark}</div> : null}
     </div>
   );

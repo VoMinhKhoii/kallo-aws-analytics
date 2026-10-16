@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Bar, CartesianGrid, Cell, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "@/components/charts/recharts";
 
-import { observedRows, timeTicks } from "@/lib/ai-usage/chart-data";
+import { observedRows, timeTicks, numericAxis, lastObservation } from "@/lib/ai-usage/chart-data";
 import { shortDate } from "@/lib/ai-usage/format";
 import type { ModelMeta } from "@/lib/ai-usage/models";
 import { SeriesRail } from "@/components/charts/series-rail";
@@ -11,14 +11,6 @@ import { ModelRail, useLocalFocus } from "./model-rail";
 import { UsageTooltip } from "./usage-tooltip";
 
 type TrendRow = { date: string } & Record<string, unknown>;
-
-function lastValue(rows: TrendRow[], key: string): number | null {
-  for (let i = rows.length - 1; i >= 0; i--) {
-    const v = rows[i][key];
-    if (typeof v === "number") return v;
-  }
-  return null;
-}
 
 /** One full-width daily trend, one line per model, with its own model rail. */
 export function TrendChart({
@@ -32,7 +24,7 @@ export function TrendChart({
   seriesOnly = false,
   bars = false,
   hourly = false,
-  partialLast = hourly, stacked = false, step = false, integer = false, totals = false, windowLabel, durationAxis = false,
+  partialLast = hourly, stacked = false, step = false, integer = false, totals = false, windowLabel, durationAxis = false, percent = false, seriesSubs = {}, note,
   emptyMessage = "Nothing recorded in this window yet.",
 }: {
   title: string;
@@ -47,9 +39,10 @@ export function TrendChart({
   bars?: boolean;
   hourly?: boolean;
   partialLast?: boolean; stacked?: boolean; step?: boolean; integer?: boolean; totals?: boolean; windowLabel?: string; durationAxis?: boolean;
+  percent?: boolean; seriesSubs?: Record<string,string>; note?: React.ReactNode;
   emptyMessage?: string;
 }) {
-  const rows = observedRows(inputRows, models.map(m => m.key));
+  const rows = observedRows(inputRows, models.map(m => m.key), !hourly);
   const ticks = timeTicks(rows, hourly);
   const hatchId = React.useId().replace(/:/g, "");
   const today = new Date().toISOString().slice(0, 10);
@@ -59,9 +52,11 @@ export function TrendChart({
   const shown = models.filter((m) => rows.some((r) => typeof r[m.key] === "number" && Number.isFinite(r[m.key])));
   const byKey = React.useMemo(() => new Map(models.map((m) => [m.key, m])), [models]);
   const since = rows[0]?.date;
+  const numeric = numericAxis(stacked ? rows.map(r=>({...r,__total:shown.reduce((n,m)=>n+(typeof r[m.key]==='number'?r[m.key] as number:0),0)})) : rows, stacked ? ['__total'] : shown.map(m => m.key), percent, integer || bars);
   const rail = shown.map((meta) => {
-    const v = hoveredRow ? typeof hoveredRow[meta.key] === "number" ? hoveredRow[meta.key] as number : null : totals ? rows.reduce((sum,row)=>sum+(typeof row[meta.key]==='number'?row[meta.key] as number:0),0) : lastValue(rows, meta.key);
-    return { meta, value: v == null ? "—" : format(v), sub: hoveredRow ? shortDate(hoveredRow.date.slice(0,10)) : totals ? (windowLabel??`${inputRows.length}d`) : "latest" };
+    const last = lastObservation(rows, meta.key);
+    const v = hoveredRow ? typeof hoveredRow[meta.key] === "number" ? hoveredRow[meta.key] as number : null : totals ? rows.reduce((sum,row)=>sum+(typeof row[meta.key]==='number'?row[meta.key] as number:0),0) : last.value;
+    return { meta, value: v == null ? "—" : format(v), sub: hoveredRow ? shortDate(hoveredRow.date.slice(0,10)) : totals ? (seriesSubs[meta.key]??windowLabel??`${inputRows.length}d`) : last.stale ? `last seen ${shortDate(last.date!.slice(0,10))}${last.date!.includes("T") ? ` ${last.date!.slice(11,16)} UTC` : ""}` : (seriesSubs[meta.key]??"latest") };
   });
 
   return (
@@ -73,6 +68,7 @@ export function TrendChart({
         </div>
         {action}
       </div>
+      {note&&<p className="mb-2 text-xs text-muted-foreground">{note}</p>}
       {shown.length === 0 ? (
         <p className="text-muted-foreground py-10 text-center text-[13px]">{emptyMessage}</p>
       ) : (
@@ -83,7 +79,7 @@ export function TrendChart({
                 {bars && <defs>{shown.map(m => <pattern key={m.key} id={`${hatchId}-${m.key}`} width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="5" height="5" fill={m.color} fillOpacity={0.25} /><line x1="0" y1="0" x2="0" y2="5" stroke={m.color} strokeWidth={2} /></pattern>)}</defs>}
                 <CartesianGrid vertical={false} stroke="var(--console-rule)" />
                 <XAxis dataKey="date" ticks={ticks} tickFormatter={v => hourly ? String(v).slice(11, 16) : shortDate(String(v).slice(0,10))} tickLine={false} axisLine={false} minTickGap={36} tick={{ fill: "var(--console-muted)", fontSize: 11 }} />
-                <YAxis allowDecimals={!bars&&!integer} domain={durationAxis?[0,durationMax(rows,shown.map(m=>m.key))]:[0,"auto"]} ticks={durationAxis?durationTicks(rows,shown.map(m=>m.key)):undefined} tickFormatter={axis} tickLine={false} axisLine={false} width={64} tick={({x, y, payload}) => <text x={Number(x) - 8} y={y} textAnchor="end" dominantBaseline="central" fill="var(--console-muted)" fontSize={11}>{axis(Number(payload.value))}</text>} />
+                <YAxis allowDecimals={!bars&&!integer} domain={durationAxis?[0,durationMax(rows,shown.map(m=>m.key))]:numeric.domain} allowDataOverflow={percent} ticks={durationAxis?durationTicks(rows,shown.map(m=>m.key)):numeric.ticks} tickFormatter={axis} tickLine={false} axisLine={false} width={64} tick={({x, y, payload}) => <text x={Number(x) - 8} y={y} textAnchor="end" dominantBaseline="central" fill="var(--console-muted)" fontSize={11}>{axis(Number(payload.value))}</text>} />
                 <Tooltip
                   allowEscapeViewBox={{x: false, y: false}}
                   cursor={{ stroke: "var(--console-muted)", strokeDasharray: "3 3" }}
@@ -91,7 +87,7 @@ export function TrendChart({
                 />
                 {shown.map((m, index) => bars ? (
                   <Bar key={m.key} dataKey={m.key} stackId={stacked?"counts":undefined} maxBarSize={stacked||index === 0 ? 36 : 14} fill={m.color} fillOpacity={focus.opacity(m.key)} isAnimationActive={animate} onAnimationEnd={() => setAnimate(false)} animationDuration={600}>
-                    {rows.map(row => <Cell key={row.date} fill={(partialLast ? row.date===rows.at(-1)?.date && row.date.slice(0,10)===today : row.date.slice(0,10)===today) ? `url(#${hatchId}-${m.key})` : m.color} />)}
+                    {rows.map(row => <Cell key={row.date} fill={(hourly ? partialLast && row.date===rows.at(-1)?.date && row.date.slice(0,10)===today : row.date.slice(0,10)===today) ? `url(#${hatchId}-${m.key})` : m.color} />)}
                   </Bar>
                 ) : (
                   <Line

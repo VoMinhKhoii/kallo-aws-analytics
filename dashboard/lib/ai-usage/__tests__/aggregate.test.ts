@@ -27,7 +27,7 @@ function input(over: Partial<UsageInput> = {}): UsageInput {
     window: [usage('gemini-3.1-flash-lite', { calls: 200, spend_usd: 0.2 }), usage('claude-haiku-5-5', { calls: 50, spend_usd: 0.05, unpriced_calls: 10, fallbacks: 2 })],
     mealWindow: { meals: 80, calls: 160, priced_meals: 80, spend_usd: 0.2, p95_meal_usd: 0.004 },
     to: '2026-10-15',
-    // Short windows keep the fixtures small; the page only offers 7/30/90.
+    // Short windows keep the fixtures small; the page only offers 24h/7d/30d.
     win: 2 as never,
     ...over,
   };
@@ -137,4 +137,17 @@ test('sparklines preserve unknown days and zero denominators as gaps', () => {
   assert.deepEqual(summary.perKMeals.spark, [null, null]);
   assert.deepEqual(summary.spend.spark, [null, null]);
   assert.deepEqual(summary.calls.spark, [null, 100]);
+});
+
+test('rolling 24h charts have 24 hourly buckets and badges compare the preceding 24h',()=>{
+  const to='2026-10-16T12:17:00.000Z';
+  const daily=Array.from({length:48},(_,i)=>day(new Date(Date.parse(to)-(48-i)*3600000).toISOString(),'gemini-3.1-flash-lite',{calls:i<24?2:3,spend_usd:i<24?1:2}));
+  const inp=input({to,win:1,daily,window:[usage('gemini-3.1-flash-lite',{calls:72,spend_usd:48})]});
+  const summary=summarize(inp,modelsOf(inp));
+  assert.equal(summary.calls.value,72);assert.equal(summary.calls.cur,72);assert.equal(summary.calls.prev,48);
+  assert.equal(summary.spend.cur,48);assert.equal(summary.spend.prev,24);
+  assert.equal(summary.calls.spark.length,24);assert.equal(volumeRows(inp,'calls').length,24);
+  assert.equal(trendRows(inp,'p95').length,24);
+  assert.equal(volumeRows(inp,'calls')[0].date,'2026-10-15T12:17:00.000Z');
+  const sparse={...inp,daily:daily.slice(-1)};assert.equal(trendRows(sparse,'p95').length,24);
 });

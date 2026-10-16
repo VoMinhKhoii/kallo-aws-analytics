@@ -40,12 +40,11 @@ const search = await request('/api/admin/premium?search='+query,founder); assert
 const account = await request('/api/admin/premium?account='+search.body[0].id,founder); assert.equal(account.status,200); assert.ok(Array.isArray(account.body.grants));
 const preview = await request('/api/admin/premium',founder,{ action:'preview',input:{ kind:'users',userIds:[search.body[0].id] } });assert.equal(preview.status,200);assert.equal(typeof preview.body.accounts,'number');
 console.log('PASS account search, grants, and nonmutating preview.');
-for (const days of [7,30,90]) {
-  const overview = await request('/api/admin/overview?days='+days,founder);
+for (const window of ['24h','7d','30d']) {
+  const overview = await request('/api/admin/overview?w='+window,founder);
   assert.equal(overview.status,200);
-  assert.equal(overview.body.trend.length,days);
-  assert.equal(overview.body.summary.requests,overview.body.trend.reduce((n: number,r: { requests: number }) => n+r.requests,0));
-  assert.equal(overview.body.summary.errors,overview.body.trend.reduce((n: number,r: { errors: number }) => n+r.errors,0));
+  assert.equal(overview.body.mealsDaily.length,window === '24h' ? 24 : Number(window.slice(0,-1)));
+  assert.equal(overview.body.kpis.meals.value,overview.body.mealsDaily.reduce((n: number,r: { analysed: number }) => n+r.analysed,0));
 }
 for (const kind of ['requests','feedback']) {
   const statuses = kind === 'requests' ? ['success','error','pending'] : ['open','triaged','resolved','wontfix'];

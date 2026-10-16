@@ -12,6 +12,8 @@ test('every SQL metric runs; the original thirteen preserve counts, dimensions, 
     await pg.exec(`
       SET TIME ZONE 'Asia/Tokyo';
       CREATE SCHEMA analytics;
+      CREATE TABLE public.pipeline_requests(id text,created_at timestamptz);
+      INSERT INTO public.pipeline_requests VALUES ('gap-trace','2026-10-04T00:00Z');
       CREATE TABLE analytics.v_meals (logged_at timestamptz,user_hash text,calories_kcal float,protein_g float,carbohydrate_g float,fat_g float);
       CREATE TABLE analytics.v_pipeline_runs (created_at timestamptz,model_call2 text,total_ms float,matched_count int,unmatched_count int,ingredient_count int);
       CREATE TABLE analytics.v_budget_events (created_at timestamptz,provider text,model text,error_category text,input_tokens int,output_tokens int,
@@ -55,6 +57,16 @@ test('every SQL metric runs; the original thirteen preserve counts, dimensions, 
         ('2026-10-04','ID only','missing','missing',1,NULL,NULL,NULL,NULL,NULL,NULL,'id-only'),
         ('2026-10-05','Rice','accepted',NULL,1,1,'rice','Rice','catalog',0.95,'Rice','rice');
     `);
+    await pg.exec(`ALTER TABLE analytics.v_ingredient_decisions ADD COLUMN occurred_at timestamptz;
+      UPDATE analytics.v_ingredient_decisions SET occurred_at=occurred_on::timestamp AT TIME ZONE 'UTC';
+      UPDATE analytics.v_ingredient_decisions SET occurred_at='2026-10-04T23:15Z' WHERE ingredient_query='Brown rice';`);
+    const rolling=(metric:MetricName)=>{const q=dialect.sqlToQuery(metricQuery(metric,'2026-10-04T22:15:00.000Z','2026-10-05T22:15:00.000Z'));return pg.query<Record<string,any>>(q.sql,q.params);};
+    const demand=(await rolling('ingredient_demand')).rows;
+    assert.equal(demand.reduce((n,r)=>n+r.count,0),2);
+    assert.deepEqual(demand.map(r=>r.ingredient_query).sort(),['brown rice','rice']);
+    const matches=(await rolling('match_rate')).rows;
+    assert.ok(matches.every(r=>r.date.includes('T')));
+    assert.equal(matches.reduce((n,r)=>n+r.matched_count,0),13);
     const results = new Map<MetricName, Record<string, any>[]>();
     for (const name of METRIC_NAMES) {
       const query = dialect.sqlToQuery(metricQuery(name, '2026-10-04', '2026-10-04'));
@@ -89,6 +101,8 @@ test('every SQL metric runs; the original thirteen preserve counts, dimensions, 
     const corpus = results.get('corpus_reverse_lookup')![0];
     assert.equal(corpus.decision_count,3); assert.equal(corpus.query_count,2); assert.deepEqual(corpus.query_examples,['rice','brown rice']);
     assert.deepEqual(results.get('ingredient_gaps')!.map(r => [r.ingredient_query,r.verdict,r.reject_bucket]),[['gap','unmatched','unmatched']]);
+    assert.equal(results.get('ingredient_gaps')![0].last_trace_id,'gap-trace');
+    assert.ok(results.get('ingredient_gaps')![0].last_seen);
     const ranks = results.get('ingredient_rank_distribution')!;
     assert.equal(ranks.length,2); assert.equal(ranks.reduce((n,r) => n+r.count,0),3); assert.equal(ranks.reduce((n,r) => n+r.share,0),1);
     const twoDay = dialect.sqlToQuery(metricQuery('ingredient_mappings','2026-10-04','2026-10-05'));

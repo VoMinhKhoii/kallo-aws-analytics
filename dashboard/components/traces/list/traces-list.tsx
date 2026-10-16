@@ -1,4 +1,5 @@
 'use client';
+import { plural } from '@/lib/traces-ui/graph';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUrlState } from '@/lib/use-url-state';
@@ -58,7 +59,7 @@ export default function TracesList() {
   return <div className="mx-auto grid w-full min-w-0 max-w-[1320px] grid-cols-[minmax(0,1fr)] gap-4 py-4"><header className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-[22px] font-semibold">Traces</h1><div className="flex flex-wrap items-center gap-2">{['24h','7d','30d'].map(w=><button key={w} aria-pressed={w===win} onClick={()=>setWin(w)} className={`rounded-md px-3 py-2 text-xs ${win===w?'bg-secondary':'text-muted-foreground'}`}>{w}</button>)}<RefreshButton refreshing={loading} onClick={()=>setVersion(v=>v+1)}/></div></header>
     <form className="relative" onSubmit={e=>{e.preventDefault();if(uuid.test(draft.trim()))router.push(`/traces/${draft.trim()}?w=${win}`);else setQ(draft.trim());}}><input ref={search} aria-label="Search meal text or request UUID" placeholder="Search meal text or request UUID…" maxLength={160} value={draft} onChange={e=>setDraft(e.target.value)} className="h-10 w-full rounded-md border border-input bg-background pl-3 pr-10 text-sm"/><kbd className="pointer-events-none absolute right-3 top-2.5 rounded border border-border px-1.5 text-xs text-muted-foreground">/</kbd></form>
     <TraceFilters {...{status,model,flags,models,set}}/>
-    <p aria-live="polite" className="text-xs text-muted-foreground">{loading&&!rows.length?'Loading traces…':rows.length?`${rows.length} shown`:'0 traces'}{next&&<> · <button disabled={more} onClick={loadMore} className="underline">{more?'Loading…':'Load more'}</button></>}{rows.some(r=>pendingEligible(r))&&' · Live'}</p>
+    <p aria-live="polite" className="text-xs text-muted-foreground">{loading&&!rows.length?'Loading traces…':rows.length?`${rows.length} shown`:plural(0,'trace')}{next&&<> · <button disabled={more} onClick={loadMore} className="underline">{more?'Loading…':'Load more'}</button></>}{rows.some(r=>pendingEligible(r))&&' · Live'}</p>
     {error&&<p role="alert" className="text-sm text-destructive">{error} <button onClick={()=>setVersion(v=>v+1)} className="underline">Retry</button></p>}
     <div aria-label="Meal traces">{!ready||loading&&!rows.length?Array.from({length:10},(_,i)=><div key={i} className="h-14 animate-pulse border-b border-border bg-secondary/30"/>):rows.map((row,i)=><TraceRow key={row.id} row={row} active={i===active} win={win}/>)}</div>
     {!loading&&!rows.length&&!error&&<p className="py-10 text-center text-sm text-muted-foreground">No meals match these filters.</p>}

@@ -1,7 +1,9 @@
 import type { AiMealsDailyRow, AiMealsRow, AiModelUsageRow, AiUsageDailyRow } from "@/app/lib/types";
 import { describeModels, type ModelMeta, modelKey } from "./models";
 
-export type WindowDays = 7 | 30 | 90;
+import { hourRange } from "../windows";
+export type WindowDays = 1 | 7 | 30;
+export const usageRange = (to: string, win: WindowDays) => win === 1 ? hourRange(to) : dayRange(to, win);
 
 /** UTC day strings for the last `days` days ending on `to` (inclusive). */
 export function dayRange(to: string, days: number): string[] {
@@ -41,6 +43,7 @@ export interface Summary {
   perKMeals: Kpi;
   cacheRate: Kpi;
   mealP95: number | null;
+  mealCount: number;
   today: { spend: number | null; meals: number };
   callsPerMeal: number | null;
   shadowSpend: number;
@@ -79,10 +82,10 @@ export function modelsOf(input: Pick<UsageInput, "daily" | "window">): ModelMeta
 
 export function summarize(input: UsageInput, models: ModelMeta[]): Summary {
   const { win, to } = input;
-  const cur = dayRange(to, win);
+  const cur = usageRange(to, win);
   // Badges leave today out: a partial day against full ones fakes a drop.
-  const done = dayRange(dayRange(to, 2)[0], win);
-  const prev = dayRange(done[0], win + 1).slice(0, win);
+  const done = win === 1 ? cur : dayRange(dayRange(to, 2)[0], win);
+  const prev = win === 1 ? hourRange(new Date(Date.parse(to) - 86400000).toISOString()) : dayRange(done[0], win + 1).slice(0, win);
   const byDay = group(input.daily);
   const mealsByDay = new Map(input.mealsDaily.map((r) => [r.date, r]));
   const metaById = new Map(models.map((m) => [m.id, m]));
@@ -104,7 +107,7 @@ export function summarize(input: UsageInput, models: ModelMeta[]): Summary {
   const total = (days: string[], f: (d: string) => number) => sum(days.map(f));
   // Compare only against a prior window the data mostly covers; a half-empty
   // one (history starting mid-window, an outage) would fake a huge change.
-  const hasPrev = prev.filter((d) => byDay.has(d)).length >= Math.ceil(win * 0.8);
+  const hasPrev = prev.filter((d) => byDay.has(d)).length >= Math.ceil((win === 1 ? 24 : win) * 0.8);
   const mealsIn = (days: string[]) => days.map((d) => mealsByDay.get(d)).filter((m): m is AiMealsDailyRow => m != null);
   const perKOf = (rows: AiMealsDailyRow[]) => {
     const priced = sum(rows.map((r) => r.priced_meals));
@@ -160,6 +163,7 @@ export function summarize(input: UsageInput, models: ModelMeta[]): Summary {
     },
     cacheRate: { value: cacheOf(cur), ...change(cacheOf), spark: cur.map(dayCache) },
     mealP95: meals?.p95_meal_usd ?? null,
+    mealCount: meals?.meals ?? 0,
     today: { spend: spendOf([to]), meals: todayRows?.meals ?? 0 },
     // Primary meal-analysis calls per meal; shadow and other routes stay out.
     callsPerMeal: meals?.meals ? meals.calls / meals.meals : null,
@@ -177,8 +181,8 @@ export type VolumeRow = { date: string; partial: boolean; active: boolean; total
 /** One row per day of the window (gaps filled), one numeric column per model key. */
 export function volumeRows(input: UsageInput, metric: VolumeMetric): VolumeRow[] {
   const byDay = group(input.daily);
-  return dayRange(input.to, input.win).map((date) => {
-    const row: VolumeRow = { date, partial: date === input.to, active: byDay.has(date), total: 0 };
+  return usageRange(input.to, input.win).map((date) => {
+    const row: VolumeRow = { date, partial: input.win !== 1 && date === input.to, active: byDay.has(date), total: 0 };
     for (const r of byDay.get(date) ?? []) {
       const v = metric === "spend" ? r.spend_usd ?? 0 : metric === "calls" ? r.calls : r.input_tokens + r.output_tokens + r.thought_tokens;
       row[modelKey(r.model)] = v;
@@ -204,11 +208,11 @@ function trendValue(r: AiUsageDailyRow, metric: TrendMetric): number | null {
 /** Daily per-model series, starting at the first day any model recorded the metric. */
 export function trendRows(input: UsageInput, metric: TrendMetric): TrendRow[] {
   const byDay = group(input.daily);
-  const rows = dayRange(input.to, input.win).map((date) => {
+  const rows = usageRange(input.to, input.win).map((date) => {
     const row: TrendRow = { date };
     for (const r of byDay.get(date) ?? []) row[modelKey(r.model)] = trendValue(r, metric);
     return row;
   });
   const first = rows.findIndex((r) => Object.keys(r).some((k) => k !== "date" && r[k] != null));
-  return first <= 0 ? rows : rows.slice(first);
+  return input.win === 1 || first <= 0 ? rows : rows.slice(first);
 }

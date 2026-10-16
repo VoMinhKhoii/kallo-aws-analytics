@@ -15,12 +15,12 @@ function ExpandedCall({traceId,source,call}:{traceId:string;source:TraceGraphDet
 export function CallList({trace,calls}:{trace:TraceGraphDetail;calls:TraceGraphDetail['calls']}) {
   const [expanded,setExpanded]=useState<string|null>(null);
   const base=Date.parse(trace.createdAt);
-  const ordered=[...calls].sort((a,b)=>callStart(a,base)-callStart(b,base)||a.id.localeCompare(b.id));
-  const all=[...trace.calls].sort((a,b)=>callStart(a,base)-callStart(b,base)||a.id.localeCompare(b.id));
+  const ordered=[...calls].sort((a,b)=>callStart(a,base)-callStart(b,base));
+  const all=[...trace.calls].sort((a,b)=>callStart(a,base)-callStart(b,base));
   return <div className="overflow-x-auto">{ordered.map((c,i)=>{
     const role=classifyCall(c,trace);
-    const job=role==='selector'?'selector':role==='call2_chunk'?`call 2 · chunk ${ordered.filter(x=>classifyCall(x,trace)==='call2_chunk'&&callStart(x,base)<=callStart(c,base)&&x.attempt===1).length}`:role==='call1'?'call 1':role.startsWith('rescue')?role.replaceAll('_',' '):`Call ${i+1} of ${ordered.length}`;
-    const facts=[`#${all.findIndex(x=>x.id===c.id)+1}`,job,`+${ms(callStart(c,base))}`,c.attempt>1?`attempt ${c.attempt}`:'',tokenText(c),c.latencyMs!=null&&c.latencyMs>0?callLatency(c.latencyMs):'',usd(c.costUsd)].filter(Boolean).join(' · ');
-    return <div key={c.id}><button aria-expanded={expanded===c.id} title={facts} onClick={()=>setExpanded(v=>v===c.id?null:c.id)} className="flex h-7 w-full items-center gap-2 whitespace-nowrap border-b border-border text-left text-[12px] tabular hover:bg-secondary focus-visible:outline-2"><span>{facts}</span><span className={c.error?'text-destructive':'text-[var(--console-green)]'}>{c.error?'✗':'✓'}</span></button>{expanded===c.id&&<ExpandedCall traceId={trace.id} source={trace.source} call={c}/>}</div>;
+    const job=role==='selector'?'selector':role==='call2_chunk'?all.filter(x=>classifyCall(x,trace)==='call2_chunk').length===1?'Call 2':`call 2 · chunk ${all.filter(x=>classifyCall(x,trace)==='call2_chunk').findIndex(x=>x.id===c.id)+1}`:role==='call1'?(all.filter(x=>classifyCall(x,trace)==='call1').findIndex(x=>x.id===c.id)>0?'Call 1 · re-ask':'Call 1'):role.startsWith('rescue')?role.replaceAll('_',' '):`Call ${i+1} of ${ordered.length}`;
+    const facts=[`#${all.findIndex(x=>x.id===c.id)+1}`,job,c.startedAt||c.createdAt?`+${ms(callStart(c,base))}`:'',c.attempt>1?`attempt ${c.attempt}`:'',tokenText(c),c.latencyMs!=null&&c.latencyMs>0?callLatency(c.latencyMs):'',usd(c.costUsd)].filter(Boolean).join(' · ');
+    return <div key={c.id}><button aria-expanded={expanded===c.id} title={facts} onClick={()=>setExpanded(v=>v===c.id?null:c.id)} className="flex min-h-7 w-full items-start gap-2 whitespace-normal py-1 sm:items-center sm:whitespace-nowrap border-b border-border text-left text-[12px] tabular hover:bg-secondary focus-visible:outline-2"><span className="min-w-0"><span>{facts.split(' · ').slice(0,2).join(' · ')}</span><span className="block sm:inline"> · {facts.split(' · ').slice(2).join(' · ')}</span></span><span className={c.error?'text-destructive':'text-[var(--console-green)]'}>{c.error?'✗':'✓'}</span></button>{expanded===c.id&&<ExpandedCall traceId={trace.id} source={trace.source} call={c}/>}</div>;
   })}</div>;
 }

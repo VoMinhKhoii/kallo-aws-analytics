@@ -1,4 +1,5 @@
 "use client";
+import { plural } from '@/lib/traces-ui/graph';
 
 import * as React from "react";
 import {
@@ -238,7 +239,7 @@ export function RequestTraceDetail({ requestId }: { requestId: string }) {
               <div><dt className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--console-muted)]">Status</dt><dd className="mt-1 text-sm font-medium capitalize">{data.status ?? "unknown"}</dd></div>
               <div><dt className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--console-muted)]">End to end</dt><dd className="mt-1 text-sm font-medium tabular-nums">{duration(data.total)}</dd></div>
               <div><dt className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--console-muted)]">Ingredients</dt><dd className="mt-1 text-sm font-medium tabular-nums">{int(data.counts.ingredients)}</dd></div>
-              <div><dt className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--console-muted)]">Model calls</dt><dd className="mt-1 text-sm font-medium tabular-nums">{int(data.modelCalls.length)} · {int(totalTokens)} tokens</dd></div>
+              <div><dt className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--console-muted)]">Model calls</dt><dd className="mt-1 text-sm font-medium tabular-nums">{int(data.modelCalls.length)} · {plural(totalTokens,'token')}</dd></div>
               <div><dt className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--console-muted)]">Started</dt><dd className="mt-1 text-sm font-medium tabular-nums">{data.startedAt ? new Date(data.startedAt).toLocaleString("en-GB", { timeZone: "UTC", dateStyle: "medium", timeStyle: "short" }) + " UTC" : "—"}</dd></div>
             </dl>
 

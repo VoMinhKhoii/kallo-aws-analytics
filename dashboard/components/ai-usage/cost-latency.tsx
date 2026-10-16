@@ -2,8 +2,11 @@
 
 import { CartesianGrid, LabelList, ReferenceArea, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis } from "@/components/charts/recharts";
 import type { ModelSummary } from "@/lib/ai-usage/aggregate";
+import { plural } from '@/lib/traces-ui/graph';
 import { compact, ms, msAxis, pct, usd } from "@/lib/ai-usage/format";
 import { ModelRail, useLocalFocus } from "./model-rail";
+
+import { currencyAxis } from "@/lib/ai-usage/chart-data";
 
 interface Point {
   x: number;
@@ -82,7 +85,8 @@ export function CostLatency({ models }: { models: ModelSummary[] }) {
   const points: Point[] = models
     .filter((m) => m.p95 != null && m.perKCalls != null)
     .map((m) => ({ x: m.perKCalls ?? 0, y: (m.p95 ?? 0) / 1000, z: m.calls, label: m.meta.label, m }));
-  const maxX = Math.max(...points.map((p) => p.x), 0.1) * 1.35;
+  const currency = currencyAxis([Math.max(...points.map(p => p.x), .1) * 1.35]);
+  const maxX = currency.domain[1];
   const maxY = Math.max(...points.map((p) => p.y), 1) * 1.35;
   const place = placements(points, maxX, maxY);
 
@@ -92,6 +96,7 @@ export function CostLatency({ models }: { models: ModelSummary[] }) {
         <h2 className="text-[15px] font-semibold">Cost vs latency</h2>
         <p className="text-muted-foreground text-[12.5px]">$ / 1k calls against p95. Bubble size is call volume.</p>
       </div>
+      {models.filter(m=>m.p95==null).map(m=><p key={m.meta.key} className="px-4 pt-2 text-xs text-muted-foreground">{m.meta.label}: no per-call latency in this window.</p>)}
       {points.length === 0 ? (
         <p className="text-muted-foreground px-4 py-10 text-center text-[13px]">No per-call latency in this window yet.</p>
       ) : (
@@ -100,8 +105,8 @@ export function CostLatency({ models }: { models: ModelSummary[] }) {
             <ResponsiveContainer>
               <ScatterChart margin={{ top: 16, right: 28, bottom: 18, left: 4 }}>
                 <CartesianGrid stroke="var(--console-rule)" />
-                <ReferenceArea x1={0} x2={maxX / 2} y1={0} y2={maxY / 2} fill="var(--console-green)" fillOpacity={0.06} stroke="var(--console-green)" strokeOpacity={0.25} strokeDasharray="3 3" label={{ value: "cheaper · faster", position: "insideBottomLeft", fill: "var(--console-green)", fontSize: 11, opacity: 0.8 }} />
-                <XAxis type="number" dataKey="x" domain={[0, maxX]} tickFormatter={usd} tickLine={false} axisLine={false} tick={{ fill: "var(--console-muted)", fontSize: 11 }} label={{ value: "$ / 1k calls", position: "insideBottom", offset: -12, fill: "var(--console-muted)", fontSize: 11 }} />
+                {points.length >= 2 && <ReferenceArea x1={0} x2={maxX / 2} y1={0} y2={maxY / 2} fill="var(--console-green)" fillOpacity={0.06} stroke="var(--console-green)" strokeOpacity={0.25} strokeDasharray="3 3" label={{ value: "cheaper · faster", position: "insideBottomLeft", fill: "var(--console-green)", fontSize: 11, opacity: 0.8 }} />}
+                <XAxis type="number" dataKey="x" domain={currency.domain} ticks={currency.ticks} tickFormatter={currency.format} tickLine={false} axisLine={false} tick={{ fill: "var(--console-muted)", fontSize: 11 }} label={{ value: "$ / 1k calls", position: "insideBottom", offset: -12, fill: "var(--console-muted)", fontSize: 11 }} />
                 <YAxis type="number" dataKey="y" domain={[0, maxY]} tickFormatter={v => msAxis(Number(v) * 1000)} tickLine={false} axisLine={false} width={64} tick={{ fill: "var(--console-muted)", fontSize: 11 }} />
                 <ZAxis type="number" dataKey="z" range={[220, 1400]} />
                 <Tooltip cursor={{ strokeDasharray: "3 3", stroke: "var(--console-muted)" }} content={(p) => <PointTooltip active={p.active} payload={p.payload as never} />} />
@@ -129,7 +134,7 @@ export function CostLatency({ models }: { models: ModelSummary[] }) {
           </div>
           <ModelRail
             focus={focus}
-            items={[...points].sort((a, b) => a.x - b.x).map((p) => ({ meta: p.m.meta, value: usd(p.x), sub: `p95 ${ms(p.m.p95)} · ${compact(p.z)} calls` }))}
+            items={[...points].sort((a, b) => a.x - b.x).map((p) => ({ meta: p.m.meta, value: `${usd(p.x)} / 1k`, sub: `p95 ${ms(p.m.p95)} · ${plural(p.z,'call')}` }))}
           />
         </div>
       )}

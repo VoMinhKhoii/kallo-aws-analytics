@@ -8,7 +8,7 @@ function call(id:string,start:number,role:TraceGraphDetail['calls'][number]['rol
 test('missing stages are ghosts and request failure remains visible with green stages',()=>{const g=buildGraph(fixture());assert.equal(g.nodes.find(n=>n.id==='matching')?.kind,'ghost');assert.equal(g.nodes.find(n=>n.id==='assembly')?.kind,'ghost');assert.equal(g.nodes.find(n=>n.id==='response')?.status,'error');assert.equal(g.nodes.find(n=>n.id==='decomposition')?.status,'success');assert.equal(g.nodes.find(n=>n.id==='decomposition')?.payloadKey,'stage-1');});
 test('gap uses the largest uncovered wall-clock interval on the spine',()=>{const gap=gapWindow(fixture());assert.deepEqual(gap,{start:2000,ms:4000,after:'decomposition'});assert.equal(buildGraph(fixture()).nodes.some(n=>n.kind==='gap'),false);assert.equal(buildGraph(fixture()).edges.find(e=>e.source==='decomposition')?.label,'unaccounted 4.0 s');});
 test('overlapping stage windows never invent a negative gap',()=>{const f=fixture();f.durationMs=2000;f.stages=f.stages.map(s=>({...s,startedAt:at(0),durationMs:2000}));assert.equal(gapWindow(f).ms,0);});
-test('retries are one chunk node and after-response and unattributed are groups',()=>{const f=fixture();f.calls=[call('call-a',1000),call('call-b',6000,'call2_chunk',{error:'synthetic_provider_error'}),call('call-c',6500,'call2_chunk',{attempt:2,model:'model-b',fallbackFrom:'model-a'}),call('late',11000,'unknown',{afterResponse:true}),call('orphan',5000,'unknown')];const g=buildGraph(f);assert.deepEqual(g.nodes.find(n=>n.id==='nutrition.chunk-1')?.calls,['call-b','call-c']);assert.match(g.nodes.find(n=>n.id==='nutrition.chunk-1')!.count,/retried ×2/);assert.equal(g.nodes.filter(n=>n.kind==='chunk').length,1);assert.equal(g.nodes.find(n=>n.id==='after-response')?.calls.length,1);assert.equal(g.nodes.find(n=>n.id==='unattributed')?.calls.length,1);assert.deepEqual(buildGraph(f),g);});
+test('nutrition calls have ordered chunk nodes and after-response and unattributed are groups',()=>{const f=fixture();f.calls=[call('call-a',1000),call('call-b',6000,'call2_chunk',{error:'synthetic_provider_error'}),call('call-c',6500,'call2_chunk',{attempt:2,model:'model-b',fallbackFrom:'model-a'}),call('late',11000,'unknown',{afterResponse:true}),call('orphan',5000,'unknown')];const g=buildGraph(f);assert.deepEqual(g.nodes.find(n=>n.id==='nutrition.chunk-1')?.calls,['call-b']);assert.deepEqual(g.nodes.find(n=>n.id==='nutrition.chunk-2')?.calls,['call-c']);assert.equal(g.nodes.filter(n=>n.kind==='chunk').length,2);assert.equal(g.nodes.find(n=>n.id==='after-response')?.calls.length,1);assert.equal(g.nodes.find(n=>n.id==='unattributed')?.calls.length,1);assert.deepEqual(buildGraph(f),g);});
 test('selectors and rescues have no individual child nodes',()=>{const f=fixture();f.calls=[call('s1',3000,'selector'),call('s2',3200,'selector'),call('r1',7000,'rescue_call1'),call('r2',7500,'rescue_call2')];const g=buildGraph(f);assert.equal(g.nodes.find(n=>n.id==='matching.selector')?.calls.length,2);assert.deepEqual(g.nodes.find(n=>n.id==='rescue-1')?.calls,['r1','r2']);assert.equal(g.nodes.filter(n=>n.kind==='attempt').length,0);assert.equal(g.edges.find(e=>e.source==='rescue-1'&&e.target==='assembly')?.dashed,true);});
 test('time navigation clamps at boundaries and visits all steps deterministically',()=>{const nodes=buildGraph(fixture()).nodes;const order=timeOrder(nodes);for(let i=0;i<order.length-1;i++)assert.equal(adjacentStep(nodes,order[i].id,1),order[i+1].id);assert.equal(adjacentStep(nodes,order[0].id,-1),order[0].id);assert.equal(adjacentStep(nodes,order.at(-1)!.id,1),order.at(-1)!.id);});
 test('unknown pricing never becomes free',()=>{const f=fixture();f.calls=[call('a',1000,'call1',{costUsd:null})];f.stages[0].calls=['a'];assert.equal(buildGraph(f).nodes.find(n=>n.id==='decomposition')?.cost,null);});
@@ -57,4 +57,17 @@ test('after response uses request origin, dropped status and compact unattribute
   const g=buildGraph(f),after=g.nodes.find(n=>n.id==='after-response')!;
   assert.equal(after.status,'dropped');assert.equal(after.count,'finished +31.3 s · 14.9 s after response');
   assert.equal(g.nodes.find(n=>n.id==='unattributed')?.position.y,228);
+});
+
+test('timeline ends at the latest real span and treats Response as an instant',async()=>{
+  const { timelineEnd }=await import('../graph');
+  const f=fixture();
+  let graph=buildGraph(f);
+  assert.equal(graph.nodes.find(n=>n.id==='response')?.duration,0);
+  assert.equal(timelineEnd(graph.nodes,10000),10000);
+  f.calls=[call('late',11000,'unknown',{latencyMs:1500})];
+  graph=buildGraph(f);
+  assert.equal(timelineEnd(graph.nodes,10000),12500);
+  f.calls=[];f.stages[1].durationMs=7000;
+  assert.equal(timelineEnd(buildGraph(f).nodes,10000),13000);
 });

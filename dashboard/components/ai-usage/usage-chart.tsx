@@ -9,6 +9,8 @@ import { cn } from "@/lib/utils";
 import { ModelRail, useLocalFocus } from "./model-rail";
 import { UsageTooltip } from "./usage-tooltip";
 
+import { currencyAxis } from "@/lib/ai-usage/chart-data";
+
 const METRICS: { key: VolumeMetric; label: string; format: (v: number) => string; axis: (v: number) => string }[] = [
   { key: "spend", label: "Spend", format: usd, axis: usd },
   { key: "calls", label: "Calls", format: compact, axis: compact },
@@ -25,6 +27,7 @@ export function UsageChart({ input, models }: { input: UsageInput; models: Model
     [input],
   );
   const rows = all[metric];
+  const currency = currencyAxis(rows.map(r => r.total));
   const def = METRICS.find((m) => m.key === metric) ?? METRICS[0];
   const byKey = React.useMemo(() => new Map(models.map((m) => [m.key, m])), [models]);
   const shown = models.filter((m) => rows.some((r) => typeof r[m.key] === "number"));
@@ -43,7 +46,7 @@ export function UsageChart({ input, models }: { input: UsageInput; models: Model
       <div className="flex flex-wrap items-stretch border-b border-border">
         <div className="flex min-w-56 flex-1 flex-col justify-center gap-0.5 px-4 py-2.5">
           <h2 className="text-[15px] font-semibold">Usage by model</h2>
-          <p className="text-muted-foreground text-[12.5px]">Daily, UTC. Today is still filling (hatched).</p>
+          <p className="text-muted-foreground text-[12.5px]">{input.win === 1 ? "Hourly, rolling last 24 hours (UTC)." : "Daily, UTC. Today is still filling (hatched)."}</p>
         </div>
         <div className="flex" role="tablist" aria-label="Metric">
           {METRICS.map((m) => {
@@ -79,8 +82,8 @@ export function UsageChart({ input, models }: { input: UsageInput; models: Model
                 ))}
               </defs>
               <CartesianGrid vertical={false} stroke="var(--console-rule)" />
-              <XAxis dataKey="date" tickFormatter={shortDate} tickLine={false} axisLine={false} minTickGap={28} tick={{ fill: "var(--console-muted)", fontSize: 11 }} />
-              <YAxis allowDecimals={metric === "spend"} tickFormatter={def.axis} tickLine={false} axisLine={false} width={48} tick={{ fill: "var(--console-muted)", fontSize: 11 }} />
+              <XAxis dataKey="date" tickFormatter={v => input.win === 1 ? String(v).slice(11,16) : shortDate(v)} tickLine={false} axisLine={false} minTickGap={28} tick={{ fill: "var(--console-muted)", fontSize: 11 }} />
+              <YAxis allowDecimals={metric === "spend"} domain={metric === "spend" ? currency.domain : undefined} ticks={metric === "spend" ? currency.ticks : undefined} tickFormatter={metric === "spend" ? currency.format : def.axis} tickLine={false} axisLine={false} width={64} tick={{ fill: "var(--console-muted)", fontSize: 11 }} />
               <Tooltip
                 cursor={{ fill: "var(--console-ink)", fillOpacity: 0.05 }}
                 content={(p) => (

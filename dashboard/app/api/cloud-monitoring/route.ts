@@ -1,9 +1,9 @@
+import { validMetricRange } from '@/lib/windows';
 import { getCloudMonitoring } from "@/app/lib/api";
 import { getDirectMonitoring } from '@/lib/admin/cloud-monitoring';
 import { authorizeRequest } from '@/lib/auth';
 
 export const dynamic = "force-dynamic";
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export async function GET(request: Request) {
   const access = authorizeRequest(request);
@@ -11,13 +11,13 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const from = url.searchParams.get("from") ?? "";
   const to = url.searchParams.get("to") ?? "";
-  const validDate = (value: string) => ISO_DATE.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0,10) === value;
-  if (!validDate(from) || !validDate(to) || from > to || Date.parse(to) - Date.parse(from) > 90 * 86400000) {
+
+  if (!validMetricRange(from, to, 30) || url.searchParams.has('w') && !['24h','7d','30d'].includes(url.searchParams.get('w')!)) {
     return Response.json({ error: "from and to must be an ordered ISO date range" }, { status: 400 });
   }
   try {
     const refresh = url.searchParams.get("refresh") === "1";
-    const result = process.env.METRICS_SOURCE === 'postgres'
+    const result = from.includes('T') || process.env.METRICS_SOURCE === 'postgres'
       ? await getDirectMonitoring(from, to, refresh, access.session.role)
       : await getCloudMonitoring(from, to, refresh);
     return Response.json(result, { headers: { "Cache-Control": refresh ? "private, no-store" : "private, max-age=30" } });

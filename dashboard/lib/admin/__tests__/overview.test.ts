@@ -25,21 +25,37 @@ test('overview uses durable reservations, complete UTC comparisons, honest error
       INSERT INTO pipeline_requests VALUES ('00000000-0000-4000-8000-000000000001','2026-10-16Z','error',NULL),('00000000-0000-4000-8000-000000000002','2026-10-16Z','error','00000000-0000-4000-8000-000000000001');
       INSERT INTO user_feedback VALUES ('2026-10-10Z','open'),('2026-10-16Z','open'),('2026-10-10Z','resolved');
       INSERT INTO entitlement_grants VALUES ('00000000-0000-4000-8000-000000000001','active','promo','production','premium',now()-interval '1 day',now()+interval '2 days');`);
-    for (const days of [7,30,90]) {
+    for (const days of [7,30]) {
       const r=await loadOverview(db,days,new Date('2026-10-16T12:00Z'));
       assert.equal(r.kpis.meals.value,days); assert.equal(r.kpis.meals.comparisonValue,days); assert.equal(r.kpis.meals.previousValue,days);
       assert.equal(r.kpis.p95MealLatencyMs.value,1000); assert.equal(r.kpis.p95MealLatencyMs.previousValue,1000);
-      assert.equal(r.kpis.errorRate.value,0); assert.equal(r.kpis.errorRate.previousValue,null);
+      assert.equal(r.kpis.errorRate.value,1/7);
+      const retained=r.mealsDaily.filter(r=>r.errors!=null);
+      assert.equal(retained.length,7);
+      assert.equal(r.kpis.errorRate.value,retained.reduce((n,r)=>n+r.errors!,0)/retained.reduce((n,r)=>n+r.analysed,0)); assert.equal(r.kpis.errorRate.previousValue,null);
       assert.equal(r.kpis.dau.value,1); assert.equal(r.kpis.newSignups.value,1); assert.equal(r.kpis.openFeedback.value,2);
       assert.equal(r.mealsDaily.length,days); assert.equal(r.mealsDaily.at(-1)?.analysed,1);
       assert.equal(r.activeUsersDaily.at(-2)?.wau,2); assert.equal(r.activeUsersDaily.at(-1)?.dau,1);
       assert.equal(r.needsAttention.failedMealsToday,1); assert.equal(r.needsAttention.feedbackOpenOver48h,1); assert.equal(r.needsAttention.grantsEndingWithin3Days,1);
       if(days>7) assert.equal(r.mealsDaily[0].errors,null);
     }
+    const rolling=await loadOverview(db,'24h',new Date('2026-10-16T12:15Z'));
+    assert.equal(rolling.mealsDaily.length,24);
+    assert.equal(rolling.mealsDaily[0].date,'2026-10-15T12:15:00.000Z');
+    assert.equal(rolling.mealsDaily.at(-1)?.date,'2026-10-16T11:15:00.000Z');
+    assert.equal(rolling.kpis.meals.value,1);
+    assert.equal(rolling.kpis.meals.comparisonValue,1);
+    assert.equal(rolling.kpis.meals.previousValue,1);
+    assert.equal(rolling.kpis.errorRate.value,1);
+    assert.equal(rolling.kpis.errorRate.value,rolling.mealsDaily.reduce((n,r)=>n+r.errors!,0)/rolling.mealsDaily.reduce((n,r)=>n+r.analysed,0));
+    assert.equal(rolling.kpis.errorRate.previousValue,0);
+    assert.equal(rolling.kpis.dau.value,1);
+    assert.equal(rolling.mealsDaily.reduce((n,r)=>n+r.analysed,0),1);
+    await assert.rejects(()=>loadOverview(db,90),/Invalid date window/);
     await pg.exec(`INSERT INTO pipeline_requests VALUES ('00000000-0000-4000-8000-000000000003','2026-10-15Z','error',NULL);
       INSERT INTO pipeline_runs VALUES ('2026-10-15Z',9999999,'00000000-0000-4000-8000-000000000002');`);
     const replay=await loadOverview(db,30,new Date('2026-10-16T12:00Z'));
-    assert.equal(replay.kpis.p95MealLatencyMs.value,1000);assert.equal(replay.kpis.errorRate.value,1/7);
+    assert.equal(replay.kpis.p95MealLatencyMs.value,1000);assert.equal(replay.kpis.errorRate.value,2/7);
     await pg.exec(`DELETE FROM pipeline_runs WHERE created_at>='2026-10-09Z' AND request_id IS NULL;
       INSERT INTO pipeline_runs SELECT d,9999999,'00000000-0000-4000-8000-000000000002' FROM generate_series('2026-10-09Z'::timestamptz,'2026-10-15Z',interval '1 day') d;`);
     const coverage=await loadOverview(db,7,new Date('2026-10-16T12:00Z'));

@@ -16,7 +16,8 @@ export interface TraceItem {
 }
 export type CallRole = 'call1' | 'selector' | 'call2_chunk' | 'rescue_call1' | 'rescue_selector' | 'rescue_call2' | 'unknown';
 export interface TraceCall {
-  role: CallRole; createdAt?: string; stageLogId?: string | null; workKind?: string | null; hasPrompt?: boolean; hasResponse?: boolean; afterResponse?: boolean; promptIsTemplate?: boolean;
+  dishName?: string; rescueGroup?: string;
+  roleEvidence?: 'response'; role: CallRole; createdAt?: string; stageLogId?: string | null; workKind?: string | null; hasPrompt?: boolean; hasResponse?: boolean; afterResponse?: boolean; promptIsTemplate?: boolean;
   id: CallId; stage: string | null; attempt: number; provider: string | null; model: string;
   startedAt?: string; latencyMs: number | null; inputTokens: number | null; cachedTokens: number | null;
   cacheWriteTokens: number | null; outputTokens: number | null; thoughtTokens: number | null;

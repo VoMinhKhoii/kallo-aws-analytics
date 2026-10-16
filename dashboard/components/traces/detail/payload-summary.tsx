@@ -1,10 +1,15 @@
 import type { TraceGraphDetail, TracePayload } from '@/lib/traces/types';
+import { matchingRows } from '@/lib/traces-ui/matching';
 import { plural } from '@/lib/traces-ui/graph';
 const record=(v:unknown):Record<string,unknown>=>v&&typeof v==='object'&&!Array.isArray(v)?v as Record<string,unknown>:{};
 const label=(v:unknown)=>{const r=record(v);return String(r.name??r.mealItemName??r.ingredientName??r.itemName??'Unnamed');};
 /** Curate only fields captured in the stage payload; raw data remains below. */
-export function PayloadSummary({payload,stage,trace}:{payload:TracePayload|null;stage?:string;trace?:TraceGraphDetail}) {
+export function PayloadSummary({payload,stage,trace,assembly,decomposition}:{payload:TracePayload|null;stage?:string;trace?:TraceGraphDetail;assembly?:TracePayload|null;decomposition?:TracePayload|null}) {
   if(!payload||!('input' in payload))return stage==='assembly'&&trace?<div className="mt-3 grid gap-1">{trace.summary.items.map((i,n)=><p key={n}>{i.name} · {i.grams??'—'} g</p>)}</div>:null;
+  if(stage==='matching') {
+    const rows=matchingRows(payload,assembly,decomposition);
+    return rows.length?<div className="mt-3 overflow-x-auto"><table className="w-full text-left text-xs"><thead className="text-muted-foreground"><tr>{['Ingredient','Chosen food','Source','Rank','Score'].map(h=><th key={h} className="px-2 py-2 font-normal">{h}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={i} className={`border-t border-border ${r.unmatched?'text-[var(--console-amber)]':''}`}><td className="px-2 py-2">{r.ingredient}</td><td className="px-2 py-2">{r.food??(r.unmatched?'Unmatched':'Selection not recorded')}</td><td className="px-2 py-2">{r.source??'—'}</td><td className="px-2 py-2 tabular">{r.rank??'—'}</td><td className="px-2 py-2 tabular">{r.score==null?'—':r.score.toFixed(3)}</td></tr>)}</tbody></table></div>:<p className="mt-3 text-muted-foreground">Ingredient choices not recorded in this payload.</p>;
+  }
   const input=record(payload.input),output=record(payload.output),data={...input,...output,...record(output.result)};
   const fields:Record<string,string[]>={decomposition:['mealItemCount','ingredientCount','items','mealItems'],matching:['ingredientCount','matchedCount','unmatchedCount','unmatched','unmatchedIngredients'],nutrition:['chunkCount','failedChunkCount','chunks','failedChunks','failedMealItemNames'],assembly:['kcal','protein','carbs','fat','totals','boundedNutrition','displayedNutrition','items','mealItems']};
   const entries=(fields[stage??'']??Object.keys(data).filter(k=>/count|matched|failed|items|ingredients|chunks/i.test(k))).filter(k=>data[k]!=null);
