@@ -10,7 +10,7 @@ export function metricQuery(metric: MetricName, from: string, to: string): SQL {
   const lower=hourly?sql`${from}::timestamptz`:sql`(${from}::date::timestamp AT TIME ZONE 'UTC')`;
   const upper=hourly?sql`${to}::timestamptz`:sql`((${to}::date + 1)::timestamp AT TIME ZONE 'UTC')`;
   const time = (column: SQL) => sql`${column} >= ${lower} AND ${column} < ${upper}`;
-  const day = (column: SQL) => hourly ? sql`to_char(date_bin(interval '1 hour', ${column}, ${lower}) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')` : sql`to_char(${column} AT TIME ZONE 'UTC', 'YYYY-MM-DD')`;
+  const day = (column: SQL) => hourly ? sql`to_char(date_bin(interval '1 hour', ${column}, '1970-01-01T00:00:00Z'::timestamptz) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')` : sql`to_char(${column} AT TIME ZONE 'UTC', 'YYYY-MM-DD')`;
   const normalizedQuery = sql`lower(btrim(regexp_replace(ingredient_query, '[[:space:]]+', ' ', 'g')))`;
   const decisions = sql`SELECT * FROM analytics.v_ingredient_decisions WHERE ${hourly ? time(sql`occurred_at`) : sql`occurred_on BETWEEN ${from}::date AND ${to}::date`}`;
   const validDecisions = sql`SELECT d.*, ${normalizedQuery} AS normalized_query FROM (${decisions}) d

@@ -42,9 +42,9 @@ test('overview uses durable reservations, complete UTC comparisons, honest error
       if(days>7) assert.equal(r.mealsDaily[0].errors,null);
     }
     const rolling=await loadOverview(db,'24h',new Date('2026-10-16T12:15Z'));
-    assert.equal(rolling.mealsDaily.length,24);
-    assert.equal(rolling.mealsDaily[0].date,'2026-10-15T12:15:00.000Z');
-    assert.equal(rolling.mealsDaily.at(-1)?.date,'2026-10-16T11:15:00.000Z');
+    assert.equal(rolling.mealsDaily.length,25);
+    assert.equal(rolling.mealsDaily[0].date,'2026-10-15T12:00:00.000Z');
+    assert.equal(rolling.mealsDaily.at(-1)?.date,'2026-10-16T12:00:00.000Z');
     assert.equal(rolling.kpis.meals.value,1);
     assert.equal(rolling.kpis.meals.comparisonValue,1);
     assert.equal(rolling.kpis.meals.previousValue,1);
@@ -53,6 +53,20 @@ test('overview uses durable reservations, complete UTC comparisons, honest error
     assert.equal(rolling.kpis.errorRate.previousValue,0);
     assert.equal(rolling.kpis.dau.value,1);
     assert.equal(rolling.mealsDaily.reduce((n,r)=>n+r.analysed,0),1);
+    assert.deepEqual(rolling.activeUsersDaily.map(r=>r.date),['2026-10-10','2026-10-11','2026-10-12','2026-10-13','2026-10-14','2026-10-15','2026-10-16']);
+    assert.equal(rolling.activeUsersDaily[0].dau,1);
+    assert.equal(rolling.activeUsersDaily.at(-1)?.wau,3);
+    // The grid includes complete hours outside the rolling KPI bounds, and caps today's partial hour at now.
+    await pg.exec(`INSERT INTO analysis_model_budget_events VALUES
+      ('before-rolling','2026-10-15T12:05Z','/api/analyze-meal','primary',1),
+      ('current-hour','2026-10-16T12:10Z','/api/analyze-meal','primary',1),
+      ('after-now','2026-10-16T12:20Z','/api/analyze-meal','primary',1);`);
+    const aligned=await loadOverview(db,'24h',new Date('2026-10-16T12:15Z'));
+    assert.equal(aligned.kpis.meals.value,2);
+    assert.equal(aligned.mealsDaily[0].analysed,1);
+    assert.equal(aligned.mealsDaily.at(-1)?.analysed,1);
+    assert.equal(aligned.mealsDaily.reduce((n,r)=>n+r.analysed,0),3);
+    await pg.exec(`DELETE FROM analysis_model_budget_events WHERE request_id IN ('before-rolling','current-hour','after-now')`);
     await assert.rejects(()=>loadOverview(db,90),/Invalid date window/);
     await pg.exec(`INSERT INTO pipeline_requests VALUES ('00000000-0000-4000-8000-000000000003','2026-10-15Z','error',NULL);
       INSERT INTO pipeline_runs VALUES ('2026-10-15Z',9999999,'00000000-0000-4000-8000-000000000002');`);

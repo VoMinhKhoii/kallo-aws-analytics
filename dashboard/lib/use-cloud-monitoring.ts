@@ -7,12 +7,16 @@ import type { CloudMonitoringResponse } from "@/app/lib/types";
 
 // TODO(backend): return window HTTP p95/p99 and prior complete-window values.
 // Aligned quantiles cannot be combined into window quantiles.
-export function useCloudMonitoring(from: string, to: string) {
+export function useCloudMonitoring(from: string, to: string, enabled = true) {
   const [refreshKey, setRefreshKey] = React.useState(0);
   useRefocus(() => setRefreshKey(v => v + 1));
   const [state, setState] = React.useState<{ data: CloudMonitoringResponse | null; loading: boolean; refreshing: boolean; error: string | null }>({ data: null, loading: true, refreshing: false, error: null });
 
   React.useEffect(() => {
+    if (!enabled) {
+      setState({data: null, loading: false, refreshing: false, error: null});
+      return;
+    }
     let active = true;
     const refresh = refreshKey > 0;
     setState((previous) => ({ ...previous, loading: !previous.data, refreshing: Boolean(previous.data), error: null }));
@@ -25,7 +29,7 @@ export function useCloudMonitoring(from: string, to: string) {
       .then((data) => active && setState({ data, loading: false, refreshing: false, error: null }))
       .catch((reason) => active && setState((previous) => ({ ...previous, loading: false, refreshing: false, error: reason instanceof Error ? reason.message : "Cloud Monitoring request failed" })));
     return () => { active = false; };
-  }, [from, refreshKey, to]);
+  }, [enabled, from, refreshKey, to]);
 
   return { ...state, refresh: () => setRefreshKey((value) => value + 1) };
 }

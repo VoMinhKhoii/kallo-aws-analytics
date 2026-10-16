@@ -15,6 +15,9 @@ type Good = "down" | "up";
 function Sparkline({ values, color, format, bars = false }: { values: (number | null)[]; bars?: boolean; color: string; format: (v: number) => string }) {
   const id = React.useId().replace(/:/g, "");
   const data = values.map((v, i) => ({ i, v }));
+  // Unknown periods stay gaps, so a line needs two neighbouring readings to draw at all;
+  // leave the row out rather than show an empty strip.
+  if (bars ? values.every((v) => v == null) : !values.some((v, i) => v != null && values[i + 1] != null)) return null;
   return (
     <div className="h-7 w-full">
       <ResponsiveContainer>

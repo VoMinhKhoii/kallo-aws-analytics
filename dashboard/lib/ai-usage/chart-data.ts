@@ -62,3 +62,12 @@ export function currencyAxis(values: number[]) {
     format: (value: number) => value === 0 ? '$0' : `$${value.toFixed(decimals)}`,
   };
 }
+
+/** Millisecond data with whole-second, evenly spaced duration ticks. */
+export function durationTicks(values: number[]) {
+  const max = Math.max(1000, ...values.filter(Number.isFinite));
+  const raw = max / 4000, magnitude = 10 ** Math.floor(Math.log10(raw));
+  const step = Math.max(1000, ([1, 2, 4, 5, 10].find(n => n * magnitude >= raw) ?? 10) * magnitude * 1000);
+  const top = Math.ceil(max / step) * step;
+  return Array.from({length: Math.round(top / step) + 1}, (_, i) => i * step);
+}
