@@ -184,6 +184,16 @@ test('restart replaces effective Premium expiry in both environments and undo re
   } finally { await f.pg.close(); }
 });
 
+test('undoing an older restart keeps a later end in place', async () => {
+  const f = await fixture();
+  try {
+    const restart = await givePremium(admin, input([ids.promo], 'restart'), { db: f.db, now: () => f.now });
+    await endFreePremium(admin, endInputSchema.parse({ who: { kind: 'users', userIds: [ids.promo] }, confirm: 'END', reason: 'End after restart' }), { db: f.db });
+    await undoAction(admin, restart.auditId, 'Undo the older restart', { db: f.db });
+    assert.equal((await f.rows("SELECT * FROM entitlement_grants WHERE user_id=$1 AND status='active'", [ids.promo])).length, 0);
+  } finally { await f.pg.close(); }
+});
+
 test('end preview counts exactly the distinct accounts changed by end', async () => {
   const f = await fixture();
   try {

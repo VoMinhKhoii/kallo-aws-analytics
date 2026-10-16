@@ -65,17 +65,19 @@ export async function givePremium(
 
   return deps.db.transaction(async (tx) => {
     const db = tx as unknown as AppDb;
-    // Freeze recipients before replacement: canceling a complimentary grant
-    // can change group membership. Undo uses the cancellation action marker.
-    const targets = await db.execute(sql`SELECT u.id FROM auth.users u WHERE ${whoCondition(input.who)} FOR UPDATE OF u`) as unknown as {id:string}[];
-    const targetIds = targets.length ? sql.join(targets.map(u => sql`${u.id}::uuid`), sql`, `) : sql`NULL::uuid`;
-    if (input.mode === 'restart') await db.execute(sql`
-      UPDATE public.entitlement_grants g SET status='canceled', canceled_by_action=${auditId}::uuid,
-        updated_at=${nowIso}::timestamptz
-      WHERE g.user_id IN (${targetIds}) AND g.source='promo' AND g.entitlement_key='premium'
-        AND g.status='active' AND (g.expires_at IS NULL OR g.expires_at > now())
-    `);
+    // One statement, one snapshot: recipients are resolved before Restart cancels
+    // anything (canceling a complimentary grant can change group membership), and
+    // the set never leaves PostgreSQL. Undo finds the replaced grants by the marker.
     const inserted = (await db.execute(sql`
+      WITH targets AS (SELECT u.id FROM auth.users AS u WHERE ${whoCondition(input.who)}),
+      replaced AS (
+        UPDATE public.entitlement_grants AS g SET status='canceled', canceled_by_action=${auditId}::uuid,
+          updated_at=${nowIso}::timestamptz
+        WHERE ${input.mode === 'restart' ? sql`true` : sql`false`}
+          AND g.user_id IN (SELECT id FROM targets) AND g.source='promo' AND g.entitlement_key='premium'
+          AND g.status='active' AND (g.expires_at IS NULL OR g.expires_at > now())
+        RETURNING g.id
+      )
       INSERT INTO public.entitlement_grants (
         user_id, entitlement_key, source, environment, product_id,
         starts_at, expires_at, status, will_renew, external_ref
@@ -85,8 +87,8 @@ export async function givePremium(
         ${nowIso}::timestamptz, ${expires}, 'active', false,
         'admin:' || ${auditId} || ':' || u.id::text
       FROM auth.users AS u
+      JOIN targets AS t ON t.id = u.id
       CROSS JOIN (VALUES ('production'), ('sandbox')) AS env(name)
-      WHERE u.id IN (${targetIds})
       RETURNING user_id::text AS user_id, expires_at
     `)) as unknown as { user_id: string; expires_at: string }[];
 

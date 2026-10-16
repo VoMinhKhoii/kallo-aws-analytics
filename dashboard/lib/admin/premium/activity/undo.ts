@@ -53,20 +53,26 @@ export async function undoAction(
 
     let userCount = 0;
     if (action.action === 'grant') {
+      // Restore the grants a Restart replaced only for accounts whose grants from
+      // this action were still in force: a later End or Restart stays in place.
       const rows = (await db.execute(sql`
-        UPDATE public.entitlement_grants
-        SET status = 'canceled', canceled_by_action = ${undoId}::uuid,
+        WITH undone AS (
+          UPDATE public.entitlement_grants
+          SET status = 'canceled', canceled_by_action = ${undoId}::uuid,
+              updated_at = ${nowIso}::timestamptz
+          WHERE source = 'promo' AND status = 'active'
+            AND external_ref LIKE ${`admin:${actionId}:%`}
+          RETURNING user_id
+        ), restored AS (
+          UPDATE public.entitlement_grants SET status = 'active', canceled_by_action = NULL,
             updated_at = ${nowIso}::timestamptz
-        WHERE source = 'promo' AND status = 'active'
-          AND external_ref LIKE ${`admin:${actionId}:%`}
-        RETURNING user_id::text AS user_id
+          WHERE status = 'canceled' AND canceled_by_action = ${actionId}::uuid
+            AND user_id IN (SELECT user_id FROM undone)
+          RETURNING 1
+        )
+        SELECT user_id::text AS user_id FROM undone
       `)) as unknown as { user_id: string }[];
       userCount = new Set(rows.map((row) => row.user_id)).size;
-      await db.execute(sql`
-        UPDATE public.entitlement_grants SET status='active', canceled_by_action=NULL,
-          updated_at=${nowIso}::timestamptz
-        WHERE status='canceled' AND canceled_by_action=${actionId}::uuid
-      `);
     } else if (action.action === 'end') {
       const rows = (await db.execute(sql`
         UPDATE public.entitlement_grants
