@@ -60,7 +60,10 @@ export function buildGraph(trace:TraceGraphDetail) {
   // Fixed 220 px spine nodes with a 250 px pitch. Child lanes fit below the spine.
   const gap=gapWindow(trace);
   const xs=[-250,0,250,500,750,1000];
-  stageNames.forEach((name,i)=>{const stage=trace.stages.find(s=>s.name===name||s.key===name);const calls=sorted.filter(c=>stage?.calls.includes(c.id));const step=make(name,stage?'stage':'ghost',name[0].toUpperCase()+name.slice(1),xs[i+1],0,calls,stage?time(stage.startedAt,base):0,stage?.durationMs??null);step.count=stage?(counts[i]||'Not recorded'):'Not recorded';if(name==='matching'&&Number(matching.unmatchedCount)>0)step.warning=` · ${matching.unmatchedCount} unmatched`;step.status=stage?.status??'missing';step.payloadKey=stage?.key;step.error=stage?.error;add(step);});
+  // A stage totals the calls drawn under it (by role), so its "n calls · $" adds up to its children;
+  // rescue, after-response and unattributed calls count only in their own nodes.
+  const ownRoles:Record<string,string[]>={decomposition:['call1'],matching:['selector'],nutrition:['call2_chunk']};
+  stageNames.forEach((name,i)=>{const stage=trace.stages.find(s=>s.name===name||s.key===name);const calls=stage?sorted.filter(c=>ownRoles[name]?.includes(String(roles.get(c.id)))):[];const step=make(name,stage?'stage':'ghost',name[0].toUpperCase()+name.slice(1),xs[i+1],0,calls,stage?time(stage.startedAt,base):0,stage?.durationMs??null);step.count=stage?(counts[i]||'Not recorded'):'Not recorded';if(name==='matching'&&Number(matching.unmatchedCount)>0)step.warning=` · ${matching.unmatchedCount} unmatched`;step.status=stage?.status??'missing';step.payloadKey=stage?.key;step.error=stage?.error;add(step);});
   add({...make('response','response','Response',xs[5],0,[],trace.durationMs??0,0),status:trace.status,error:trace.errorCode??trace.error,count:`${ms(trace.durationMs)} · ${trace.status}${trace.errorCode??trace.error?` · ${trace.errorCode??trace.error}`:''}`});
   const spine=[...stageNames,'response'];
   // Label the edge spanning the largest hole, including intervening missing stages.

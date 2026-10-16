@@ -19,7 +19,11 @@ export function CanvasContent({graph,selected,onSelect,duration,fit,panelWidth}:
   const fitGraph=useCallback(()=>{
     if(!canvas.current)return;
     const {width,height}=canvas.current.getBoundingClientRect();
-    const viewport=getViewportForBounds(flow.getNodesBounds(flow.getNodes()),width,height,.1,1.25,{top:'60px',right:'60px',bottom:'60px',left:'40px'});
+    const bounds=flow.getNodesBounds(flow.getNodes());
+    const fit=getViewportForBounds(bounds,width,height,.1,1.25,{top:'60px',right:'60px',bottom:'60px',left:'40px'});
+    // A narrow screen cannot fit the whole pipeline legibly: start at the first step at a
+    // readable zoom, vertically centred, and let the reader pan along it.
+    const viewport=fit.zoom<.6&&!window.matchMedia('(min-width: 768px)').matches?{zoom:.85,x:16-bounds.x*.85,y:height/2-(bounds.y+bounds.height/2)*.85}:fit;
     void flow.setViewport(viewport);
     if(!panelWidth)closedZoom.current=viewport.zoom;
   },[flow,panelWidth]);

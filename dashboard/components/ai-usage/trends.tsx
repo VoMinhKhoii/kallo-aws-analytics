@@ -42,7 +42,7 @@ export function Trends({ input, models }: { input: UsageInput; models: ModelMeta
 
   return (
     <>
-      <TrendChart hourly={input.win === 1} partialLast={false} title={`Latency ${latency}`} rows={rows.latency} models={models} dashed={anthropic} format={ms} axis={msAxis} emptyMessage="No per-call latency in this window yet." action={toggle} note={models.filter(m=>!rows.latency.some(r=>typeof r[m.key]==='number')).map(m=>`${m.label}: no per-call latency in this window.`).join(" ")} />
+      <TrendChart hourly={input.win === 1} partialLast={false} title={`Latency ${latency}`} rows={rows.latency} models={models} dashed={anthropic} format={ms} axis={msAxis} emptyMessage="No per-call latency in this window yet." action={toggle} note={models.filter(m=>!rows.latency.some(r=>typeof r[m.key]==='number')&&rows.errorRate.some(r=>typeof r[m.key]==='number')).map(m=>`${m.label}: no per-call latency in this window.`).join(" ")} />
       <TrendChart hourly={input.win === 1} partialLast={false} emptyMessage="No error-rate data in this window yet." percent title="Error rate" rows={rows.errorRate} models={models} dashed={anthropic} format={(v) => pct(v)} axis={(v) => pct(v, 0)} />
       <TrendChart hourly={input.win === 1} partialLast={false} emptyMessage="No fallback data in this window yet." percent title="Fallback rate" rows={rows.fallbackRate} models={fallbackModels} dashed={anthropic} format={(v) => pct(v)} axis={(v) => pct(v, 0)} />
       <TrendChart hourly={input.win === 1} partialLast={false} emptyMessage="No cache data in this window yet." percent title="Cache hit" rows={rows.cacheRate} models={models} dashed={anthropic} format={(v) => pct(v, 0)} axis={(v) => pct(v, 0)} />
