@@ -19,7 +19,7 @@ import { endFreePremium } from '@/lib/admin/premium/grants/end';
 export const dynamic = 'force-dynamic';
 const json = (value: unknown, status = 200) => Response.json(value, { status, headers: { 'Cache-Control': 'private, no-store' } });
 const actionSchema = z.discriminatedUnion('action', [
-  z.object({ action: z.literal('preview'), input: whoSchema }),
+  z.object({ action: z.literal('preview'), input: z.object({ who: whoSchema, operation: z.enum(['give','end']) }) }),
   z.object({ action: z.literal('offer'), input: offerInputSchema }),
   z.object({ action: z.literal('give'), input: giveInputSchema }),
   z.object({ action: z.literal('end'), input: endInputSchema }),
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
   const connection = connectAdminDb();
   try {
     const db = connection.db;
-    if (parsed.action === 'preview') return json(await countWho(db, parsed.input));
+    if (parsed.action === 'preview') return json(await countWho(db, parsed.input.who, parsed.input.operation));
     const operator = await getOperator(db);
     switch (parsed.action) {
       case 'give': return json(await givePremium(operator, parsed.input, { db }));

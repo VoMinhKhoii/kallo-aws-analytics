@@ -1,6 +1,6 @@
 import 'server-only';
 import { sql } from 'drizzle-orm';
-import { payingSql } from '@/lib/admin/premium/targets/plan-sql';
+import { payingSql, endablePromoSql } from '@/lib/admin/premium/targets/plan-sql';
 import { whoCondition } from '@/lib/admin/premium/targets/resolve-who';
 import type { Who } from '@/lib/admin/premium/targets/who-input';
 import type { AppDb } from '@/lib/admin/db/client';
@@ -13,10 +13,10 @@ export interface WhoCount {
 }
 
 /** The preview shown before confirming: how many accounts a Who reaches. */
-export async function countWho(db: AppDb, who: Who): Promise<WhoCount> {
+export async function countWho(db: AppDb, who: Who, action: 'give' | 'end' = 'give'): Promise<WhoCount> {
   const [row] = (await db.execute(sql`
     SELECT
-      count(*) FILTER (WHERE ${whoCondition(who)})::int AS accounts,
+      count(*) FILTER (WHERE ${whoCondition(who)} AND ${action === 'end' ? sql`EXISTS (SELECT 1 FROM public.entitlement_grants g WHERE g.user_id=u.id AND ${endablePromoSql('g')})` : sql`true`})::int AS accounts,
       ${
         who.kind === 'users'
           ? sql`count(*) FILTER (WHERE u.id IN (${sql.join(

@@ -1,4 +1,5 @@
 import 'server-only';
+import { endablePromoSql } from '../targets/plan-sql';
 import { sql } from 'drizzle-orm';
 import type { AdminUser } from '@/lib/admin/operator';
 import { recordAudit } from '@/lib/admin/premium/activity/audit';
@@ -30,9 +31,7 @@ export async function endFreePremium(
           updated_at = ${now.toISOString()}::timestamptz
       FROM auth.users AS u
       WHERE g.user_id = u.id
-        AND g.source = 'promo'
-        AND g.status = 'active'
-        AND (g.expires_at IS NULL OR g.expires_at > now())
+        AND ${endablePromoSql('g')}
         AND ${whoCondition(input.who)}
       RETURNING g.user_id::text AS user_id
     `)) as unknown as { user_id: string }[];

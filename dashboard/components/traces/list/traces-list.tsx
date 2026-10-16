@@ -1,4 +1,5 @@
 'use client';
+import { apiFetch } from '@/lib/api-fetch';
 import { plural } from '@/lib/traces-ui/graph';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -27,7 +28,7 @@ export default function TracesList() {
     if(previousQuery.current!==query){setRows([]);setNext(null);setActive(-1);previousQuery.current=query;}
     const load=async()=>{
       setLoading(true);setError('');
-      try{const r=await fetch(`/api/traces?${query}${version?'&refresh=1':''}`,{signal:controller.signal,cache:'no-store'});const b=await r.json();if(!r.ok)throw new Error(b.error??'Traces unavailable');if(g!==generation.current)return;
+      try{const r=await apiFetch(`/api/traces?${query}${version?'&refresh=1':''}`,{signal:controller.signal,cache:'no-store'});const b=await r.json();if(!r.ok)throw new Error(b.error??'Traces unavailable');if(g!==generation.current)return;
         const data=b as TraceList;
         setRows(data.rows);setNext(data.next);
         setModels(old=>[...new Set([...old,...data.rows.map(r=>r.modelCall2).filter((m):m is string=>!!m)])]);
@@ -39,7 +40,7 @@ export default function TracesList() {
       try {
         if(rowsRef.current.some(r=>pendingEligible(r))){
           const snapshot=rowsRef.current;
-          const updates=await refreshPending(snapshot,controller.signal);
+          const updates=await refreshPending(snapshot,controller.signal,Date.now(),query);
           failures=updates.failed?failures+1:0;
           if(g===generation.current){const ids=new Set(updates.rows.map(r=>r.id));setRows(old=>old.filter(r=>!snapshot.some(o=>o.id===r.id)||ids.has(r.id)).map(r=>updates.rows.find(u=>u.id===r.id)??r));}
           if(updates.failed)setError('Some live updates failed; retrying with backoff.');
@@ -49,7 +50,7 @@ export default function TracesList() {
     };
     void load();return()=>{controller.abort();clearTimeout(timer);};
   },[query,version,ready]);
-  const loadMore=async()=>{if(!next||more)return;const g=generation.current;setMore(true);setError('');try{const r=await fetch(`/api/traces?${query}&cursor=${encodeURIComponent(next)}`,{signal:abort.current?.signal});const b=await r.json();if(!r.ok)throw new Error(b.error??'Unable to load more');if(g!==generation.current)return;setRows(old=>[...old,...(b as TraceList).rows.filter(r=>!old.some(o=>o.id===r.id))]);setNext(b.next);}catch(e){if(g===generation.current)setError(e instanceof Error?e.message:'Unable to load more');}finally{setMore(false);}};
+  const loadMore=async()=>{if(!next||more)return;const g=generation.current;setMore(true);setError('');try{const r=await apiFetch(`/api/traces?${query}&cursor=${encodeURIComponent(next)}`,{signal:abort.current?.signal});const b=await r.json();if(!r.ok)throw new Error(b.error??'Unable to load more');if(g!==generation.current)return;setRows(old=>[...old,...(b as TraceList).rows.filter(r=>!old.some(o=>o.id===r.id))]);setNext(b.next);}catch(e){if(g===generation.current)setError(e instanceof Error?e.message:'Unable to load more');}finally{setMore(false);}};
   useEffect(()=>{const key=(e:KeyboardEvent)=>{if(e.metaKey||e.ctrlKey||e.altKey||e.target instanceof HTMLElement&&e.target.closest('input,textarea,select,[contenteditable]'))return;
     if(e.key==='/'){e.preventDefault();search.current?.focus();}if(e.key==='j'||e.key==='k'){e.preventDefault();setActive(i=>Math.max(0,Math.min(rows.length-1,i+(e.key==='j'?1:-1))));}
     if(e.key==='Enter'&&rows[active])router.push(`/traces/${rows[active].id}?w=${win}`);if(e.key==='c'&&rows[active])void navigator.clipboard.writeText(rows[active].id);

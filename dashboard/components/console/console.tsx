@@ -1,5 +1,6 @@
 "use client";
 
+import { retrySession } from '@/lib/session-store';
 import * as React from "react";
 import {
   AlertTriangle,
@@ -88,7 +89,7 @@ export function RefreshButton({
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={() => { void retrySession(); onClick(); }}
       disabled={refreshing}
       className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-[var(--console-rule)] bg-[var(--console-surface)] px-3 text-xs font-medium text-[var(--console-ink)] transition-colors hover:bg-[var(--console-panel)] focus-visible:outline-2 focus-visible:outline-[var(--console-blue)] disabled:cursor-wait disabled:opacity-55"
     >

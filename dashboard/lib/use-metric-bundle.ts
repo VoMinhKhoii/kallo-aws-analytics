@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from '@/lib/api-fetch';
 
 import { useRefocus } from "@/lib/use-refocus";
 import * as React from "react";
@@ -26,7 +27,7 @@ async function load(url: string, bypass = false): Promise<MetricBundle> {
   const pending = waiting.get(url);
   if (pending) return pending;
 
-  const promise = fetch(url, { cache: "no-store" })
+  const promise = apiFetch(url, { cache: "no-store" })
     .then(async (response) => {
       const body = (await response.json().catch(() => null)) as
         | (MetricBundle & { error?: string; code?: string })

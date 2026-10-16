@@ -65,6 +65,16 @@ export async function givePremium(
 
   return deps.db.transaction(async (tx) => {
     const db = tx as unknown as AppDb;
+    // Freeze recipients before replacement: canceling a complimentary grant
+    // can change group membership. Undo uses the cancellation action marker.
+    const targets = await db.execute(sql`SELECT u.id FROM auth.users u WHERE ${whoCondition(input.who)} FOR UPDATE OF u`) as unknown as {id:string}[];
+    const targetIds = targets.length ? sql.join(targets.map(u => sql`${u.id}::uuid`), sql`, `) : sql`NULL::uuid`;
+    if (input.mode === 'restart') await db.execute(sql`
+      UPDATE public.entitlement_grants g SET status='canceled', canceled_by_action=${auditId}::uuid,
+        updated_at=${nowIso}::timestamptz
+      WHERE g.user_id IN (${targetIds}) AND g.source='promo' AND g.entitlement_key='premium'
+        AND g.status='active' AND (g.expires_at IS NULL OR g.expires_at > now())
+    `);
     const inserted = (await db.execute(sql`
       INSERT INTO public.entitlement_grants (
         user_id, entitlement_key, source, environment, product_id,
@@ -76,7 +86,7 @@ export async function givePremium(
         'admin:' || ${auditId} || ':' || u.id::text
       FROM auth.users AS u
       CROSS JOIN (VALUES ('production'), ('sandbox')) AS env(name)
-      WHERE ${whoCondition(input.who)}
+      WHERE u.id IN (${targetIds})
       RETURNING user_id::text AS user_id, expires_at
     `)) as unknown as { user_id: string; expires_at: string }[];
 

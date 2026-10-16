@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from '@/lib/api-fetch';
 import * as React from "react";
 
 /**
@@ -22,7 +23,7 @@ async function load(url: string, bypass = false): Promise<unknown> {
   const pending = waiting.get(url);
   if (pending) return pending;
 
-  const p = fetch(url)
+  const p = apiFetch(url)
     .then(async (r) => {
       const body = await r.json().catch(() => ({}));
       if (!r.ok) {

@@ -30,8 +30,8 @@ export default function PremiumPage() {
   function onSaved() { setSaved(true); void load(); }
   const title = 'text-xl font-semibold tracking-tight';
   return <div className="mx-auto max-w-[1320px] space-y-4 py-4">
-    <PageHeader title="Premium" refreshing={loading} onRefresh={auth.role === 'founder' ? () => void load() : undefined} />
-    {auth.role !== 'founder' && !auth.loading ? <p className="text-sm">Premium management requires founder access. Sign in with your founder account.</p> : <>
+    <PageHeader title="Premium" refreshing={loading} onRefresh={() => { if(auth.role === 'founder')void load(); }} />
+    {auth.error ? <p role="alert" className="text-sm">Session unavailable: {auth.error}. Use Refresh to retry.</p> : auth.role !== 'founder' && !auth.loading ? <p className="text-sm">Premium management requires founder access. Sign in with your founder account.</p> : <>
       <UrlTabs value={tab} onChange={v => { setTab(v); setSaved(false); }} items={[{value:'overview',label:'Overview'},{value:'give',label:'Give / End'},{value:'accounts',label:'Accounts'},{value:'activity',label:'Activity'}]}>
       {saved && <p role="status" className="mb-5 text-sm text-[var(--console-green)]">Change saved and recorded in Activity.</p>}
       {error && <div role="alert" className="mb-6 rounded-md border border-[var(--console-rule)] p-5"><p className="text-sm text-[var(--console-brick)]">{error}</p><button className={secondary + ' mt-3'} onClick={() => void load()}>Try again</button></div>}

@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from '@/lib/api-fetch';
 
 import * as React from "react";
 import type { RunStatus } from "@/app/lib/types";
@@ -26,7 +27,7 @@ export function RunControl() {
     let active = true;
     const poll = async () => {
       try {
-        const response = await fetch(`/api/runs/${encodeURIComponent(status.run_id)}`, { cache: "no-store" });
+        const response = await apiFetch(`/api/runs/${encodeURIComponent(status.run_id)}`, { cache: "no-store" });
         const body = await response.json().catch(() => null) as RunStatus & { error?: string } | null;
         if (!response.ok || !body) throw new Error(body?.error ?? "Run status unavailable");
         if (active) setStatus(body);
@@ -62,7 +63,7 @@ export function RunControl() {
     setStarting(true);
     setRunError(null);
     try {
-      const response = await fetch("/api/runs", { method: "POST", credentials: "same-origin" });
+      const response = await apiFetch("/api/runs", { method: "POST", credentials: "same-origin" });
       const body = await response.json().catch(() => null) as { run_id?: string; error?: string; retry_after?: number | string; next_allowed_at?: string } | null;
       if (!response.ok) {
         if (response.status === 429 && body) {

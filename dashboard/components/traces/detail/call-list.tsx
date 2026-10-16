@@ -1,4 +1,5 @@
 'use client';
+import { downloadJson } from '@/lib/download-json';
 import { useState } from 'react';
 import type { TraceGraphDetail, TracePayload } from '@/lib/traces/types';
 import { tokenText,callLatency } from '@/lib/traces-ui/format';
@@ -10,7 +11,7 @@ import PayloadView from './payload-view';
 function ExpandedCall({traceId,source,call}:{traceId:string;source:TraceGraphDetail['source'];call:TraceGraphDetail['calls'][number]}) {
   const payload=useResource<TracePayload>(`/api/traces/${encodeURIComponent(traceId)}/payload?node=${encodeURIComponent(call.id)}&source=${source}&kind=call`);
   const body=payload.data;
-  return <div className="space-y-4 border-b border-border py-3"><ModelDetails call={call}/>{payload.error?<p role="alert" className="text-destructive">{payload.error} <button className="underline" onClick={payload.refresh}>Retry</button></p>:payload.loading&&!body?<p className="animate-pulse text-muted-foreground">Loading prompt and response…</p>:<><h4 className="font-medium">{body&&'promptIsTemplate'in body&&body.promptIsTemplate?'Prompt template (exact request not recorded)':'Prompt'}</h4><PayloadView value={body&&('prompt'in body?body.prompt:body.input)} absent="Prompt text not recorded for this call"/><h4 className="font-medium">Response</h4><PayloadView value={body&&('response'in body?body.response:body.output)} absent="Response text not recorded for this call"/></>}</div>;
+  return <div className="space-y-4 border-b border-border py-3"><ModelDetails call={call}/><button className="underline disabled:opacity-50" disabled={!body||payload.loading||!!payload.error} onClick={()=>downloadJson(`${traceId}-${call.id}.json`,{metadata:call,payload:body})}>Download JSON</button>{payload.error?<p role="alert" className="text-destructive">{payload.error} <button className="underline" onClick={payload.refresh}>Retry</button></p>:payload.loading&&!body?<p className="animate-pulse text-muted-foreground">Loading prompt and response…</p>:<><h4 className="font-medium">{body&&'promptIsTemplate'in body&&body.promptIsTemplate?'Prompt template (exact request not recorded)':'Prompt'}</h4><PayloadView value={body&&('prompt'in body?body.prompt:body.input)} absent="Prompt text not recorded for this call"/><h4 className="font-medium">Response</h4><PayloadView value={body&&('response'in body?body.response:body.output)} absent="Response text not recorded for this call"/></>}</div>;
 }
 export function CallList({trace,calls}:{trace:TraceGraphDetail;calls:TraceGraphDetail['calls']}) {
   const [expanded,setExpanded]=useState<string|null>(null);

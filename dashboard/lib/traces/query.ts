@@ -37,7 +37,7 @@ export async function requestColumns(db: AppDb): Promise<Set<string>> {
     return new Set(rows.map(r => String(r.column_name)));
   })).value;
 }
-export function listQuery(f: TraceFilters, columns: Set<string>, after?: { at: string; id: string }, windowAt = new Date().toISOString()) {
+export function listQuery(f: TraceFilters, columns: Set<string>, after?: { at: string; id: string }, windowAt = new Date().toISOString(), ids?: string[]) {
   const col = (name: string) => columns.has(name) ? sql`r.${sql.identifier(name)}` : sql`NULL::${sql.raw(name === 'models' ? 'text[]' : name === 'item_count' ? 'integer' : ['calories_kcal','protein_g','carbohydrate_g','fat_g'].includes(name) ? 'numeric' : 'text')}`;
   const escaped = '%' + f.q.replace(/[\\%_]/g, '\\$&') + '%';
   const optionalNames = ['meal_name','model_profile','models','calories_kcal','protein_g','carbohydrate_g','fat_g','item_count','error_code'];
@@ -71,7 +71,7 @@ export function listQuery(f: TraceFilters, columns: Set<string>, after?: { at: s
         THEN jsonb_array_length(output_json->'mealItems') END) AS derived_items,
       max((input_json->>'unmatchedCount')::int) AS unmatched
       FROM public.pipeline_stage_logs WHERE request_id=r.id) s ON true
-    WHERE ${columns.has('replay_of_request_id') ? sql`r.replay_of_request_id IS NULL` : sql`true`}
+    WHERE ${ids ? sql`r.id IN (${sql.join(ids.map(id=>sql`${id}::uuid`),sql`, `)}) AND` : sql``} ${columns.has('replay_of_request_id') ? sql`r.replay_of_request_id IS NULL` : sql`true`}
       AND r.created_at >= ${f.w ? sql`${windowAt}::timestamptz - ${f.w === '24h' ? '24 hours' : f.w === '7d' ? '7 days' : '30 days'}::interval` : sql`${f.from}::date::timestamp AT TIME ZONE 'UTC'`}
       AND r.created_at < ${f.w ? sql`${windowAt}::timestamptz` : sql`(${f.to}::date + 1)::timestamp AT TIME ZONE 'UTC'`}
   ), page AS MATERIALIZED (
@@ -105,10 +105,10 @@ export function listQuery(f: TraceFilters, columns: Set<string>, after?: { at: s
 
 }
 export function numberOrNull(v: unknown): number | null { return v == null || !Number.isFinite(Number(v)) ? null : Number(v); }
-export async function listTraces(db: AppDb, f: TraceFilters, secret: string): Promise<TraceList> {
+export async function listTraces(db: AppDb, f: TraceFilters, secret: string, ids?: string[]): Promise<TraceList> {
   const after = f.cursor ? decodeCursor(f.cursor, f, secret) : undefined;
   const windowAt = after?.windowAt || new Date().toISOString();
-  const rows = await db.execute(listQuery(f, await requestColumns(db), after, windowAt));
+  const rows = await db.execute(listQuery(f, await requestColumns(db), after, windowAt, ids));
   const items: TraceSummary[] = rows.slice(0, f.limit).map(r => ({
     id: String(r.id), createdAt: new Date(String(r.created_at)).toISOString(), status: String(r.status),
     durationMs: numberOrNull(r.duration_ms), rawInput: String(r.raw_input), mealName: String(r.meal_name),

@@ -62,6 +62,11 @@ export async function undoAction(
         RETURNING user_id::text AS user_id
       `)) as unknown as { user_id: string }[];
       userCount = new Set(rows.map((row) => row.user_id)).size;
+      await db.execute(sql`
+        UPDATE public.entitlement_grants SET status='active', canceled_by_action=NULL,
+          updated_at=${nowIso}::timestamptz
+        WHERE status='canceled' AND canceled_by_action=${actionId}::uuid
+      `);
     } else if (action.action === 'end') {
       const rows = (await db.execute(sql`
         UPDATE public.entitlement_grants

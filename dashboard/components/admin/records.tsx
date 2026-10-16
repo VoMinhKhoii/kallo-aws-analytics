@@ -1,4 +1,5 @@
 'use client';
+import { apiFetch } from '@/lib/api-fetch';
 import { plural } from '@/lib/traces-ui/graph';
 import { int, ms } from '@/lib/ai-usage/format';
 import { useUrlState } from '@/lib/use-url-state';
@@ -21,7 +22,7 @@ export function Records({ kind }: { kind: 'requests' | 'feedback' }) {
   const [error, setError] = useState(''); const [refresh, setRefresh] = useState(0);
   const [detail, setDetail] = useState<Detail | null>(null); const [active, setActive] = useState(''); const [busy, setBusy] = useState('');
   useEffect(() => { if (!urlReady) return; if (auth.role !== 'founder') { if (!auth.loading) setLoading(false); return; } let live = true; setLoading(true); setError('');
-    fetch(`/api/admin/records?kind=${kind}&page=${page}&status=${status}`, { cache: 'no-store' }).then(async r => { const body = await r.json(); if (!r.ok) throw new Error(body.error); return body; }).then(body => { if (live) { setRows(body.rows); setTotal(body.total);
+    apiFetch(`/api/admin/records?kind=${kind}&page=${page}&status=${status}`, { cache: 'no-store' }).then(async r => { const body = await r.json(); if (!r.ok) throw new Error(body.error); return body; }).then(body => { if (live) { setRows(body.rows); setTotal(body.total);
       // The last record on a later page was resolved: step back to the last page that exists.
       if (!body.rows.length && page > 1) setPage(Math.max(1, Math.ceil(body.total / 30))); } }).catch(e => { if (live) setError(e.message); }).finally(() => { if (live) setLoading(false); });
     return () => { live = false; };
@@ -30,12 +31,12 @@ export function Records({ kind }: { kind: 'requests' | 'feedback' }) {
   async function inspect(id: string) {
     if (active === id) { setActive(''); setDetail(null); return; }
     setActive(id); setDetail(null); setBusy(id); setError('');
-    try { const r = await fetch(`/api/admin/records?kind=requests&id=${id}`); const body = await r.json(); if (!r.ok) throw new Error(body.error); setDetail(body); }
+    try { const r = await apiFetch(`/api/admin/records?kind=requests&id=${id}`); const body = await r.json(); if (!r.ok) throw new Error(body.error); setDetail(body); }
     catch(e) { setError((e as Error).message); } finally { setBusy(''); }
   }
   async function update(id: string, status: string) {
     setBusy(id); setError('');
-    try { const r = await fetch('/api/admin/records', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status }) }); const body = await r.json(); if (!r.ok) throw new Error(body.error); setRefresh(v => v + 1); }
+    try { const r = await apiFetch('/api/admin/records', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status }) }); const body = await r.json(); if (!r.ok) throw new Error(body.error); setRefresh(v => v + 1); }
     catch(e) { setError((e as Error).message); } finally { setBusy(''); }
   }
   const feedback = kind === 'feedback';
