@@ -65,28 +65,28 @@ export function TrendChart({
   });
 
   return (
-    <section className="flex h-full flex-col rounded-xl border border-border bg-card px-4 py-3">
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <div className="flex flex-wrap items-baseline gap-x-3">
-          <h2 className="text-[15px] font-semibold">{title}</h2>
-          <span className="text-muted-foreground text-[12px]">{subtitle ?? (since ? `since ${shortDate(since.slice(0,10))}` : "")}</span>
+    <section className="flex h-full flex-col rounded-xl border border-border bg-card px-4 py-4">
+      <div className="mb-2 flex items-center justify-between gap-4">
+        <div className="flex flex-wrap items-baseline gap-x-4">
+          <h2 className="text-sm font-semibold">{title}</h2>
+          <span className="text-muted-foreground text-xs">{subtitle ?? (since ? `since ${shortDate(since.slice(0,10))}` : "")}</span>
         </div>
         {action}
       </div>
       {compact && shown.length > 0 && <div className="mb-2">{seriesOnly ? <SeriesRail inline items={rail.map(({meta,value,sub}) => ({...meta,value,sub}))} focus={focus} /> : <ModelRail inline items={rail} focus={focus} />}</div>}
       {note&&<p className="mb-2 text-xs text-muted-foreground">{note}</p>}
       {shown.length === 0 ? (
-        <p className="text-muted-foreground py-10 text-center text-[13px]">{emptyMessage}</p>
+        <p className="text-muted-foreground py-6 text-center text-sm">{emptyMessage}</p>
       ) : (
-        <div className={compact ? "flex flex-1 flex-col" : "mt-auto flex flex-col gap-3 sm:flex-row"}>
+        <div className={compact ? "flex flex-1 flex-col" : "mt-auto flex flex-col gap-4 sm:flex-row"}>
           {/* In a stretched card the compact plot grows to the card's height instead of leaving a band. */}
           <div className={compact ? "w-full min-w-0 flex-1" : "w-full min-w-0 sm:flex-1"} style={compact ? { minHeight: height } : { height }}>
             <ResponsiveContainer>
               <ComposedChart barGap={stacked?undefined:"-100%"} data={rows} onMouseMove={state => setHoveredRow(state.activePayload?.[0]?.payload ?? null)} onMouseLeave={() => setHoveredRow(null)} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
                 {bars && <defs>{shown.map(m => <pattern key={m.key} id={`${hatchId}-${m.key}`} width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="5" height="5" fill={m.color} fillOpacity={0.25} /><line x1="0" y1="0" x2="0" y2="5" stroke={m.color} strokeWidth={2} /></pattern>)}</defs>}
                 <CartesianGrid vertical={false} stroke="var(--console-rule)" />
-                <XAxis dataKey="date" ticks={ticks} tickFormatter={v => hourly ? String(v).slice(11, 16) : shortDate(String(v).slice(0,10))} tickLine={false} axisLine={false} minTickGap={36} tick={{ fill: "var(--console-muted)", fontSize: 11 }} />
-                <YAxis allowDecimals={!bars&&!integer} domain={duration?[0,duration.at(-1)!]:numeric.domain} allowDataOverflow={percent} ticks={duration??numeric.ticks} tickFormatter={axisFormat} tickLine={false} axisLine={false} width={64} tick={({x, y, payload}) => <text x={Number(x) - 8} y={y} textAnchor="end" dominantBaseline="central" fill="var(--console-muted)" fontSize={11}>{axisFormat(Number(payload.value))}</text>} />
+                <XAxis dataKey="date" ticks={ticks} tickFormatter={v => hourly ? String(v).slice(11, 16) : shortDate(String(v).slice(0,10))} tickLine={false} axisLine={false} minTickGap={36} tick={{ fill: "var(--console-muted)", fontSize: 12 }} />
+                <YAxis allowDecimals={!bars&&!integer} domain={duration?[0,duration.at(-1)!]:numeric.domain} allowDataOverflow={percent} ticks={duration??numeric.ticks} tickFormatter={axisFormat} tickLine={false} axisLine={false} width={64} tick={({x, y, payload}) => <text x={Number(x) - 8} y={y} textAnchor="end" dominantBaseline="central" fill="var(--console-muted)" fontSize={12}>{axisFormat(Number(payload.value))}</text>} />
                 <Tooltip
                   allowEscapeViewBox={{x: false, y: false}}
                   cursor={{ stroke: "var(--console-muted)", strokeDasharray: "3 3" }}

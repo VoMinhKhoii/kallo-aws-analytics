@@ -19,9 +19,9 @@ export function LatestMeals({ version }: { version: number }) {
       .catch(e => { if (active) setError(e instanceof Error ? e.message : 'Meal traces could not be loaded.'); });
     return () => { active = false; };
   }, [version, retry]);
-  return <MetricSection card title="Latest meals" description="Newest analyses in the last 7 days, as the user typed them." action={<Link href="/traces?w=7d" className="shrink-0 text-[13px] text-muted-foreground hover:text-foreground">All traces →</Link>} error={error} retry={() => setRetry(n => n + 1)} empty={rows?.length === 0}>
+  return <MetricSection card title="Latest meals" description="Newest analyses in the last 7 days, as the user typed them." action={<Link href="/traces?w=7d" className="shrink-0 text-sm text-muted-foreground hover:text-foreground">All traces →</Link>} error={error} retry={() => setRetry(n => n + 1)} empty={rows?.length === 0}>
     {rows == null
       ? <div role="status" aria-label="Loading latest meals">{Array.from({ length: 5 }, (_, i) => <div key={i} className="h-14 animate-pulse border-b border-border" />)}</div>
-      : <div className="-mx-3">{rows.map(r => <TraceRow key={r.id} row={r} active={false} win="7d" />)}</div>}
+      : <div className="-mx-4">{rows.map(r => <TraceRow key={r.id} row={r} active={false} win="7d" />)}</div>}
   </MetricSection>;
 }

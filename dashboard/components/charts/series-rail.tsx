@@ -18,13 +18,13 @@ export function SeriesRail({ items, focus, label = 'Series', inline = false }: {
   inline?: boolean;
 }) {
   if (inline) return <div role="group" aria-label={label} className="flex flex-wrap items-center gap-x-4 gap-y-1">
-    {items.map(item => <button key={item.key} type="button" aria-pressed={focus.pinned === item.key} title={item.sub} onMouseEnter={() => focus.setHovered(item.key)} onMouseLeave={() => focus.setHovered(null)} onFocus={() => focus.setHovered(item.key)} onBlur={() => focus.setHovered(null)} onClick={() => focus.togglePin(item.key)} className="flex min-w-0 items-center gap-1.5 rounded py-0.5 text-[12px] transition-opacity duration-150" style={{ opacity: focus.active && focus.active !== item.key ? 0.4 : 1 }}>
+    {items.map(item => <button key={item.key} type="button" aria-pressed={focus.pinned === item.key} title={item.sub} onMouseEnter={() => focus.setHovered(item.key)} onMouseLeave={() => focus.setHovered(null)} onFocus={() => focus.setHovered(item.key)} onBlur={() => focus.setHovered(null)} onClick={() => focus.togglePin(item.key)} className="flex min-w-0 items-center gap-2 rounded py-1 text-xs transition-opacity duration-150" style={{ opacity: focus.active && focus.active !== item.key ? 0.4 : 1 }}>
       <span className="size-2 shrink-0 rounded-sm" style={{background: item.color}} />
       <span className="text-muted-foreground">{item.label}</span>
       <span className="tabular font-medium">{item.value}</span>
     </button>)}
   </div>;
-  return <div role="group" aria-label={label} className="flex w-full flex-col justify-center gap-0.5 border-border sm:w-[240px] sm:shrink-0 sm:border-l sm:pl-3">
+  return <div role="group" aria-label={label} className="flex w-full flex-col justify-center gap-1 border-border sm:w-[240px] sm:shrink-0 sm:border-l sm:pl-4">
     {items.map(item => <button
       key={item.key}
       type="button"
@@ -34,15 +34,15 @@ export function SeriesRail({ items, focus, label = 'Series', inline = false }: {
       onFocus={() => focus.setHovered(item.key)}
       onBlur={() => focus.setHovered(null)}
       onClick={() => focus.togglePin(item.key)}
-      className="flex min-w-0 items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-[opacity,background-color] duration-150 hover:bg-secondary aria-pressed:bg-secondary"
+      className="flex min-w-0 items-center gap-2 rounded-lg px-2 py-2 text-left transition-[opacity,background-color] duration-150 hover:bg-secondary aria-pressed:bg-secondary"
       style={{ opacity: focus.active && focus.active !== item.key ? 0.4 : 1 }}
     >
       {item.glyph ?? <span className="size-2 shrink-0 rounded-sm" style={{background: item.color}} />}
       <span className="grid min-w-0 flex-1 leading-tight">
-        <span className="break-words text-[12.5px] font-medium">{item.label}</span>
-        {item.sub && <span className="text-muted-foreground break-words text-[11px]">{item.sub}</span>}
+        <span className="break-words text-xs font-medium">{item.label}</span>
+        {item.sub && <span className="text-muted-foreground break-words text-xs">{item.sub}</span>}
       </span>
-      <span className="tabular shrink-0 text-[13px] font-medium">{item.value}</span>
+      <span className="tabular shrink-0 text-sm font-medium">{item.value}</span>
     </button>)}
   </div>;
 }

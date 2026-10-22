@@ -67,9 +67,9 @@ export function PageIntro({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-3 border-b border-[var(--console-rule)] py-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-4 border-b border-[var(--console-rule)] py-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
-        <h1 className="text-lg font-semibold tracking-[-0.02em] text-[var(--console-ink)]">{title}</h1>
+        <h1 className="text-2xl font-semibold tracking-[-0.02em] text-foreground">{title}</h1>
         <p className="sr-only">{description}</p>
       </div>
       {children ? <div className="shrink-0">{children}</div> : null}
@@ -91,7 +91,7 @@ export function RefreshButton({
       type="button"
       onClick={() => { void retrySession(); onClick(); }}
       disabled={refreshing}
-      className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-[var(--console-rule)] bg-[var(--console-surface)] px-3 text-xs font-medium text-[var(--console-ink)] transition-colors hover:bg-[var(--console-panel)] focus-visible:outline-2 focus-visible:outline-[var(--console-blue)] disabled:cursor-wait disabled:opacity-55"
+      className="inline-flex min-h-8 items-center gap-2 rounded-md border border-[var(--console-rule)] bg-[var(--console-surface)] px-4 text-xs font-medium text-foreground transition-colors hover:bg-[var(--console-panel)] focus-visible:outline-2 focus-visible:outline-[var(--console-blue)] disabled:cursor-wait disabled:opacity-55"
     >
       <RefreshCw className={cn("size-3.5", refreshing && "animate-spin")} aria-hidden="true" />
       {refreshing ? "Refreshing…" : label}
@@ -100,7 +100,7 @@ export function RefreshButton({
 }
 
 export function ConsolePage({ children }: { children: React.ReactNode }) {
-  return <div className="mx-auto w-full max-w-[1440px] pb-16">{children}</div>;
+  return <div className="mx-auto w-full max-w-[1440px] pb-6">{children}</div>;
 }
 
 export function RangeControl({
@@ -116,7 +116,7 @@ export function RangeControl({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2" role="group" aria-label={label}>
-      <span className="text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--console-muted)]">{label}</span>
+      <span className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">{label}</span>
       <div className="inline-flex overflow-hidden rounded-md border border-[var(--console-rule)] bg-[var(--console-surface)]">
         {options.map((option) => (
           <button
@@ -125,10 +125,10 @@ export function RangeControl({
             aria-pressed={value === option}
             onClick={() => onChange(option)}
             className={cn(
-              "min-h-8 border-r border-[var(--console-rule)] px-3 text-xs font-medium transition-colors last:border-r-0 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--console-blue)]",
+              "min-h-8 border-r border-[var(--console-rule)] px-4 text-xs font-medium transition-colors last:border-r-0 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--console-blue)]",
               value === option
-                ? "bg-[var(--console-ink)] text-[var(--console-surface)]"
-                : "text-[var(--console-muted)] hover:bg-[var(--console-panel)] hover:text-[var(--console-ink)]",
+                ? "bg-[var(--console-surface)] text-foreground"
+                : "text-muted-foreground hover:bg-[var(--console-panel)] hover:text-foreground",
             )}
           >
             {RANGE_LABELS[option]}
@@ -181,7 +181,7 @@ export function ScopeControls({
         const isSupported = supported[name] === true;
         const value = values[name] ?? "all";
         return (
-          <label key={name} className="grid gap-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--console-muted)]">
+          <label key={name} className="grid gap-1 text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
             {name === "mealMode" ? "Meal mode" : name}
             <select
               aria-label={name === "mealMode" ? "Meal mode" : name}
@@ -190,8 +190,8 @@ export function ScopeControls({
               onChange={(event) => onChange?.(name, event.target.value)}
               title={isSupported ? undefined : "This aggregate is not segmented by this dimension"}
               className={cn(
-                "h-8 min-w-28 rounded-md border border-[var(--console-rule)] bg-[var(--console-surface)] px-2 text-xs font-medium normal-case tracking-normal text-[var(--console-ink)] outline-none focus-visible:border-[var(--console-blue)] focus-visible:ring-2 focus-visible:ring-[color-mix(in_oklab,var(--console-blue)_20%,transparent)]",
-                !isSupported && "cursor-not-allowed bg-[var(--console-panel)] text-[var(--console-muted)] opacity-80",
+                "h-8 min-w-28 rounded-md border border-[var(--console-rule)] bg-[var(--console-surface)] px-2 text-xs font-medium normal-case tracking-normal text-foreground outline-none focus-visible:border-[var(--console-blue)] focus-visible:ring-2 focus-visible:ring-[color-mix(in_oklab,var(--console-blue)_20%,transparent)]",
+                !isSupported && "cursor-not-allowed bg-[var(--console-panel)] text-muted-foreground opacity-80",
               )}
             >
               {isSupported ? (
@@ -210,11 +210,11 @@ export function ScopeControls({
 export function SourceTag({ children, tone = "neutral" }: { children: React.ReactNode; tone?: "neutral" | "live" | "warn" | "error" }) {
   return (
     <span className={cn(
-      "inline-flex items-center gap-1.5 rounded border px-2 py-1 text-[12px] font-medium",
-      tone === "live" && "border-[color-mix(in_oklab,var(--console-green)_28%,var(--console-rule))] bg-[color-mix(in_oklab,var(--console-green)_8%,var(--console-surface))] text-[var(--console-green)]",
-      tone === "warn" && "border-[color-mix(in_oklab,var(--console-amber)_28%,var(--console-rule))] bg-[color-mix(in_oklab,var(--console-amber)_8%,var(--console-surface))] text-[var(--console-amber)]",
-      tone === "error" && "border-[color-mix(in_oklab,var(--console-brick)_28%,var(--console-rule))] bg-[color-mix(in_oklab,var(--console-brick)_8%,var(--console-surface))] text-[var(--console-brick)]",
-      tone === "neutral" && "border-[var(--console-rule)] text-[var(--console-muted)]",
+      "inline-flex items-center gap-2 rounded border px-2 py-1 text-xs font-medium",
+      tone === "live" && "border-[color-mix(in_oklab,var(--console-green)_28%,var(--console-rule))] bg-[color-mix(in_oklab,var(--console-green)_8%,var(--console-surface))] text-foreground",
+      tone === "warn" && "border-[color-mix(in_oklab,var(--console-amber)_28%,var(--console-rule))] bg-[color-mix(in_oklab,var(--console-amber)_8%,var(--console-surface))] text-foreground",
+      tone === "error" && "border-[color-mix(in_oklab,var(--console-brick)_28%,var(--console-rule))] bg-[color-mix(in_oklab,var(--console-brick)_8%,var(--console-surface))] text-foreground",
+      tone === "neutral" && "border-[var(--console-rule)] text-muted-foreground",
     )}>
       <span className={cn("size-1.5 rounded-full", tone === "live" ? "bg-[var(--console-green)]" : tone === "error" ? "bg-[var(--console-brick)]" : tone === "warn" ? "bg-[var(--console-amber)]" : "bg-[var(--console-muted)]")} />
       {children}
@@ -239,10 +239,10 @@ export function Panel({
 }) {
   return (
     <section className={cn("overflow-hidden rounded-lg border border-[var(--console-rule)] bg-[var(--console-surface)]", className)}>
-      <div className="flex min-h-14 items-start justify-between gap-4 border-b border-[var(--console-rule)] px-4 py-3 sm:px-5">
+      <div className="flex min-h-14 items-start justify-between gap-4 border-b border-[var(--console-rule)] px-4 py-4 sm:px-6">
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold tracking-[-0.01em] text-[var(--console-ink)]">{title}</h2>
-          {description ? <p className="mt-1 max-w-2xl text-xs leading-5 text-[var(--console-muted)]">{description}</p> : null}
+          <h2 className="text-sm font-semibold tracking-[-0.01em] text-foreground">{title}</h2>
+          {description ? <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">{description}</p> : null}
         </div>
         <div className="flex shrink-0 items-center gap-2">{source}{action}</div>
       </div>
@@ -270,7 +270,7 @@ export function MetricState({
 }) {
   if (loading) {
     return (
-      <div className="space-y-3 px-4 py-5 sm:px-5" aria-label="Loading data">
+      <div className="space-y-4 px-4 py-6 sm:px-6" aria-label="Loading data">
         <div className="h-3 w-32 animate-pulse rounded bg-[var(--console-panel)]" />
         <div className="h-3 w-full animate-pulse rounded bg-[var(--console-panel)]" />
         <div className="h-3 w-4/5 animate-pulse rounded bg-[var(--console-panel)]" />
@@ -279,30 +279,30 @@ export function MetricState({
   }
   if (error) {
     return (
-      <div className="flex gap-3 px-4 py-5 sm:px-5" role="alert">
-        <AlertTriangle className="mt-0.5 size-4 shrink-0 text-[var(--console-brick)]" />
+      <div className="flex gap-4 px-4 py-6 sm:px-6" role="alert">
+        <AlertTriangle className="mt-1 size-4 shrink-0 text-[var(--console-brick)]" />
         <div>
-          <p className="text-xs font-semibold text-[var(--console-brick)]">Source unavailable</p>
-          <p className="mt-1 text-xs leading-5 text-[var(--console-muted)]">{error}</p>
+          <p className="text-xs font-semibold text-foreground">Source unavailable</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">{error}</p>
         </div>
       </div>
     );
   }
   if (empty) {
     return (
-      <div className="flex gap-3 px-4 py-5 sm:px-5">
-        <Info className="mt-0.5 size-4 shrink-0 text-[var(--console-muted)]" />
-        <p className="max-w-2xl text-xs leading-5 text-[var(--console-muted)]">{emptyMessage}</p>
+      <div className="flex gap-4 px-4 py-6 sm:px-6">
+        <Info className="mt-1 size-4 shrink-0 text-muted-foreground" />
+        <p className="max-w-2xl text-xs leading-5 text-muted-foreground">{emptyMessage}</p>
       </div>
     );
   }
   if (insufficient) {
     return (
-      <div className="flex gap-3 px-4 py-5 sm:px-5">
-        <CircleHelp className="mt-0.5 size-4 shrink-0 text-[var(--console-amber)]" />
+      <div className="flex gap-4 px-4 py-6 sm:px-6">
+        <CircleHelp className="mt-1 size-4 shrink-0 text-[var(--console-amber)]" />
         <div>
-          <p className="text-xs font-semibold text-[var(--console-ink)]">Insufficient sample</p>
-          <p className="mt-1 max-w-2xl text-xs leading-5 text-[var(--console-muted)]">{insufficientMessage}</p>
+          <p className="text-xs font-semibold text-foreground">Insufficient sample</p>
+          <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">{insufficientMessage}</p>
         </div>
       </div>
     );
@@ -313,12 +313,12 @@ export function MetricState({
 export function InlineNote({ children, tone = "plain" }: { children: React.ReactNode; tone?: "plain" | "watch" | "error" }) {
   return (
     <div className={cn(
-      "flex gap-2 border-t px-4 py-3 text-xs leading-5 sm:px-5",
-      tone === "watch" && "border-[color-mix(in_oklab,var(--console-amber)_26%,var(--console-rule))] bg-[color-mix(in_oklab,var(--console-amber)_5%,var(--console-surface))] text-[var(--console-ink)]",
-      tone === "error" && "border-[color-mix(in_oklab,var(--console-brick)_26%,var(--console-rule))] bg-[color-mix(in_oklab,var(--console-brick)_5%,var(--console-surface))] text-[var(--console-ink)]",
-      tone === "plain" && "border-[var(--console-rule)] text-[var(--console-muted)]",
+      "flex gap-2 border-t px-4 py-4 text-xs leading-5 sm:px-6",
+      tone === "watch" && "border-[color-mix(in_oklab,var(--console-amber)_26%,var(--console-rule))] bg-[color-mix(in_oklab,var(--console-amber)_5%,var(--console-surface))] text-foreground",
+      tone === "error" && "border-[color-mix(in_oklab,var(--console-brick)_26%,var(--console-rule))] bg-[color-mix(in_oklab,var(--console-brick)_5%,var(--console-surface))] text-foreground",
+      tone === "plain" && "border-[var(--console-rule)] text-muted-foreground",
     )}>
-      {tone === "watch" ? <CircleHelp className="mt-0.5 size-3.5 shrink-0 text-[var(--console-amber)]" /> : tone === "error" ? <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-[var(--console-brick)]" /> : <Info className="mt-0.5 size-3.5 shrink-0 text-[var(--console-muted)]" />}
+      {tone === "watch" ? <CircleHelp className="mt-1 size-3.5 shrink-0 text-[var(--console-amber)]" /> : tone === "error" ? <AlertTriangle className="mt-1 size-3.5 shrink-0 text-[var(--console-brick)]" /> : <Info className="mt-1 size-3.5 shrink-0 text-muted-foreground" />}
       <span>{children}</span>
     </div>
   );
@@ -337,10 +337,10 @@ export function MetricRibbon({ items }: { items: RibbonItem[] }) {
   return (
     <div className={cn("grid overflow-hidden rounded-lg border border-[var(--console-rule)] bg-[var(--console-surface)] sm:grid-cols-2", items.length === 5 ? "xl:grid-cols-5" : "xl:grid-cols-4")}>
       {items.map((item, index) => (
-        <div key={item.label} className={cn("min-h-24 px-4 py-4 sm:px-5", index > 0 && "border-t border-[var(--console-rule)] sm:border-l sm:border-t-0", index > 1 && "xl:border-t-0", index === 2 && "xl:border-l", index === 3 && "xl:border-l")}>
-          <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--console-muted)]">{item.label}</p>
-          <p className={cn("mt-2 text-2xl font-semibold tracking-[-0.04em]", item.error ? "text-[var(--console-brick)]" : item.tone === "green" ? "text-[var(--console-green)]" : item.tone === "amber" ? "text-[var(--console-amber)]" : item.tone === "brick" ? "text-[var(--console-brick)]" : item.tone === "blue" ? "text-[var(--console-blue)]" : "text-[var(--console-ink)]")}>{item.loading ? "Loading…" : item.error ? "Unavailable" : item.value}</p>
-          {item.loading || item.error || item.detail ? <p className="mt-1 text-xs text-[var(--console-muted)]">{item.loading ? "Reading metric data" : item.error ? "Metric source unavailable" : item.detail}</p> : null}
+        <div key={item.label} className={cn("min-h-24 px-4 py-4 sm:px-6", index > 0 && "border-t border-[var(--console-rule)] sm:border-l sm:border-t-0", index > 1 && "xl:border-t-0", index === 2 && "xl:border-l", index === 3 && "xl:border-l")}>
+          <p className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">{item.label}</p>
+          <p className={cn("mt-2 text-2xl font-semibold tracking-[-0.04em]", item.error ? "text-foreground mark-bad" : "text-foreground")}>{item.loading ? "Loading…" : item.error ? "Unavailable" : item.value}</p>
+          {item.loading || item.error || item.detail ? <p className="mt-1 text-xs text-muted-foreground">{item.loading ? "Reading metric data" : item.error ? "Metric source unavailable" : item.detail}</p> : null}
         </div>
       ))}
     </div>
@@ -350,15 +350,15 @@ export function MetricRibbon({ items }: { items: RibbonItem[] }) {
 export type BarItem = { label: string; value: number; valueLabel?: React.ReactNode; detail?: React.ReactNode; tone?: "data" | "green" | "amber" | "brick" | "blue" | "neutral" };
 
 export function BarList({ items, emptyLabel = "No observed rows." }: { items: BarItem[]; emptyLabel?: string }) {
-  if (items.length === 0) return <p className="px-4 py-5 text-xs text-[var(--console-muted)] sm:px-5">{emptyLabel}</p>;
+  if (items.length === 0) return <p className="px-4 py-6 text-xs text-muted-foreground sm:px-6">{emptyLabel}</p>;
   const max = Math.max(...items.map((item) => item.value), 1);
   return (
     <div className="divide-y divide-[var(--console-rule)]">
       {items.map((item) => (
-        <div key={item.label} className="grid grid-cols-[minmax(8rem,15rem)_minmax(4rem,1fr)_auto] items-center gap-3 px-4 py-2.5 sm:px-5">
-          <div className="min-w-0"><p className="truncate text-xs font-medium text-[var(--console-ink)]">{item.label}</p>{item.detail ? <p className="mt-0.5 truncate text-[12px] text-[var(--console-muted)]">{item.detail}</p> : null}</div>
+        <div key={item.label} className="grid grid-cols-[minmax(8rem,15rem)_minmax(4rem,1fr)_auto] items-center gap-4 px-4 py-2 sm:px-6">
+          <div className="min-w-0"><p className="truncate text-xs font-medium text-foreground">{item.label}</p>{item.detail ? <p className="mt-1 truncate text-xs text-muted-foreground">{item.detail}</p> : null}</div>
           <div className="h-2 overflow-hidden rounded-sm bg-[var(--console-panel)]" aria-hidden="true"><div className={cn("h-full rounded-sm", item.tone === "data" ? "bg-[var(--console-data)]" : item.tone === "green" ? "bg-[var(--console-green)]" : item.tone === "amber" ? "bg-[var(--console-amber)]" : item.tone === "brick" ? "bg-[var(--console-brick)]" : item.tone === "blue" ? "bg-[var(--console-blue)]" : "bg-[var(--console-muted)]")} style={{ width: `${Math.max(0, Math.min(100, (item.value / max) * 100))}%` }} /></div>
-          <span className="tabular text-right text-xs font-medium text-[var(--console-ink)]">{item.valueLabel ?? formatNumber(item.value)}</span>
+          <span className="tabular text-right text-xs font-medium text-foreground">{item.valueLabel ?? formatNumber(item.value)}</span>
         </div>
       ))}
     </div>
@@ -378,10 +378,10 @@ export function SimpleTable({
     <div className="overflow-x-auto">
       <table className="w-full min-w-[560px] text-left text-xs">
         {caption ? <caption className="sr-only">{caption}</caption> : null}
-        <thead className="border-b border-[var(--console-rule)] bg-[var(--console-panel)] text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--console-muted)]">
+        <thead className="border-b border-[var(--console-rule)] bg-[var(--console-panel)] text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
           <tr>{columns.map((column) => {
             const definition = typeof column === "string" ? { label: column, align: "left" as const } : column;
-            return <th key={definition.label} className={cn("h-9 whitespace-nowrap px-4 font-semibold first:pl-4 last:pr-4 sm:px-5", definition.align === "right" && "text-right")}>{definition.label}</th>;
+            return <th key={definition.label} className={cn("h-9 whitespace-nowrap px-4 font-semibold first:pl-4 last:pr-4 sm:px-6", definition.align === "right" && "text-right")}>{definition.label}</th>;
           })}</tr>
         </thead>
         <tbody className="divide-y divide-[var(--console-rule)]">{children}</tbody>
@@ -408,12 +408,12 @@ export function TablePager({
   const first = total ? (safePage - 1) * pageSize + 1 : 0;
   const last = Math.min(safePage * pageSize, total);
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--console-rule)] px-4 py-3 text-[11px] text-[var(--console-muted)] sm:px-5">
+    <div className="flex flex-wrap items-center justify-between gap-4 border-t border-[var(--console-rule)] px-4 py-4 text-xs text-muted-foreground sm:px-6">
       <span className="tabular-nums">{int(first)}–{int(last)} of {formatNumber(total)} {label}</span>
       <div className="flex items-center gap-2">
         <span className="tabular-nums">Page {int(safePage)} of {int(pageCount)}</span>
-        <button type="button" aria-label={`Previous ${label} page`} onClick={() => onPageChange(safePage - 1)} disabled={safePage <= 1} className="inline-flex size-8 items-center justify-center rounded-md border border-[var(--console-rule)] bg-[var(--console-surface)] text-[var(--console-ink)] hover:bg-[var(--console-panel)] focus-visible:outline-2 focus-visible:outline-[var(--console-blue)] disabled:cursor-not-allowed disabled:opacity-40"><ChevronLeft className="size-3.5" aria-hidden="true" /></button>
-        <button type="button" aria-label={`Next ${label} page`} onClick={() => onPageChange(safePage + 1)} disabled={safePage >= pageCount} className="inline-flex size-8 items-center justify-center rounded-md border border-[var(--console-rule)] bg-[var(--console-surface)] text-[var(--console-ink)] hover:bg-[var(--console-panel)] focus-visible:outline-2 focus-visible:outline-[var(--console-blue)] disabled:cursor-not-allowed disabled:opacity-40"><ChevronRight className="size-3.5" aria-hidden="true" /></button>
+        <button type="button" aria-label={`Previous ${label} page`} onClick={() => onPageChange(safePage - 1)} disabled={safePage <= 1} className="inline-flex size-8 items-center justify-center rounded-md border border-[var(--console-rule)] bg-[var(--console-surface)] text-foreground hover:bg-[var(--console-panel)] focus-visible:outline-2 focus-visible:outline-[var(--console-blue)] disabled:cursor-not-allowed disabled:opacity-40"><ChevronLeft className="size-3.5" aria-hidden="true" /></button>
+        <button type="button" aria-label={`Next ${label} page`} onClick={() => onPageChange(safePage + 1)} disabled={safePage >= pageCount} className="inline-flex size-8 items-center justify-center rounded-md border border-[var(--console-rule)] bg-[var(--console-surface)] text-foreground hover:bg-[var(--console-panel)] focus-visible:outline-2 focus-visible:outline-[var(--console-blue)] disabled:cursor-not-allowed disabled:opacity-40"><ChevronRight className="size-3.5" aria-hidden="true" /></button>
       </div>
     </div>
   );
@@ -424,35 +424,35 @@ export function TableRow({ children, className }: { children: React.ReactNode; c
 }
 
 export function TableCell({ children, numeric = false, muted = false, className }: { children: React.ReactNode; numeric?: boolean; muted?: boolean; className?: string }) {
-  return <td className={cn("px-4 py-2.5 align-middle sm:px-5", numeric && "tabular text-right", muted ? "text-[var(--console-muted)]" : "text-[var(--console-ink)]", className)}>{children}</td>;
+  return <td className={cn("px-4 py-2 align-middle sm:px-6", numeric && "tabular text-right", muted ? "text-muted-foreground" : "text-foreground", className)}>{children}</td>;
 }
 
 export function Delta({ current, previous, suffix = "", inverse = false }: { current: number | null | undefined; previous: number | null | undefined; suffix?: string; inverse?: boolean }) {
-  if (current == null || previous == null || !Number.isFinite(current) || !Number.isFinite(previous)) return <span className="text-[10px] text-[var(--console-muted)]">No comparison</span>;
+  if (current == null || previous == null || !Number.isFinite(current) || !Number.isFinite(previous)) return <span className="text-xs text-muted-foreground">No comparison</span>;
   const delta = current - previous;
-  if (delta === 0) return <span className="tabular text-[10px] text-[var(--console-muted)]">No change</span>;
+  if (delta === 0) return <span className="tabular text-xs text-muted-foreground">No change</span>;
   const positive = inverse ? delta < 0 : delta > 0;
-  return <span className={cn("inline-flex items-center gap-0.5 tabular text-[10px] font-medium", positive ? "text-[var(--console-green)]" : "text-[var(--console-brick)]")}>
+  return <span className={cn("inline-flex items-center gap-1 tabular text-xs font-medium", positive ? "text-muted-foreground mark-good" : "text-muted-foreground mark-bad")}>
     {delta > 0 ? <ArrowUpRight className="size-3" /> : <ArrowDownRight className="size-3" />}
     {delta > 0 ? "+" : ""}{formatNumber(delta)}{suffix}
   </span>;
 }
 
 export function StateLegend({ label, count, tone = "neutral" }: { label: string; count: React.ReactNode; tone?: "green" | "amber" | "brick" | "neutral" }) {
-  return <span className="inline-flex items-center gap-1.5 text-xs text-[var(--console-muted)]"><span className={cn("size-2 rounded-sm", tone === "green" ? "bg-[var(--console-green)]" : tone === "amber" ? "bg-[var(--console-amber)]" : tone === "brick" ? "bg-[var(--console-brick)]" : "bg-[var(--console-muted)]")} />{label} <span className="tabular text-[var(--console-ink)]">{count}</span></span>;
+  return <span className="inline-flex items-center gap-2 text-xs text-muted-foreground"><span className={cn("size-2 rounded-sm", tone === "green" ? "bg-[var(--console-green)]" : tone === "amber" ? "bg-[var(--console-amber)]" : tone === "brick" ? "bg-[var(--console-brick)]" : "bg-[var(--console-muted)]")} />{label} <span className="tabular text-foreground">{count}</span></span>;
 }
 
 export function HealthTable({ rows, platform = "all" }: { rows: AppHealthRow[]; platform?: string }) {
   const filtered = platform === "all" ? rows : rows.filter((row) => row.platform === platform);
   return <SimpleTable columns={["UTC hour", "Platform", "Event", "Dimension", { label: "Count", align: "right" }, { label: "p50 / p95", align: "right" }]} caption="Application health buckets">
-    {filtered.map((row) => <TableRow key={`${row.hour}-${row.platform}-${row.event_name}-${row.dimension_value}`}><TableCell muted><span className="font-mono text-[11px]">{row.hour.replace("T", " ").replace(":00:00Z", "Z")}</span></TableCell><TableCell><SourceTag tone="neutral">{row.platform}</SourceTag></TableCell><TableCell><span className="font-mono text-[11px]">{row.event_name}</span></TableCell><TableCell muted>{row.dimension}={row.dimension_value}</TableCell><TableCell numeric>{formatNumber(row.count)}</TableCell><TableCell numeric muted>{row.p50_ms == null && row.p95_ms == null ? "No duration" : `${formatDuration(row.p50_ms)} / ${formatDuration(row.p95_ms)}`}</TableCell></TableRow>)}
+    {filtered.map((row) => <TableRow key={`${row.hour}-${row.platform}-${row.event_name}-${row.dimension_value}`}><TableCell muted><span className="font-mono text-xs">{row.hour.replace("T", " ").replace(":00:00Z", "Z")}</span></TableCell><TableCell><SourceTag tone="neutral">{row.platform}</SourceTag></TableCell><TableCell><span className="font-mono text-xs">{row.event_name}</span></TableCell><TableCell muted>{row.dimension}={row.dimension_value}</TableCell><TableCell numeric>{formatNumber(row.count)}</TableCell><TableCell numeric muted>{row.p50_ms == null && row.p95_ms == null ? "No duration" : `${formatDuration(row.p50_ms)} / ${formatDuration(row.p95_ms)}`}</TableCell></TableRow>)}
   </SimpleTable>;
 }
 
 export function LoadingLine({ label = "Loading" }: { label?: string }) {
-  return <span className="inline-flex items-center gap-1.5 text-xs text-[var(--console-muted)]"><LoaderCircle className="size-3.5 animate-spin" />{label}</span>;
+  return <span className="inline-flex items-center gap-2 text-xs text-muted-foreground"><LoaderCircle className="size-3.5 animate-spin" />{label}</span>;
 }
 
 export function SourceSummary({ source, loaded, total }: { source: string; loaded: boolean; total?: number }) {
-  return <div className="flex items-center gap-2 text-[11px] text-[var(--console-muted)]"><Database className="size-3.5" /><span>{source}</span>{loaded ? <Check className="size-3.5 text-[var(--console-green)]" /> : null}{total != null ? <span className="tabular">n={formatNumber(total)}</span> : null}</div>;
+  return <div className="flex items-center gap-2 text-xs text-muted-foreground"><Database className="size-3.5" /><span>{source}</span>{loaded ? <Check className="size-3.5 text-[var(--console-green)]" /> : null}{total != null ? <span className="tabular">n={formatNumber(total)}</span> : null}</div>;
 }

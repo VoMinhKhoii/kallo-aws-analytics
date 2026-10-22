@@ -16,11 +16,11 @@ export function DemandList({ rows, mappings }: { rows: {ingredient_query: string
         const next = new Set(previous);
         if (open) next.delete(r.ingredient_query); else next.add(r.ingredient_query);
         return next;
-      })} className="flex w-full items-start gap-2 py-3 text-left hover:bg-secondary focus-visible:outline-2 focus-visible:outline-ring">
-        <ChevronRight aria-hidden="true" className={`mt-0.5 size-4 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />
-        <span className="min-w-0 break-words"><span className="font-medium">{r.ingredient_query}</span><span className="tabular ml-3 text-xs text-muted-foreground">{int(r.count)} queries · {m ? `${int(m.accepted_count)}/${int(m.decision_count)} accepted` : 'No mapping'}</span><span className="mt-1 block text-xs text-muted-foreground">{m?.chosen?.name ?? m?.chosen?.food_id ?? 'No chosen food'}</span></span>
+      })} className="flex w-full items-start gap-2 py-4 text-left hover:bg-secondary focus-visible:outline-2 focus-visible:outline-ring">
+        <ChevronRight aria-hidden="true" className={`mt-1 size-4 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />
+        <span className="min-w-0 break-words"><span className="font-medium">{r.ingredient_query}</span><span className="tabular ml-4 text-xs text-muted-foreground">{int(r.count)} queries · {m ? `${int(m.accepted_count)}/${int(m.decision_count)} accepted` : 'No mapping'}</span><span className="mt-1 block text-xs text-muted-foreground">{m?.chosen?.name ?? m?.chosen?.food_id ?? 'No chosen food'}</span></span>
       </button>
-      {open && <ul className="mb-3 grid gap-2 pl-6 text-xs text-muted-foreground">{m?.candidates.length ? m.candidates.map(c => <li key={`${c.rank}-${c.food_id ?? c.name}`} className="break-words">Rank {int(c.rank)} · {c.name ?? c.food_id ?? 'Unknown'}{c.similarity != null && ` · ${decimal(c.similarity, 3)}`}</li>) : <li>No candidates recorded.</li>}</ul>}
+      {open && <ul className="mb-4 grid gap-2 pl-6 text-xs text-muted-foreground">{m?.candidates.length ? m.candidates.map(c => <li key={`${c.rank}-${c.food_id ?? c.name}`} className="break-words">Rank {int(c.rank)} · {c.name ?? c.food_id ?? 'Unknown'}{c.similarity != null && ` · ${decimal(c.similarity, 3)}`}</li>) : <li>No candidates recorded.</li>}</ul>}
     </div>;
   })}</div><TablePager page={page} pageSize={15} total={rows.length} onPageChange={setPage} label="ingredient demand" /></>;
 }

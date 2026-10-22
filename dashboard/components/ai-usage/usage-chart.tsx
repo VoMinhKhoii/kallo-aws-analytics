@@ -47,9 +47,9 @@ export function UsageChart({ input, models }: { input: UsageInput; models: Model
   return (
     <section className="flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card">
       <div className="flex flex-wrap items-stretch border-b border-border">
-        <div className="flex min-w-56 flex-1 flex-col justify-center gap-0.5 px-4 py-2.5">
-          <h2 className="text-[15px] font-semibold">Usage by model</h2>
-          <p className="text-muted-foreground text-[12.5px]">{input.win === 1 ? "Hourly, UTC. Current hour is still filling (hatched)." : "Daily, UTC. Today is still filling (hatched)."}</p>
+        <div className="flex min-w-56 flex-1 flex-col justify-center gap-1 px-4 py-2">
+          <h2 className="text-sm font-semibold">Usage by model</h2>
+          <p className="text-muted-foreground text-sm">{input.win === 1 ? "Hourly, UTC. Current hour is still filling (hatched)." : "Daily, UTC. Today is still filling (hatched)."}</p>
         </div>
         <div className="flex" role="tablist" aria-label="Metric">
           {METRICS.map((m) => {
@@ -65,14 +65,14 @@ export function UsageChart({ input, models }: { input: UsageInput; models: Model
                 className={cn("relative flex min-w-28 flex-col justify-center gap-1 border-l border-border px-4 py-2 text-left transition-colors", on ? "bg-[var(--console-surface)]" : "hover:bg-[var(--console-surface)]/50")}
               >
                 {on ? <span className="absolute inset-x-0 top-0 h-0.5 bg-foreground" /> : null}
-                <span className="text-muted-foreground text-[11.5px]">{m.label}</span>
-                <span className="tabular text-[20px] leading-none font-medium">{m.format(t)}</span>
+                <span className="text-muted-foreground text-xs">{m.label}</span>
+                <span className="tabular text-2xl leading-none font-medium">{m.format(t)}</span>
               </button>
             );
           })}
         </div>
       </div>
-      <div className="flex flex-col gap-3 px-2 py-3 sm:flex-row sm:pr-4">
+      <div className="flex flex-col gap-4 px-2 py-4 sm:flex-row sm:pr-4">
         <div className="h-[230px] w-full min-w-0 sm:flex-1">
           <ResponsiveContainer>
             <BarChart data={rows} margin={{ top: 8, right: 104, bottom: 0, left: 4 }} barCategoryGap={rows.length <= 7 ? "28%" : "14%"} onMouseLeave={() => focus.setHovered(null)}>
@@ -85,8 +85,8 @@ export function UsageChart({ input, models }: { input: UsageInput; models: Model
                 ))}
               </defs>
               <CartesianGrid vertical={false} stroke="var(--console-rule)" />
-              <XAxis dataKey="date" tickFormatter={v => input.win === 1 ? String(v).slice(11,16) : shortDate(v)} tickLine={false} axisLine={false} minTickGap={28} tick={{ fill: "var(--console-muted)", fontSize: 11 }} />
-              <YAxis allowDecimals={metric === "spend"} domain={metric === "spend" ? currency.domain : undefined} ticks={metric === "spend" ? currency.ticks : undefined} tickFormatter={metric === "spend" ? currency.format : def.axis} tickLine={false} axisLine={false} width={64} tick={{ fill: "var(--console-muted)", fontSize: 11 }} />
+              <XAxis dataKey="date" tickFormatter={v => input.win === 1 ? String(v).slice(11,16) : shortDate(v)} tickLine={false} axisLine={false} minTickGap={28} tick={{ fill: "var(--console-muted)", fontSize: 12 }} />
+              <YAxis allowDecimals={metric === "spend"} domain={metric === "spend" ? currency.domain : undefined} ticks={metric === "spend" ? currency.ticks : undefined} tickFormatter={metric === "spend" ? currency.format : def.axis} tickLine={false} axisLine={false} width={64} tick={{ fill: "var(--console-muted)", fontSize: 12 }} />
               <Tooltip
                 cursor={{ fill: "var(--console-ink)", fillOpacity: 0.05 }}
                 content={(p) => (
@@ -94,7 +94,7 @@ export function UsageChart({ input, models }: { input: UsageInput; models: Model
                 )}
               />
               {avg > 0 ? (
-                <ReferenceLine y={avg} stroke="var(--console-muted)" strokeDasharray="4 4" strokeOpacity={0.6} label={{ value: `avg ${def.format(avg)}`, position: "right", fill: "var(--console-muted)", fontSize: 11 }} />
+                <ReferenceLine y={avg} stroke="var(--console-muted)" strokeDasharray="4 4" strokeOpacity={0.6} label={{ value: `avg ${def.format(avg)}`, position: "right", fill: "var(--console-muted)", fontSize: 12 }} />
               ) : null}
               {shown.map((m) => (
                 <Bar key={m.key} dataKey={m.key} stackId="v" isAnimationActive animationDuration={500} onMouseEnter={() => focus.setHovered(m.key)}>

@@ -26,14 +26,14 @@ export function Trends({ input, models, compact = false }: { input: UsageInput; 
   const fallbackModels = React.useMemo(() => models.filter((m) => m.vendor === "Anthropic"), [models]);
 
   const toggle = (
-    <div className="flex rounded-md bg-secondary p-0.5 text-[12px]" role="group" aria-label="Latency percentile">
+    <div className="flex rounded-md bg-secondary p-1 text-xs" role="group" aria-label="Latency percentile">
       {(["p95", "p99"] as const).map((p) => (
         <button
           key={p}
           type="button"
           aria-pressed={latency === p}
           onClick={() => setLatency(p)}
-          className={cn("tabular rounded px-2.5 py-0.5", latency === p ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}
+          className={cn("tabular rounded px-2 py-1", latency === p ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}
         >
           {p}
         </button>

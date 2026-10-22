@@ -8,12 +8,12 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        default: "border border-[var(--console-muted)] bg-[var(--console-surface)] text-foreground hover:bg-[var(--console-rule)]",
         outline: "border bg-card hover:bg-accent",
         ghost: "hover:bg-accent",
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
       },
-      size: { default: "h-8 px-3", sm: "h-7 px-2.5 text-xs", icon: "size-8" },
+      size: { default: "h-8 px-4", sm: "h-7 px-2 text-xs", icon: "size-8" },
     },
     defaultVariants: { variant: "default", size: "default" },
   }
