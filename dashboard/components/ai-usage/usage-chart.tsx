@@ -45,7 +45,7 @@ export function UsageChart({ input, models }: { input: UsageInput; models: Model
     .map(({ meta, sum }) => ({ meta, value: def.format(sum), sub: `${pct(total ? sum / total : 0, 0)} of ${def.label.toLowerCase()}` }));
 
   return (
-    <section className="overflow-hidden rounded-xl border border-border bg-card">
+    <section className="flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card">
       <div className="flex flex-wrap items-stretch border-b border-border">
         <div className="flex min-w-56 flex-1 flex-col justify-center gap-0.5 px-4 py-2.5">
           <h2 className="text-[15px] font-semibold">Usage by model</h2>

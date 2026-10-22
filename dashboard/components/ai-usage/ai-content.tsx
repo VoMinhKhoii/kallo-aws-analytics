@@ -7,13 +7,14 @@ import * as React from "react";
 const CostLatency = dynamic(() => import("@/components/ai-usage/cost-latency").then(m => m.CostLatency), {ssr: false, loading: () => <ChartSkeleton height={234} />});
 const KpiStrip = dynamic(() => import("@/components/ai-usage/kpi-strip").then(m => m.KpiStrip), {ssr: false, loading: () => <ChartSkeleton height={122} />});
 const Trends = dynamic(() => import("@/components/ai-usage/trends").then(m => m.Trends), {ssr: false, loading: () => <ChartSkeleton height={936} />});
+const ModelTable = dynamic(() => import("@/components/ai-usage/model-table").then(m => m.ModelTable), {ssr: false, loading: () => <ChartSkeleton height={160} />});
 const UsageChart = dynamic(() => import("@/components/ai-usage/usage-chart").then(m => m.UsageChart), {ssr: false, loading: () => <ChartSkeleton height={330} />});
 import { MetricSection } from "@/components/shared/metric-section";
 import { RefreshButton } from "@/components/console/console";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { AiMealsDailyRow, AiMealsRow, AiModelUsageRow, AiUsageDailyRow } from "@/app/lib/types";
 import { dayRange, modelsOf, summarize, type UsageInput, type WindowDays } from "@/lib/ai-usage/aggregate";
-import { int, shortDate, usd } from "@/lib/ai-usage/format";
+import { int, pct, shortDate, usd } from "@/lib/ai-usage/format";
 import { useRefocus } from "@/lib/use-refocus";
 import { useMetricBundle } from "@/lib/use-metric-bundle";
 
@@ -63,12 +64,18 @@ export function AiUsage({ win, setWin }: { win: WindowDays; setWin: (win: Window
   useRefocus(retry);
 
   if (daily.loading || totals.loading || previous.loading) return <PageSkeleton title="AI" charts={6} cells={5} />;
+  // The line under the title: where the money went, then the model that failed most.
+  const top = summary ? [...summary.models].sort((a, b) => (b.spend ?? 0) - (a.spend ?? 0))[0] : undefined;
+  const failing = summary ? [...summary.models].filter((m) => m.errors > 0).sort((a, b) => b.errorRate - a.errorRate)[0] : undefined;
+  const finding = summary && summary.models.length
+    ? `${usd(summary.spend.value)} spent ${win === 1 ? "in the last 24 hours" : `in the last ${win} days`}${top?.spend ? `, ${pct(top.share, 0)} of it on ${top.meta.label}` : ""}. ${!failing ? "No model call failed." : failing === top ? `It also failed most often, on ${pct(failing.errorRate)} of its calls.` : `${failing.meta.label} failed ${pct(failing.errorRate)} of its calls.`}`
+    : `Spend, latency and reliability per model · ${win === 1 ? "rolling 24 hours" : "UTC days"}`;
   return (
     <div className="mx-auto flex max-w-[1320px] flex-col gap-3 py-4">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="grid gap-1">
           <h1 className="text-[22px] font-semibold tracking-tight">AI usage</h1>
-          <p className="text-muted-foreground text-[13px]">Spend, latency and reliability per model · {win === 1 ? "rolling 24 hours" : "UTC days"} · cost priced by Kallo from provider token counts</p>
+          <p className="text-muted-foreground text-[14px]">{finding}</p>
         </div>
         <div className="flex items-center gap-2">
           <ToggleGroup type="single" value={String(win)} onValueChange={(v) => v && setWin(Number(v) as WindowDays)} aria-label="Window">
@@ -85,13 +92,16 @@ export function AiUsage({ win, setWin }: { win: WindowDays; setWin: (win: Window
       {!input && error ? <MetricSection title="AI usage" error={error} retry={retry} /> : null}
       {input && summary ? <>
         {error ? <MetricSection title="Summary" error={error} retry={retry} /> : <KpiStrip summary={summary} unit={win === 1 ? "24h" : `${win}d`} />}
-        {dailyError || mealDailyError ? <MetricSection title="Usage" error={dailyError ?? mealDailyError} retry={retry} /> : <UsageChart input={input} models={models} />}
-        {totalsError ? <MetricSection title="Cost vs latency" error={totalsError} retry={retry} /> : <CostLatency models={summary.models} />}
-        {dailyError ? <MetricSection title="Trends" error={dailyError} retry={retry} /> : <Trends input={input} models={models} />}
+        <div className="grid gap-3 lg:grid-cols-3">
+          <div className="min-w-0 lg:col-span-2">{dailyError || mealDailyError ? <MetricSection card title="Usage" error={dailyError ?? mealDailyError} retry={retry} /> : <UsageChart input={input} models={models} />}</div>
+          {totalsError ? <MetricSection card title="Cost vs latency" error={totalsError} retry={retry} /> : <CostLatency compact models={summary.models} />}
+        </div>
+        {totalsError ? null : <ModelTable models={summary.models} unit={win === 1 ? "24h" : `${win} days`} />}
+        {dailyError ? <MetricSection card title="Trends" error={dailyError} retry={retry} /> : <div className="grid gap-3 lg:grid-cols-2"><Trends compact input={input} models={models} /></div>}
         {!error && models.length === 0 && <p className="text-sm text-muted-foreground">No AI calls were recorded in this window.</p>}
         {!error && <>
             <footer className="text-muted-foreground flex flex-wrap gap-x-6 gap-y-1 px-1 text-[12px]">
-              <span>Cost per meal covers primary analyses only; shadow tests spent {usd(summary.shadowSpend)} this window.</span>
+              <span>Cost is priced by Kallo from provider token counts. Cost per meal covers primary analyses only; shadow tests spent {usd(summary.shadowSpend)} this window.</span>
               <span>Unpriced calls: {int(summary.unpricedCalls)}</span>
               {summary.timedSince ? <span>Per-call latency recorded since {shortDate(summary.timedSince)}.</span> : null}
               {summary.hasTiming ? null : <span>No per-call latency recorded yet.</span>}

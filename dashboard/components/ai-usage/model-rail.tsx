@@ -15,6 +15,6 @@ export interface RailItem {
 }
 
 /** Model metadata adapts to the same rail used by every series chart. */
-export function ModelRail({ items, focus }: { items: RailItem[]; focus: LocalFocus }) {
-  return <SeriesRail label="Models" focus={focus} items={items.map(({meta, value, sub}) => ({...meta, value, sub: sub ?? meta.role, glyph: <ModelBadge meta={meta} />}))} />;
+export function ModelRail({ items, focus, inline = false }: { items: RailItem[]; focus: LocalFocus; inline?: boolean }) {
+  return <SeriesRail label="Models" inline={inline} focus={focus} items={items.map(({meta, value, sub}) => ({...meta, value, sub: sub ?? meta.role, glyph: <ModelBadge meta={meta} />}))} />;
 }

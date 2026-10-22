@@ -16,7 +16,7 @@ interface Point {
   m: ModelSummary;
 }
 
-type Placement = "right" | "above" | "below";
+type Placement = "right" | "left" | "above" | "below";
 
 function PointTooltip({ active, payload }: { active?: boolean; payload?: readonly { payload?: Point }[] }) {
   const p = payload?.[0]?.payload;
@@ -30,7 +30,7 @@ function PointTooltip({ active, payload }: { active?: boolean; payload?: readonl
     ["Cache hit", pct(p.m.cacheRate, 0)],
   ];
   return (
-    <div className="min-w-52 rounded-lg border border-border bg-popover/95 px-3 py-2.5 text-xs shadow-2xl shadow-black/50 backdrop-blur">
+    <div className="min-w-52 rounded-lg border border-border bg-popover px-3 py-2.5 text-xs shadow-lg shadow-black/40">
       <div className="mb-2 flex items-center gap-2 font-medium">
         <span className="size-2 rounded-[2px]" style={{ background: p.m.meta.color }} />
         {p.m.meta.label}
@@ -49,7 +49,8 @@ function PointTooltip({ active, payload }: { active?: boolean; payload?: readonl
 
 /** Bubbles that sit close together get their labels above and below instead of beside. */
 function placements(points: Point[], maxX: number, maxY: number): Map<string, Placement> {
-  const out = new Map(points.map((p) => [p.m.meta.key, "right" as Placement]));
+  // A bubble in the right half labels to its left, so the name is never cut at the card edge.
+  const out = new Map(points.map((p) => [p.m.meta.key, (p.x / maxX > 0.5 ? "left" : "right") as Placement]));
   for (let i = 0; i < points.length; i++) {
     for (let j = i + 1; j < points.length; j++) {
       const [a, b] = [points[i], points[j]];
@@ -70,6 +71,8 @@ function BubbleLabel({ x, y, width, value, placement, opacity }: { x?: number; y
   const pos =
     placement === "right"
       ? { x: x + 2 * r + 8, y: y + r, anchor: "start" as const }
+      : placement === "left"
+      ? { x: x - 8, y: y + r, anchor: "end" as const }
       : placement === "above"
         ? { x: x + r, y: y - 8, anchor: "middle" as const }
         : { x: x + r, y: y + 2 * r + 14, anchor: "middle" as const };
@@ -80,7 +83,7 @@ function BubbleLabel({ x, y, width, value, placement, opacity }: { x?: number; y
   );
 }
 
-export function CostLatency({ models }: { models: ModelSummary[] }) {
+export function CostLatency({ models, compact = false }: { models: ModelSummary[]; compact?: boolean }) {
   const focus = useLocalFocus();
   const points: Point[] = models
     .filter((m) => m.p95 != null && m.perKCalls != null)
@@ -92,7 +95,7 @@ export function CostLatency({ models }: { models: ModelSummary[] }) {
   const place = placements(points, maxX, maxY);
 
   return (
-    <section className="flex flex-col rounded-xl border border-border bg-card">
+    <section className="flex h-full flex-col rounded-xl border border-border bg-card">
       <div className="px-4 pt-3">
         <h2 className="text-[15px] font-semibold">Cost vs latency</h2>
         <p className="text-muted-foreground text-[12.5px]">$ / 1k calls against p95. Bubble size is call volume.</p>
@@ -101,7 +104,7 @@ export function CostLatency({ models }: { models: ModelSummary[] }) {
       {points.length === 0 ? (
         <p className="text-muted-foreground px-4 py-10 text-center text-[13px]">No per-call latency in this window yet.</p>
       ) : (
-        <div className="flex flex-col gap-3 px-2 pt-1 pb-3 sm:flex-row sm:pr-4">
+        <div className="mt-auto flex flex-col gap-3 px-2 pt-1 pb-3 sm:flex-row sm:pr-4">
           <div className="h-[250px] w-full min-w-0 sm:flex-1">
             <ResponsiveContainer>
               <ScatterChart margin={{ top: 16, right: 28, bottom: 18, left: 4 }}>
@@ -133,10 +136,10 @@ export function CostLatency({ models }: { models: ModelSummary[] }) {
               </ScatterChart>
             </ResponsiveContainer>
           </div>
-          <ModelRail
+          {compact ? null : <ModelRail
             focus={focus}
             items={[...points].sort((a, b) => a.x - b.x).map((p) => ({ meta: p.m.meta, value: `${usd(p.x)} / 1k`, sub: `p95 ${ms(p.m.p95)} · ${plural(p.z,'call')}` }))}
-          />
+          />}
         </div>
       )}
     </section>

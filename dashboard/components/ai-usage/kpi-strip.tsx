@@ -1,62 +1,15 @@
 "use client";
 
-import { ArrowDownRight, ArrowUpRight } from "lucide-react";
-import * as React from "react";
-import { Area, Bar, ComposedChart, ResponsiveContainer, Tooltip } from "@/components/charts/recharts";
 import type { Kpi, Summary } from "@/lib/ai-usage/aggregate";
 import { compact, decimal, delta, pct, usd } from "@/lib/ai-usage/format";
 import { plural } from '@/lib/traces-ui/graph';
-import { cn } from "@/lib/utils";
 
-import { Cell } from "@/components/shared/kpi-cell";
+import { Cell, Change } from "@/components/shared/kpi-cell";
 
 type Good = "down" | "up";
 
-function Sparkline({ values, color, format, bars = false }: { values: (number | null)[]; bars?: boolean; color: string; format: (v: number) => string }) {
-  const id = React.useId().replace(/:/g, "");
-  const data = values.map((v, i) => ({ i, v }));
-  // Unknown periods stay gaps, so a line needs two neighbouring readings to draw at all;
-  // leave the row out rather than show an empty strip.
-  if (bars ? values.every((v) => v == null) : !values.some((v, i) => v != null && values[i + 1] != null)) return null;
-  return (
-    <div className="h-7 w-full">
-      <ResponsiveContainer>
-        <ComposedChart data={data} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
-          <defs>
-            <linearGradient id={`spark-${id}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={color} stopOpacity={0.35} />
-              <stop offset="100%" stopColor={color} stopOpacity={0} />
-            </linearGradient>
-          </defs>
-          <Tooltip
-            cursor={{ stroke: "var(--console-muted)", strokeOpacity: 0.4 }}
-            content={({ active, payload }) =>
-              active && payload?.length ? (
-                <div className="tabular rounded-md border border-border bg-popover px-2 py-1 text-[11px] shadow-lg">{format(Number(payload[0].value))}</div>
-              ) : null
-            }
-          />
-          {bars ? <Bar dataKey="v" fill={color} isAnimationActive={false} /> : <Area connectNulls={false} type="monotoneX" dataKey="v" stroke={color} strokeWidth={1.5} fill={`url(#spark-${id})`} isAnimationActive={false} dot={false} activeDot={{ r: 2.5, strokeWidth: 0, fill: color }} />}
-        </ComposedChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
-
 function DeltaPill({ kpi, good, unit, points }: { kpi: Kpi; good: Good; unit: string; points?: boolean }) {
-  const d = delta(kpi.cur, kpi.prev, points);
-  if (!d) return null;
-  const better = good === "up" ? d.up : !d.up;
-  const Icon = d.up ? ArrowUpRight : ArrowDownRight;
-  return (
-    <span className="flex shrink-0 items-center gap-1.5 text-[11px]" title={unit === "24h" ? "Rolling last 24 hours vs preceding 24 hours" : `Last ${unit} of complete days vs the ${unit} before`}>
-      <span className={cn("tabular inline-flex items-center gap-0.5 rounded px-1 py-px font-medium", better ? "bg-[var(--console-green)]/12 text-[var(--console-green)]" : "bg-[var(--console-amber)]/12 text-[var(--console-amber)]")}>
-        <Icon className="size-3" />
-        {d.text}
-      </span>
-      <span className="text-muted-foreground hidden 2xl:inline">vs prior {unit}</span>
-    </span>
-  );
+  return <Change change={delta(kpi.cur, kpi.prev, points)} goodUp={good === "up"} title={unit === "24h" ? "Rolling last 24 hours vs preceding 24 hours" : `Last ${unit} of complete days vs the ${unit} before`} />;
 }
 
 
@@ -64,23 +17,21 @@ export function KpiStrip({ summary, unit }: { summary: Summary; unit: string }) 
   const { spend, perKMeals, calls, cacheRate } = summary;
   return (
     <section aria-label="Summary" className="grid grid-cols-2 divide-border overflow-hidden rounded-xl border border-border bg-card md:grid-cols-5 md:divide-x [&>*]:border-border max-md:[&>*]:border-b">
-      <Cell label="Spend" value={usd(spend.value)} delta={<DeltaPill kpi={spend} good="down" unit={unit} />} spark={<Sparkline values={spend.spark} color="var(--model-1)" format={usd} />} />
+      <Cell label="Spend" value={usd(spend.value)} delta={<DeltaPill kpi={spend} good="down" unit={unit} />} />
       <Cell label={unit === "24h" ? "Meals analysed" : "Today so far"} value={unit === "24h" ? compact(summary.mealCount) : usd(summary.today.spend)} sub={unit === "24h" ? "Rolling last 24 hours" : `${plural(summary.today.meals, 'meal')} analysed`} />
       <Cell
         label="Cost / 1k meals"
         value={usd(perKMeals.value)}
         delta={<DeltaPill kpi={perKMeals} good="down" unit={unit} />}
         sub={summary.mealP95 == null ? undefined : `p95 meal ${usd(summary.mealP95)}`}
-        spark={<Sparkline values={perKMeals.spark} color="var(--model-2)" format={usd} />}
       />
       <Cell
         label="Calls"
         value={calls.value == null ? "—" : compact(calls.value)}
         delta={<DeltaPill kpi={calls} good="up" unit={unit} />}
         sub={summary.callsPerMeal == null ? undefined : `${decimal(summary.callsPerMeal)} per meal`}
-        spark={<Sparkline bars values={calls.spark} color="var(--console-muted)" format={compact} />}
       />
-      <Cell label="Cache hit" value={pct(cacheRate.value, 0)} delta={<DeltaPill kpi={cacheRate} good="up" unit={unit} points />} spark={<Sparkline values={cacheRate.spark} color="var(--model-3)" format={(v) => pct(v, 0)} />} />
+      <Cell label="Cache hit" value={pct(cacheRate.value, 0)} delta={<DeltaPill kpi={cacheRate} good="up" unit={unit} points />} />
     </section>
   );
 }
