@@ -83,20 +83,20 @@ export function RunControl() {
   };
 
   return (
-    <div className="grid gap-3 px-4 py-4 sm:px-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="grid gap-4 px-4 py-4 sm:px-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold text-[var(--console-ink)]">Refresh analytics snapshot</p>
-          <p className="mt-1 text-xs leading-5 text-[var(--console-muted)]">Starts the existing extract → transform → load path. The server reserves one run slot for 30 minutes across tabs and devices; browser state is only a convenience.</p>
+          <p className="text-xs font-semibold text-foreground">Refresh analytics snapshot</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">Starts the existing extract → transform → load path. The server reserves one run slot for 30 minutes across tabs and devices; browser state is only a convenience.</p>
         </div>
-        <button type="button" onClick={() => void start()} disabled={!canRun || auth.loading || starting || activeRun || cooldownSeconds > 0} className="min-h-9 rounded-md bg-[var(--console-ink)] px-3 text-xs font-semibold text-[var(--console-surface)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45">
+        <button type="button" onClick={() => void start()} disabled={!canRun || auth.loading || starting || activeRun || cooldownSeconds > 0} className="min-h-9 rounded-md border border-[var(--console-muted)] bg-[var(--console-surface)] px-4 text-xs font-semibold text-foreground transition-colors hover:bg-[var(--console-rule)] disabled:cursor-not-allowed disabled:opacity-45">
           {auth.loading ? "Checking access…" : !canRun ? "Founder only" : starting ? "Starting…" : activeRun ? "Run in progress" : cooldownSeconds > 0 ? `Server guard · ${cooldownSeconds}s` : "Run snapshot"}
         </button>
       </div>
       {!auth.loading && !canRun ? <InlineNote>Reviewer access is read-only. Manual snapshots require the founder role; the server enforces this even if browser state is bypassed.</InlineNote> : null}
-      {nextAllowedLabel ? <p className="px-4 text-[11px] text-[var(--console-muted)] sm:px-5">Server next-allowed time: <span className="font-mono text-[var(--console-ink)]">{nextAllowedLabel}</span>. A bypassed or stale browser cannot bypass this guard.</p> : null}
+      {nextAllowedLabel ? <p className="px-4 text-xs text-muted-foreground sm:px-6">Server next-allowed time: <span className="font-mono text-foreground">{nextAllowedLabel}</span>. A bypassed or stale browser cannot bypass this guard.</p> : null}
       {runError ? <InlineNote tone="error">{runError}</InlineNote> : null}
-      {status ? <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-[var(--console-rule)] pt-3 text-[11px] text-[var(--console-muted)]"><SourceTag tone={activeRun ? "warn" : status.phase === "completed" ? "live" : "error"}>{status.phase}</SourceTag><span className="font-mono">run {status.run_id.slice(0, 12)}</span>{status.updated_at ? <span>updated {new Date(status.updated_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })} UTC</span> : null}</div> : null}
+      {status ? <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-[var(--console-rule)] pt-4 text-xs text-muted-foreground"><SourceTag tone={activeRun ? "warn" : status.phase === "completed" ? "live" : "error"}>{status.phase}</SourceTag><span className="font-mono">run {status.run_id.slice(0, 12)}</span>{status.updated_at ? <span>updated {new Date(status.updated_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })} UTC</span> : null}</div> : null}
       {starting ? <LoadingLine label="Contacting the run endpoint" /> : null}
     </div>
   );

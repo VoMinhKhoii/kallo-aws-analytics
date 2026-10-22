@@ -3,64 +3,65 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Kallo warm dark, dark only: the ground is the brand's near-black, gold is the one data hue. */
+/* Neutral dark, dark only: grey grounds with no tint, blue is the one data hue.
+   Text uses two colours (foreground, muted-foreground); status colour lives in marks. */
 :root {
   color-scheme: dark;
   --radius: 0.75rem;
 
-  --console-bg: #0e0c09;
-  --console-panel: #16130e;
-  --console-surface: #221d16;
-  --console-ink: #f0efec;
-  --console-muted: #a3967f;
-  --console-quiet: #6f6555; /* neutral series beside the data hue */
-  --console-rule: #2a2418;
-  --console-data: #e9c46a; /* Kallo gold, on the main series only */
-  --console-green: #8fbf72;
-  --console-amber: #e0a43a;
-  --console-brick: #ef6b62;
-  --console-blue: #c9a87c; /* Kallo tan: focus and secondary marks */
+  --console-bg: #0a0a0a;
+  --console-panel: #141414;
+  --console-surface: #1f1f1f;
+  --console-ink: #ededed;
+  --console-muted: #a1a1a1;
+  --console-quiet: #6b6b6b; /* neutral series beside the data hue, never text */
+  --console-rule: #262626;
+  --console-data: #4c8df6; /* the main series only */
+  --console-green: #3fb950;
+  --console-amber: #f0883e; /* warnings: orange, not yellow */
+  --console-brick: #f85149;
+  --console-blue: #4c8df6; /* focus */
 
-  --background: #0e0c09;
-  --foreground: #f0efec;
-  --card: #16130e;
-  --card-foreground: #f0efec;
-  --popover: #221d16;
-  --popover-foreground: #f0efec;
-  --primary: #f0efec;
-  --primary-foreground: #0e0c09;
-  --secondary: #1e1a14;
-  --secondary-foreground: #f0efec;
-  --muted: #1e1a14;
-  --muted-foreground: #a3967f;
-  --accent: #221d16;
-  --accent-foreground: #f0efec;
-  --destructive: #ef6b62;
-  --border: #2a2418;
-  --input: #3a3226;
-  --ring: #c9a87c;
+  --background: #0a0a0a;
+  --foreground: #ededed;
+  --card: #141414;
+  --card-foreground: #ededed;
+  --popover: #1f1f1f;
+  --popover-foreground: #ededed;
+  --primary: #ededed;
+  --primary-foreground: #0a0a0a;
+  --secondary: #1a1a1a;
+  --secondary-foreground: #ededed;
+  --muted: #1a1a1a;
+  --muted-foreground: #a1a1a1;
+  --accent: #1f1f1f;
+  --accent-foreground: #ededed;
+  --destructive: #f85149;
+  --border: #262626;
+  --input: #333333;
+  --ring: #4c8df6;
 
-  /* Model series (Okabe-Ito, lifted for dark). lib/ai-usage/models.ts pins
-     known models to a slot so a model keeps its color on every chart. */
-  --model-1: #5cb8ea;
-  --model-2: #f0a53a;
+  /* Model series. lib/ai-usage/models.ts pins known models to a slot so a
+     model keeps its color on every chart. */
+  --model-1: #4c8df6;
+  --model-2: #fb923c;
   --model-3: #34c493;
   --model-4: #c792ea;
-  --model-5: #e8d36b;
-  --model-6: #ff8f6b;
-  --model-7: #9aa4b2;
+  --model-5: #f472b6;
+  --model-6: #22d3ee;
+  --model-7: #a1a1a1;
 
-  --chart-1: #e9c46a;
-  --chart-2: #f0a53a;
+  --chart-1: #4c8df6;
+  --chart-2: #f0883e;
   --chart-3: #34c493;
   --chart-4: #c792ea;
-  --chart-5: #6f6555;
+  --chart-5: #6b6b6b;
 
-  --sidebar: #0e0c09;
-  --sidebar-foreground: #f0efec;
-  --sidebar-accent: #1e1a14;
-  --sidebar-accent-foreground: #f0efec;
-  --sidebar-border: #2a2418;
+  --sidebar: #0a0a0a;
+  --sidebar-foreground: #ededed;
+  --sidebar-accent: #1a1a1a;
+  --sidebar-accent-foreground: #ededed;
+  --sidebar-border: #262626;
 }
 
 @theme inline {
@@ -106,11 +107,27 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-sm text-foreground;
     font-family: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
     font-feature-settings: "tnum" 1, "ss01" 1;
   }
+  /* Browser bold is 700; the scale stops at 600. */
+  b, strong, th { font-weight: 600; }
 }
+
+/* A status shows as a dot before its text, so text keeps its two colours. */
+.mark-good::before, .mark-warn::before, .mark-bad::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 8px;
+  border-radius: 9999px;
+  vertical-align: middle;
+}
+.mark-good::before { background: var(--console-green); }
+.mark-warn::before { background: var(--console-amber); }
+.mark-bad::before { background: var(--console-brick); }
 
 /* Recharts measures label widths in an off-screen span; keep it out of the page. */
 #recharts_measurement_span { visibility: hidden; }
@@ -125,4 +142,5 @@
 .trace-step-panel { position: relative; z-index: 20; width: var(--drawer-width); max-width: 65%; display: flex; flex-direction: column; box-shadow: -8px 0 24px rgb(0 0 0 / .16); }
 .trace-panel-scroll { min-height: 0; flex: 1; }
 .react-flow { --xy-background-color: var(--console-bg); --xy-controls-button-background-color: var(--console-panel); --xy-controls-button-color: var(--console-ink); --xy-controls-button-border-color: var(--console-rule); }
+.react-flow .react-flow__panel { margin: 16px; }
 @media (max-width: 767px) { .trace-workspace:has(.trace-step-panel) .meal-summary-details { display: none; } .trace-workspace:has(.trace-step-panel) .meal-summary { position: sticky; top: 56px; z-index: 21; background: var(--console-bg); } .trace-step-panel { position: fixed; inset: auto 0 0; width: 100%; max-width: 100%; height: 55dvh; max-height: var(--sheet-height, 55dvh); border-left: 0; border-top: 1px solid var(--console-rule); } }

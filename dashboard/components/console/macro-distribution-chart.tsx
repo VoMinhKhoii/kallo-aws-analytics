@@ -29,14 +29,14 @@ export function MacroDistributionChart({ rows }: { rows: MacroRow[] }) {
 
   return (
     <div>
-      <div className="flex flex-wrap gap-1 border-b border-[var(--console-rule)] px-4 py-3 sm:px-5" role="tablist" aria-label="Macro nutrient">
+      <div className="flex flex-wrap gap-1 border-b border-[var(--console-rule)] px-4 py-4 sm:px-6" role="tablist" aria-label="Macro nutrient">
         {NUTRIENTS.map((key) => (
-          <button key={key} type="button" role="tab" aria-selected={nutrient === key} onClick={() => setNutrient(key)} className={cn("rounded-md border px-2.5 py-1.5 text-xs transition-colors", nutrient === key ? "border-[var(--console-ink)] bg-[var(--console-ink)] text-[var(--console-surface)]" : "border-[var(--console-rule)] text-[var(--console-muted)] hover:text-[var(--console-ink)]")}>
+          <button key={key} type="button" role="tab" aria-selected={nutrient === key} onClick={() => setNutrient(key)} className={cn("rounded-md border px-2 py-2 text-xs transition-colors", nutrient === key ? "border-[var(--console-muted)] bg-[var(--console-surface)] text-foreground" : "border-[var(--console-rule)] text-muted-foreground hover:text-foreground")}>
             {LABELS[key]}
           </button>
         ))}
       </div>
-      <div className="px-3 py-4 sm:px-5">
+      <div className="px-4 py-4 sm:px-6">
         <ChartContainer config={config} className="h-72 w-full aspect-auto" role="img" aria-label={`${LABELS[nutrient]} distribution histogram`}>
           <BarChart data={data} margin={{ top: 8, right: 12, bottom: 8, left: 8 }}>
             <CartesianGrid vertical={false} strokeDasharray="3 3" />

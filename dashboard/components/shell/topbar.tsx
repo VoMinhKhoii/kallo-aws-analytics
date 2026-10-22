@@ -68,37 +68,37 @@ export function Topbar() {
 
   return (
     <>
-      <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-[var(--console-rule)] bg-[var(--console-bg)] px-4 lg:px-7">
+      <header className="sticky top-0 z-20 flex h-14 items-center gap-4 border-b border-[var(--console-rule)] bg-[var(--console-bg)] px-4 lg:px-6">
         <button
           type="button"
           onClick={() => setNavOpen(true)}
           aria-label="Open navigation"
-          className="grid size-8 shrink-0 place-items-center rounded-md text-[var(--console-muted)] hover:bg-[var(--console-surface)] hover:text-[var(--console-ink)] focus-visible:outline-2 focus-visible:outline-[var(--console-blue)] lg:hidden"
+          className="grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-[var(--console-surface)] hover:text-foreground focus-visible:outline-2 focus-visible:outline-[var(--console-blue)] lg:hidden"
         >
           <Menu className="size-4" />
         </button>
-        <div className="hidden min-w-0 items-center text-[13px] text-[var(--console-muted)] sm:flex">
+        <div className="hidden min-w-0 items-center text-sm text-muted-foreground sm:flex">
           <span className="truncate">{title}</span>
         </div>
         <div className="flex min-w-0 flex-1 justify-center">
           <button
             type="button"
             onClick={() => setOpen(true)}
-            className="flex h-8 w-full max-w-sm items-center gap-2 rounded-md border border-[var(--console-rule)] bg-[var(--console-surface)] px-3 text-left text-xs text-[var(--console-muted)] transition-colors hover:border-[var(--console-ink)] hover:text-[var(--console-ink)] focus-visible:outline-2 focus-visible:outline-[var(--console-blue)]"
+            className="flex h-8 w-full max-w-sm items-center gap-2 rounded-md border border-[var(--console-rule)] bg-[var(--console-surface)] px-4 text-left text-xs text-muted-foreground transition-colors hover:border-[var(--console-ink)] hover:text-foreground focus-visible:outline-2 focus-visible:outline-[var(--console-blue)]"
           >
             <Search className="size-3.5" />
             <span className="truncate">Search pages and traces</span>
-            <kbd className="ml-auto hidden rounded border border-[var(--console-rule)] bg-[var(--console-panel)] px-1.5 py-0.5 text-[11px] sm:inline">⌘K</kbd>
+            <kbd className="ml-auto hidden rounded border border-[var(--console-rule)] bg-[var(--console-panel)] px-2 py-1 text-xs sm:inline">⌘K</kbd>
           </button>
         </div>
         {(pathname === "/" || pathname === "/system") && <div className="flex shrink-0 items-center gap-2" title={health.detail}>
           <span className={cn("size-2 rounded-full", health.state === "live" ? "bg-[var(--console-green)]" : health.state === "down" ? "bg-[var(--console-brick)]" : "bg-[var(--console-amber)]")} />
-          <span className="hidden text-[12px] text-[var(--console-muted)] md:inline">{health.state === "live" ? "Live" : health.state === "down" ? "Unavailable" : "Checking"}</span>
+          <span className="hidden text-xs text-muted-foreground md:inline">{health.state === "live" ? "Live" : health.state === "down" ? "Unavailable" : "Checking"}</span>
         </div>
-        }<div className="flex items-center gap-1.5 border-l border-[var(--console-rule)] pl-3" title={auth.expiresAt ? `Session expires ${new Date(auth.expiresAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}` : undefined}>
-          <ShieldCheck className="size-3.5 text-[var(--console-muted)]" aria-hidden="true" />
-          <span className="text-[12px] font-medium text-[var(--console-muted)]">{auth.error ? "Session unavailable" : auth.loading ? "Checking access" : auth.role === "founder" ? "Founder" : auth.role === "reviewer" ? "Reviewer" : "No session"}</span>
-          {auth.role ? <button type="button" onClick={() => void logout()} className="ml-1 rounded p-1 text-[var(--console-muted)] hover:bg-[var(--console-surface)] hover:text-[var(--console-ink)] focus-visible:outline-2 focus-visible:outline-[var(--console-blue)]" aria-label="Log out"><LogOut className="size-3.5" /></button> : null}
+        }<div className="flex items-center gap-2 border-l border-[var(--console-rule)] pl-4" title={auth.expiresAt ? `Session expires ${new Date(auth.expiresAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}` : undefined}>
+          <ShieldCheck className="size-3.5 text-muted-foreground" aria-hidden="true" />
+          <span className="text-xs font-medium text-muted-foreground">{auth.error ? "Session unavailable" : auth.loading ? "Checking access" : auth.role === "founder" ? "Founder" : auth.role === "reviewer" ? "Reviewer" : "No session"}</span>
+          {auth.role ? <button type="button" onClick={() => void logout()} className="ml-1 rounded p-1 text-muted-foreground hover:bg-[var(--console-surface)] hover:text-foreground focus-visible:outline-2 focus-visible:outline-[var(--console-blue)]" aria-label="Log out"><LogOut className="size-3.5" /></button> : null}
         </div>
       </header>
       <CommandPalette open={open} onClose={() => setOpen(false)} />

@@ -36,12 +36,12 @@ export function UsageTooltip({
   const total = rows.reduce((s, r) => s + r.value, 0);
   const extra = note?.(payload[0]?.payload ?? {});
   return (
-    <div className="w-[min(240px,65vw)] max-w-full rounded-lg border border-border bg-popover px-3 py-2.5 text-xs shadow-lg shadow-black/40">
+    <div className="w-[min(240px,65vw)] max-w-full rounded-lg border border-border bg-popover px-4 py-2 text-xs shadow-lg shadow-black/40">
       <div className="mb-2 flex items-center justify-between gap-4">
         <span className="font-medium text-foreground">{label ? /^\d{4}-\d{2}-\d{2}/.test(label) ? longDate(label) : label : ""}</span>
-        {extra ? <span className="text-[12px] text-[var(--console-amber)]">{extra}</span> : null}
+        {extra ? <span className="text-xs text-muted-foreground mark-warn">{extra}</span> : null}
       </div>
-      <div className="grid gap-1.5">
+      <div className="grid gap-2">
         {rows.map((r) => (
           <div key={r.meta.key} className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-2">
             <span className="size-2 rounded-[2px]" style={{ background: r.meta.color }} />

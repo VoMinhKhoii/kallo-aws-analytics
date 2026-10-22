@@ -15,7 +15,7 @@ function GoogleLogo() {
 /** Anthropic's A mark, in the console ink. */
 function AnthropicLogo() {
   return (
-    <svg viewBox="0 0 24 24" className="size-[58%] text-[var(--console-ink)]" aria-hidden="true" fill="currentColor">
+    <svg viewBox="0 0 24 24" className="size-[58%] text-foreground" aria-hidden="true" fill="currentColor">
       <path d="M17.3041 3.541h-3.6718l6.696 16.918H24Zm-10.6082 0L0 20.459h3.7442l1.3693-3.5527h7.0052l1.3693 3.5528h3.7442L10.5363 3.5409Zm-.3712 10.2232 2.2914-5.9456 2.2914 5.9456Z" />
     </svg>
   );
@@ -26,11 +26,10 @@ export function ModelBadge({ meta, size = 24 }: { meta: ModelMeta; size?: number
   return (
     <span
       aria-hidden
-      className="grid shrink-0 place-items-center rounded-md bg-[var(--console-surface)] text-[12px] font-semibold"
+      className="grid shrink-0 place-items-center rounded-md bg-[var(--console-surface)] text-xs font-semibold text-muted-foreground"
       style={{
         width: size,
         height: size,
-        color: meta.color,
         boxShadow: `inset 0 0 0 1.5px ${meta.color}`,
       }}
     >

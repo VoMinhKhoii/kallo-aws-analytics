@@ -33,7 +33,7 @@ export function TraceExplorer() {
         </div>
       </PageIntro>
 
-      <div className="mt-3 grid gap-3">
+      <div className="mt-4 grid gap-4">
         <Panel
           title="Recent AI meal requests"
           description="Choose a request to inspect its exact bounded pipeline trace."
@@ -45,12 +45,12 @@ export function TraceExplorer() {
                 return (
                   <TableRow key={row[9]}>
                     <TableCell>
-                      <Link href={`/traces/${encodeURIComponent(row[9])}`} className="font-mono text-[11px] text-[var(--console-blue)] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--console-blue)]">
+                      <Link href={`/traces/${encodeURIComponent(row[9])}`} className="font-mono text-xs text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--console-blue)]">
                         {row[0]}
                       </Link>
                     </TableCell>
-                    <TableCell muted><span className="whitespace-nowrap font-mono text-[11px]">{row[1]} {row[2]}</span></TableCell>
-                    <TableCell className="max-w-96"><Link href={`/traces/${encodeURIComponent(row[9])}`} className="line-clamp-2 font-medium leading-5 text-[var(--console-ink)] hover:text-[var(--console-blue)] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--console-blue)]">{row[3]}</Link></TableCell>
+                    <TableCell muted><span className="whitespace-nowrap font-mono text-xs">{row[1]} {row[2]}</span></TableCell>
+                    <TableCell className="max-w-96"><Link href={`/traces/${encodeURIComponent(row[9])}`} className="line-clamp-2 font-medium leading-5 text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--console-blue)]">{row[3]}</Link></TableCell>
                     <TableCell numeric>{formatDuration(row[4])}</TableCell>
                     <TableCell numeric>{formatNumber(row[5])}</TableCell>
                     <TableCell muted><span className="whitespace-nowrap tabular-nums">{row[6]} accepted · {row[7]} unmatched · {row[8]} rejected</span></TableCell>
@@ -59,8 +59,8 @@ export function TraceExplorer() {
               })}
             </SimpleTable>
             {requests.hasMore ? (
-              <div className="border-t border-[var(--console-rule)] px-4 py-3 sm:px-5">
-                <button type="button" onClick={requests.loadMore} disabled={requests.loading} className="min-h-8 rounded-md border border-[var(--console-rule)] bg-[var(--console-surface)] px-3 text-xs font-medium hover:bg-[var(--console-panel)] focus-visible:outline-2 focus-visible:outline-[var(--console-blue)] disabled:opacity-50">Load more traces</button>
+              <div className="border-t border-[var(--console-rule)] px-4 py-4 sm:px-6">
+                <button type="button" onClick={requests.loadMore} disabled={requests.loading} className="min-h-8 rounded-md border border-[var(--console-rule)] bg-[var(--console-surface)] px-4 text-xs font-medium hover:bg-[var(--console-panel)] focus-visible:outline-2 focus-visible:outline-[var(--console-blue)] disabled:opacity-50">Load more traces</button>
               </div>
             ) : null}
           </MetricState>

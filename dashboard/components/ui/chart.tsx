@@ -70,15 +70,15 @@ function ChartTooltipContent({
   const { config } = useChart();
   if (!active || !payload?.length) return null;
   return (
-    <div className={cn("bg-popover grid min-w-36 gap-1.5 rounded-lg border px-2.5 py-2 text-xs shadow-md", className)}>
+    <div className={cn("bg-popover grid min-w-36 gap-2 rounded-lg border px-2 py-2 text-xs shadow-md", className)}>
       {!hideLabel && <div className="font-medium">{labelFormatter ? labelFormatter(label) : label}</div>}
       <div className="grid gap-1">
         {payload.map((item: any, i: number) => {
           const key = String(item.dataKey ?? item.name ?? i);
           const cfg = config[key];
           return (
-            <div key={key + i} className="flex items-center justify-between gap-3">
-              <span className="flex items-center gap-1.5">
+            <div key={key + i} className="flex items-center justify-between gap-4">
+              <span className="flex items-center gap-2">
                 <span className="size-2 shrink-0 rounded-[2px]" style={{ background: item.color ?? `var(--color-${key})` }} />
                 <span className="text-muted-foreground">{cfg?.label ?? key}</span>
               </span>
@@ -87,7 +87,7 @@ function ChartTooltipContent({
           );
         })}
       </div>
-      {footer ? <div className="mt-1 border-t pt-1.5 text-muted-foreground">{footer}</div> : null}
+      {footer ? <div className="mt-1 border-t pt-2 text-muted-foreground">{footer}</div> : null}
     </div>
   );
 }
@@ -98,11 +98,11 @@ function ChartLegendContent({ payload, className }: { payload?: readonly any[]; 
   const { config } = useChart();
   if (!payload?.length) return null;
   return (
-    <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-1.5 pt-2", className)}>
+    <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-2 pt-2", className)}>
       {payload.map((item: any) => {
         const key = String(item.dataKey ?? item.value);
         return (
-          <span key={key} className="text-muted-foreground flex items-center gap-1.5 text-xs">
+          <span key={key} className="text-muted-foreground flex items-center gap-2 text-xs">
             <span className="size-2.5 shrink-0 rounded-full" style={{ background: item.color }} />
             {config[key]?.label ?? key}
           </span>

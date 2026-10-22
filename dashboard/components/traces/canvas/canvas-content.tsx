@@ -14,7 +14,7 @@ export function CanvasContent({graph,selected,onSelect,duration,fit,panelWidth}:
   // Fixed sizes (same as TraceNode): the flow has no onNodesChange, so measured sizes never
   // reach these node objects and React Flow's queued fitView never runs. We frame it ourselves.
   const nodes:FlowNode[]=useMemo(()=>graph.nodes.map(s=>({id:s.id,type:s.kind,position:s.position,width:220,height:s.afterResponse?108:s.kind==='gap'?40:88,data:{...s},selected:s.id===selected,draggable:false})),[graph,selected]);
-  const edges=useMemo(()=>graph.edges.map(e=>({...e,type:e.label?'gap':'smoothstep',style:{stroke:e.failed?'var(--console-brick)':'var(--console-muted)',strokeWidth:1,strokeDasharray:e.dotted?'2 4':e.dashed?'6 4':undefined},labelStyle:{fill:'var(--console-muted)',fontSize:11},labelBgStyle:{fill:'var(--console-bg)'}})),[graph]);
+  const edges=useMemo(()=>graph.edges.map(e=>({...e,type:e.label?'gap':'smoothstep',style:{stroke:e.failed?'var(--console-brick)':'var(--console-muted)',strokeWidth:1,strokeDasharray:e.dotted?'2 4':e.dashed?'6 4':undefined},labelStyle:{fill:'var(--console-muted)',fontSize: 12},labelBgStyle:{fill:'var(--console-bg)'}})),[graph]);
   const closedZoom=useRef<number|null>(null);
   const fitGraph=useCallback(()=>{
     if(!canvas.current)return;
