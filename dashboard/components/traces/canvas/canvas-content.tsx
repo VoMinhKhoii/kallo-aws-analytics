@@ -25,7 +25,7 @@ export function CanvasContent({graph,selected,onSelect,duration,fit,panelWidth}:
     // readable zoom, vertically centred, and let the reader pan along it.
     // The spine is the top row, so a graph taller than the canvas is pinned by its top edge.
     const y=bounds.height*.85>height-48?24-bounds.y*.85:height/2-(bounds.y+bounds.height/2)*.85;
-    const viewport=fit.zoom<.6&&!window.matchMedia('(min-width: 768px)').matches?{zoom:.85,x:16-bounds.x*.85,y}:fit;
+    const viewport=fit.zoom<.85&&!window.matchMedia('(min-width: 1024px)').matches?{zoom:.85,x:16-bounds.x*.85,y}:fit;
     void flow.setViewport(viewport);
     if(!panelWidth)closedZoom.current=viewport.zoom;
   },[flow,panelWidth]);

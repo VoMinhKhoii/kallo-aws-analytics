@@ -24,7 +24,7 @@ export function TrendChart({
   seriesOnly = false,
   bars = false,
   hourly = false,
-  partialLast = hourly, stacked = false, step = false, integer = false, totals = false, windowLabel, durationAxis = false, percent = false, seriesSubs = {}, note,
+  partialLast = hourly, stacked = false, step = false, integer = false, totals = false, windowLabel, durationAxis = false, percent = false, seriesSubs = {}, note, compact = false, height = 190,
   emptyMessage = "Nothing recorded in this window yet.",
 }: {
   title: string;
@@ -41,6 +41,8 @@ export function TrendChart({
   hourly?: boolean;
   partialLast?: boolean; stacked?: boolean; step?: boolean; integer?: boolean; totals?: boolean; windowLabel?: string; durationAxis?: boolean;
   percent?: boolean; seriesSubs?: Record<string,string>; note?: React.ReactNode;
+  /** Legend in the header instead of a rail, so the chart can sit in a column. */
+  compact?: boolean; height?: number;
   emptyMessage?: string;
 }) {
   const rows = observedRows(inputRows, models.map(m => m.key), !hourly);
@@ -63,7 +65,7 @@ export function TrendChart({
   });
 
   return (
-    <section className="rounded-xl border border-border bg-card px-4 py-3">
+    <section className="flex h-full flex-col rounded-xl border border-border bg-card px-4 py-3">
       <div className="mb-2 flex items-center justify-between gap-3">
         <div className="flex flex-wrap items-baseline gap-x-3">
           <h2 className="text-[15px] font-semibold">{title}</h2>
@@ -71,12 +73,14 @@ export function TrendChart({
         </div>
         {action}
       </div>
+      {compact && shown.length > 0 && <div className="mb-2">{seriesOnly ? <SeriesRail inline items={rail.map(({meta,value,sub}) => ({...meta,value,sub}))} focus={focus} /> : <ModelRail inline items={rail} focus={focus} />}</div>}
       {note&&<p className="mb-2 text-xs text-muted-foreground">{note}</p>}
       {shown.length === 0 ? (
         <p className="text-muted-foreground py-10 text-center text-[13px]">{emptyMessage}</p>
       ) : (
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <div className="h-[190px] w-full min-w-0 sm:flex-1">
+        <div className={compact ? "flex flex-1 flex-col" : "mt-auto flex flex-col gap-3 sm:flex-row"}>
+          {/* In a stretched card the compact plot grows to the card's height instead of leaving a band. */}
+          <div className={compact ? "w-full min-w-0 flex-1" : "w-full min-w-0 sm:flex-1"} style={compact ? { minHeight: height } : { height }}>
             <ResponsiveContainer>
               <ComposedChart barGap={stacked?undefined:"-100%"} data={rows} onMouseMove={state => setHoveredRow(state.activePayload?.[0]?.payload ?? null)} onMouseLeave={() => setHoveredRow(null)} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
                 {bars && <defs>{shown.map(m => <pattern key={m.key} id={`${hatchId}-${m.key}`} width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="5" height="5" fill={m.color} fillOpacity={0.25} /><line x1="0" y1="0" x2="0" y2="5" stroke={m.color} strokeWidth={2} /></pattern>)}</defs>}
@@ -95,7 +99,7 @@ export function TrendChart({
                 ) : (
                   <Line
                     key={m.key}
-                    type={step?"stepBefore":"monotoneX"}
+                    type={step?"stepBefore":"linear"}
                     dataKey={m.key}
                     stroke={m.color}
                     strokeOpacity={focus.opacity(m.key)}
@@ -116,7 +120,7 @@ export function TrendChart({
               </ComposedChart>
             </ResponsiveContainer>
           </div>
-          {seriesOnly ? <SeriesRail items={rail.map(({meta,value,sub}) => ({...meta,value,sub}))} focus={focus} /> : <ModelRail items={rail} focus={focus} />}
+          {compact ? null : seriesOnly ? <SeriesRail items={rail.map(({meta,value,sub}) => ({...meta,value,sub}))} focus={focus} /> : <ModelRail items={rail} focus={focus} />}
         </div>
       )}
     </section>

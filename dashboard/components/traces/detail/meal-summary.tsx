@@ -2,7 +2,7 @@
 import { useEffect, useRef } from 'react';
 import type { Nutrient,TraceGraphDetail } from '@/lib/traces/types';
 import { int } from '@/lib/ai-usage/format';
-const nutrient=(v:Nutrient)=>v==null?'—':typeof v==='number'?int(v):<>{int(v.mid)} <span className="text-[0.65em] font-normal text-muted-foreground">({int(v.low)}–{int(v.high)})</span></>;
+const nutrient=(v:Nutrient)=>v==null?'—':typeof v==='number'?int(v):<>{int(v.mid)} <span className="text-[max(11px,0.65em)] font-normal text-muted-foreground">({int(v.low)}–{int(v.high)})</span></>;
 export function MealSummary({trace:t,openAssembly,panelOpen=false}:{trace:TraceGraphDetail;panelOpen?:boolean;openAssembly:(item:number)=>void}) {
   const ref=useRef<HTMLElement>(null);
   useEffect(()=>{

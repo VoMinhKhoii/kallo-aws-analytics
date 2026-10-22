@@ -210,7 +210,7 @@ export function ScopeControls({
 export function SourceTag({ children, tone = "neutral" }: { children: React.ReactNode; tone?: "neutral" | "live" | "warn" | "error" }) {
   return (
     <span className={cn(
-      "inline-flex items-center gap-1.5 rounded border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em]",
+      "inline-flex items-center gap-1.5 rounded border px-2 py-1 text-[12px] font-medium",
       tone === "live" && "border-[color-mix(in_oklab,var(--console-green)_28%,var(--console-rule))] bg-[color-mix(in_oklab,var(--console-green)_8%,var(--console-surface))] text-[var(--console-green)]",
       tone === "warn" && "border-[color-mix(in_oklab,var(--console-amber)_28%,var(--console-rule))] bg-[color-mix(in_oklab,var(--console-amber)_8%,var(--console-surface))] text-[var(--console-amber)]",
       tone === "error" && "border-[color-mix(in_oklab,var(--console-brick)_28%,var(--console-rule))] bg-[color-mix(in_oklab,var(--console-brick)_8%,var(--console-surface))] text-[var(--console-brick)]",
@@ -347,7 +347,7 @@ export function MetricRibbon({ items }: { items: RibbonItem[] }) {
   );
 }
 
-export type BarItem = { label: string; value: number; valueLabel?: React.ReactNode; detail?: React.ReactNode; tone?: "green" | "amber" | "brick" | "blue" | "neutral" };
+export type BarItem = { label: string; value: number; valueLabel?: React.ReactNode; detail?: React.ReactNode; tone?: "data" | "green" | "amber" | "brick" | "blue" | "neutral" };
 
 export function BarList({ items, emptyLabel = "No observed rows." }: { items: BarItem[]; emptyLabel?: string }) {
   if (items.length === 0) return <p className="px-4 py-5 text-xs text-[var(--console-muted)] sm:px-5">{emptyLabel}</p>;
@@ -356,8 +356,8 @@ export function BarList({ items, emptyLabel = "No observed rows." }: { items: Ba
     <div className="divide-y divide-[var(--console-rule)]">
       {items.map((item) => (
         <div key={item.label} className="grid grid-cols-[minmax(8rem,15rem)_minmax(4rem,1fr)_auto] items-center gap-3 px-4 py-2.5 sm:px-5">
-          <div className="min-w-0"><p className="truncate text-xs font-medium text-[var(--console-ink)]">{item.label}</p>{item.detail ? <p className="mt-0.5 truncate text-[10px] text-[var(--console-muted)]">{item.detail}</p> : null}</div>
-          <div className="h-2 overflow-hidden rounded-sm bg-[var(--console-panel)]" aria-hidden="true"><div className={cn("h-full rounded-sm", item.tone === "green" ? "bg-[var(--console-green)]" : item.tone === "amber" ? "bg-[var(--console-amber)]" : item.tone === "brick" ? "bg-[var(--console-brick)]" : item.tone === "blue" ? "bg-[var(--console-blue)]" : "bg-[var(--console-muted)]")} style={{ width: `${Math.max(0, Math.min(100, (item.value / max) * 100))}%` }} /></div>
+          <div className="min-w-0"><p className="truncate text-xs font-medium text-[var(--console-ink)]">{item.label}</p>{item.detail ? <p className="mt-0.5 truncate text-[12px] text-[var(--console-muted)]">{item.detail}</p> : null}</div>
+          <div className="h-2 overflow-hidden rounded-sm bg-[var(--console-panel)]" aria-hidden="true"><div className={cn("h-full rounded-sm", item.tone === "data" ? "bg-[var(--console-data)]" : item.tone === "green" ? "bg-[var(--console-green)]" : item.tone === "amber" ? "bg-[var(--console-amber)]" : item.tone === "brick" ? "bg-[var(--console-brick)]" : item.tone === "blue" ? "bg-[var(--console-blue)]" : "bg-[var(--console-muted)]")} style={{ width: `${Math.max(0, Math.min(100, (item.value / max) * 100))}%` }} /></div>
           <span className="tabular text-right text-xs font-medium text-[var(--console-ink)]">{item.valueLabel ?? formatNumber(item.value)}</span>
         </div>
       ))}

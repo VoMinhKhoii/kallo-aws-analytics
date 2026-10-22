@@ -10,7 +10,7 @@ import { useSessionRole } from "@/lib/use-auth";
 
 type Health = { ok: boolean; reason?: string; authMode?: string } | null;
 
-/** Status is proven by a real AWS read, never inferred from env vars. */
+/** Status is proven by a real database read, never inferred from env vars. */
 function useHealth(enabled = true): { state: "checking" | "live" | "down"; detail: string } {
   const [health, setHealth] = React.useState<Health>(null);
   const [failed, setFailed] = React.useState(false);
@@ -28,9 +28,9 @@ function useHealth(enabled = true): { state: "checking" | "live" | "down"; detai
   }, [enabled]);
 
   if (failed) return { state: "down", detail: "Dashboard status probe did not respond" };
-  if (!health) return { state: "checking", detail: "Checking the AWS metric path" };
+  if (!health) return { state: "checking", detail: "Checking the production database" };
   if (health.ok) return { state: "live", detail: health.authMode ? `Connected via ${health.authMode}` : "Connected" };
-  return { state: "down", detail: health.reason ?? "The AWS metric path is unavailable" };
+  return { state: "down", detail: health.reason ?? "The production database is unavailable" };
 }
 
 const TITLES: Record<string, string> = {
@@ -68,7 +68,7 @@ export function Topbar() {
 
   return (
     <>
-      <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-[var(--console-rule)] bg-[color-mix(in_oklab,var(--console-bg)_92%,transparent)] px-4 backdrop-blur lg:px-7">
+      <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-[var(--console-rule)] bg-[var(--console-bg)] px-4 lg:px-7">
         <button
           type="button"
           onClick={() => setNavOpen(true)}
@@ -77,8 +77,7 @@ export function Topbar() {
         >
           <Menu className="size-4" />
         </button>
-        <div className="hidden min-w-0 items-center gap-2 text-xs text-[var(--console-muted)] sm:flex">
-          <span className="size-1.5 rounded-full bg-[var(--console-ink)]" />
+        <div className="hidden min-w-0 items-center text-[13px] text-[var(--console-muted)] sm:flex">
           <span className="truncate">{title}</span>
         </div>
         <div className="flex min-w-0 flex-1 justify-center">
@@ -89,16 +88,16 @@ export function Topbar() {
           >
             <Search className="size-3.5" />
             <span className="truncate">Search pages and traces</span>
-            <kbd className="ml-auto hidden rounded border border-[var(--console-rule)] bg-[var(--console-panel)] px-1.5 py-0.5 font-mono text-[10px] sm:inline">⌘K</kbd>
+            <kbd className="ml-auto hidden rounded border border-[var(--console-rule)] bg-[var(--console-panel)] px-1.5 py-0.5 text-[11px] sm:inline">⌘K</kbd>
           </button>
         </div>
         {(pathname === "/" || pathname === "/system") && <div className="flex shrink-0 items-center gap-2" title={health.detail}>
           <span className={cn("size-2 rounded-full", health.state === "live" ? "bg-[var(--console-green)]" : health.state === "down" ? "bg-[var(--console-brick)]" : "bg-[var(--console-amber)]")} />
-          <span className="hidden text-[11px] text-[var(--console-muted)] md:inline">{health.state === "live" ? "Live" : health.state === "down" ? "Unavailable" : "Checking"}</span>
+          <span className="hidden text-[12px] text-[var(--console-muted)] md:inline">{health.state === "live" ? "Live" : health.state === "down" ? "Unavailable" : "Checking"}</span>
         </div>
         }<div className="flex items-center gap-1.5 border-l border-[var(--console-rule)] pl-3" title={auth.expiresAt ? `Session expires ${new Date(auth.expiresAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}` : undefined}>
           <ShieldCheck className="size-3.5 text-[var(--console-muted)]" aria-hidden="true" />
-          <span className="text-[11px] font-medium text-[var(--console-muted)]">{auth.error ? "Session unavailable" : auth.loading ? "Checking access" : auth.role === "founder" ? "Founder" : auth.role === "reviewer" ? "Reviewer" : "No session"}</span>
+          <span className="text-[12px] font-medium text-[var(--console-muted)]">{auth.error ? "Session unavailable" : auth.loading ? "Checking access" : auth.role === "founder" ? "Founder" : auth.role === "reviewer" ? "Reviewer" : "No session"}</span>
           {auth.role ? <button type="button" onClick={() => void logout()} className="ml-1 rounded p-1 text-[var(--console-muted)] hover:bg-[var(--console-surface)] hover:text-[var(--console-ink)] focus-visible:outline-2 focus-visible:outline-[var(--console-blue)]" aria-label="Log out"><LogOut className="size-3.5" /></button> : null}
         </div>
       </header>

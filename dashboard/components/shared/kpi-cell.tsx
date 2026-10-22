@@ -13,3 +13,10 @@ export function Cell({ label, value, delta: d, sub, spark, title }: { label: str
   );
 }
 
+
+/** A change in the good direction is green, in the bad one red; no change stays grey. */
+export function Change({ change, goodUp, title }: { change: { text: string; up: boolean } | null; goodUp: boolean; title?: string }) {
+  if (!change) return null;
+  const tone = /^[+−]0\.0/.test(change.text) ? "text-muted-foreground" : change.up === goodUp ? "text-[var(--console-green)]" : "text-[var(--console-brick)]";
+  return <span title={title} className={`tabular shrink-0 text-[12px] leading-4 ${tone}`}>{change.text}</span>;
+}

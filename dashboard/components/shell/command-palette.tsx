@@ -3,6 +3,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Search, CornerDownLeft } from "lucide-react";
 import { ALL_NAV } from "@/components/shell/nav-items";
+import { KalloMark } from "@/components/shell/sidebar";
 import { cn } from "@/lib/utils";
 
 export function useCommandPalette() {
@@ -55,7 +56,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
               else if (pages[0]) go(pages[0].href);
             }}
           />
-          <kbd className="bg-muted text-muted-foreground rounded border px-1.5 py-0.5 text-[10px]">esc</kbd>
+          <kbd className="bg-muted text-muted-foreground rounded border px-1.5 py-0.5 text-[11px]">esc</kbd>
         </div>
         <div className="max-h-72 overflow-y-auto p-1.5">
           {pages.map((n) => (
@@ -89,11 +90,11 @@ export function MobileNav({ open, onClose, pathname }: { open: boolean; onClose:
   return (
     <div className="fixed inset-0 z-50 bg-black/25 lg:hidden" onClick={onClose} role="dialog" aria-modal="true" aria-label="Navigation">
       <nav className="bg-sidebar h-full w-64 border-r p-3" onClick={(e) => e.stopPropagation()}>
-        <p className="px-2 py-3 text-[15px] font-semibold tracking-tight">✦ Kallo admin</p>
+        <p className="flex items-center gap-2.5 px-2.5 py-3 text-[15px] font-semibold tracking-tight"><KalloMark className="h-4 w-auto text-[var(--console-data)]" />Kallo admin</p>
         {ALL_NAV.map((n) => (
           <button key={n.href} onClick={() => { onClose(); router.push(n.href); }}
                   className={cn("mb-0.5 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-left text-[13px]",
-                                pathname === n.href ? "bg-sidebar-accent font-medium" : "text-muted-foreground")}>
+                                (n.href === "/" ? pathname === "/" : pathname.startsWith(n.href)) ? "bg-sidebar-accent font-medium" : "text-muted-foreground")}>
             <n.icon className="size-4" />
             {n.label}
           </button>
