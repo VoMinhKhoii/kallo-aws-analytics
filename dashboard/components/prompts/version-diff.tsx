@@ -3,12 +3,16 @@ import { useMemo } from 'react';
 import { lineDiff, MAX_DIFF_LINES } from '@/lib/prompts/line-diff';
 
 const MARK = { added: '+', removed: '−', same: ' ' } as const;
+const SAMPLE = 'max-h-[640px] overflow-auto whitespace-pre-wrap rounded-md border border-[var(--console-rule)] bg-[var(--console-surface)] px-4 py-2 text-xs leading-5';
 const TONE = { added: 'bg-[color-mix(in_srgb,var(--console-green)_14%,transparent)]', removed: 'bg-[color-mix(in_srgb,var(--console-brick)_14%,transparent)]', same: '' } as const;
 
 /** Template sample `before` → `after`, line by line; unchanged runs stay visible for context. */
 export function VersionDiff({ before, after }: { before: string; after: string }) {
   const lines = useMemo(() => lineDiff(before, after), [before, after]);
-  if (!lines) return <p className="py-4 text-sm text-muted-foreground">A template is over {MAX_DIFF_LINES.toLocaleString('en-GB')} lines; compare the samples below instead.</p>;
+  if (!lines) return <div className="grid gap-2">
+    <p className="text-sm text-muted-foreground">A template is over {MAX_DIFF_LINES.toLocaleString('en-GB')} lines, too long to diff; both samples are below.</p>
+    {[['Before', before], ['After', after]].map(([label, text]) => <section key={label} className="grid gap-1"><h3 className="text-xs text-muted-foreground">{label}</h3><pre className={SAMPLE}>{text}</pre></section>)}
+  </div>;
   const added = lines.filter(l => l.kind === 'added').length, removed = lines.filter(l => l.kind === 'removed').length;
   return <div className="grid gap-2">
     <p className="text-xs text-muted-foreground">{added ? `${added} line${added === 1 ? '' : 's'} added` : 'No lines added'} · {removed ? `${removed} removed` : 'none removed'}</p>
