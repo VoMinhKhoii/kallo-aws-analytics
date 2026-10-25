@@ -73,6 +73,21 @@ local timezone. `wrangler.jsonc` contains a Custom Domain and an exact
 Keep both entries. The root app's routes are unaffected. Version preview URLs
 are disabled; workers.dev enforces the same login.
 
+## AI trace store (D1)
+
+Kallo's AI meal traces live in the `kallo-traces` D1 database (APAC), bound to
+this Worker as `TRACES` in `wrangler.jsonc`. The `kallo-trace-ingest` Worker
+(`../trace-ingest/README.md`) fills it. Trace detail reads D1 first, then Cloud
+Logging, then the old Postgres tables. The Ingredients metrics (`ingredient_*`,
+`corpus_reverse_lookup`) read D1's `ingredient_decisions`
+(`lib/admin/decision-metrics.ts`) and fall back to the Postgres view only when
+the binding is missing. `next dev` gets local bindings from
+`initOpenNextCloudflareForDev` in `next.config.ts`.
+
+Deploy order at cutover: the ingest Worker and its secret, then the backfill
+from Cloud Logging, then Kallo with `TRACE_INGEST_URL` / `TRACE_INGEST_SECRET`,
+then this dashboard.
+
 ## Secrets
 
 Set these through Cloudflare secrets using interactive stdin or an ignored,

@@ -1,0 +1,20 @@
+{
+  "name": "kallo-trace-ingest",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --local",
+    "deploy": "wrangler d1 migrations apply kallo-traces --remote && wrangler deploy",
+    "migrate:local": "wrangler d1 migrations apply kallo-traces --local",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test test/*.test.ts"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261025.1",
+    "@types/node": "^22.20.5",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "wrangler": "^4.151.0"
+  }
+}

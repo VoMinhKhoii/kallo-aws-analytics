@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Receives Kallo's AI meal trace events (POST /v1/events) and keeps them in
+  // D1 for the admin dashboard. See README.md.
+  "name": "kallo-trace-ingest",
+  "account_id": "26f3d8cb79c027fa0cd34d6c9f152ab3",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-10-04",
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+  "d1_databases": [
+    {
+      "binding": "TRACES",
+      "database_name": "kallo-traces",
+      "database_id": "1cc13d01-7f6d-4fb4-9012-ddc4058f71dd",
+      "migrations_dir": "migrations"
+    }
+  ],
+  // Retention (src/retention.ts), daily at 03:41 UTC.
+  "triggers": { "crons": ["41 3 * * *"] }
+}

@@ -1,6 +1,8 @@
 import 'server-only';
 import { sql, type SQL } from 'drizzle-orm';
 import { connectAdminDb } from './db/client';
+import { isDecisionMetric, readDecisionMetric } from './decision-metrics';
+import { traceStore } from '@/lib/traces/d1';
 import type { MetricName, MetricBundle, MetricPayloadMap } from '@/app/lib/types';
 
 // Read the same privacy-reduced views used by Glue, aggregating inside Postgres.
@@ -154,8 +156,15 @@ export function metricQuery(metric: MetricName, from: string, to: string): SQL {
 export async function getLiveMetrics(metrics: readonly MetricName[], from: string, to: string): Promise<MetricBundle> {
   const connection = connectAdminDb();
   const data: Partial<MetricPayloadMap> = {}; const errors: Partial<Record<MetricName, string>> = {};
+  // Ingredient decisions live in D1 (trace-ingest). Without the binding (plain `next dev`) the Postgres view still answers.
+  const traces = metrics.some(isDecisionMetric) ? await traceStore() : null;
   try {
     for (const metric of metrics) {
+      if (traces && isDecisionMetric(metric)) {
+        try { data[metric] = await readDecisionMetric(traces, metric, from, to) as never; }
+        catch (e) { errors[metric] = 'The trace store could not be read.'; console.error('[metrics] D1 read failed:', metric, e instanceof Error ? e.message : String(e)); }
+        continue;
+      }
       try { data[metric] = await connection.db.execute(metricQuery(metric, from, to)) as never; }
       catch { errors[metric] = 'The production analytics view could not be read.'; console.error('[metrics] View read failed:', metric); }
     }
