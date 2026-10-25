@@ -20,14 +20,24 @@ const entries = JSON.parse(readFileSync(file, 'utf8'))
   .filter((e) => e?.jsonPayload?.kind === 'kallo_trace_v1')
   .sort((a, b) => String(a.timestamp).localeCompare(String(b.timestamp)));
 const events = entries.map((e) => ({ at: e.timestamp, line: JSON.stringify(e.jsonPayload) }));
+// The Worker takes 64 events and 2.5 MB per request; stay under both, counting JSON escaping.
+const batches = [];
+for (const event of events) {
+  const size = Buffer.byteLength(JSON.stringify(event)) + 1;
+  const last = batches.at(-1);
+  if (last && last.events.length < 64 && last.bytes + size <= 2_000_000) {
+    last.events.push(event);
+    last.bytes += size;
+  } else batches.push({ events: [event], bytes: size + 16 });
+}
 const totals = { stored: 0, decisions: 0, dropped: 0 };
-for (let i = 0; i < events.length; i += 64) {
+for (const [i, batch] of batches.entries()) {
   const response = await fetch(new URL('/v1/events', base), {
     method: 'POST',
     headers: { Authorization: `Bearer ${secret}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ events: events.slice(i, i + 64) }),
+    body: JSON.stringify({ events: batch.events }),
   });
-  if (!response.ok) throw new Error(`batch at ${i}: HTTP ${response.status} ${await response.text()}`);
+  if (!response.ok) throw new Error(`batch ${i}: HTTP ${response.status} ${await response.text()}`);
   const result = await response.json();
   for (const key of Object.keys(totals)) totals[key] += result[key] ?? 0;
 }

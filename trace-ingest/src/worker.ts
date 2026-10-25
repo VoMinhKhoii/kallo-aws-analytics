@@ -26,12 +26,34 @@ async function authorized(request: Request, secret: string | undefined): Promise
   return crypto.subtle.timingSafeEqual(a, b);
 }
 
-async function readBody(request: Request): Promise<unknown> {
-  const length = Number(request.headers.get('content-length') ?? '0');
-  if (length > MAX_BODY_BYTES) throw new RangeError('body');
-  const text = await request.text();
-  if (new TextEncoder().encode(text).length > MAX_BODY_BYTES) throw new RangeError('body');
-  return JSON.parse(text);
+/** JSON body, read incrementally so an oversized or chunked upload stops at the limit. */
+export async function readBody(request: Request): Promise<unknown> {
+  if (Number(request.headers.get('content-length') ?? '0') > MAX_BODY_BYTES) throw new RangeError('body');
+  const reader = request.body?.getReader();
+  if (!reader) throw new SyntaxError('empty');
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > MAX_BODY_BYTES) {
+        void reader.cancel().catch(() => {});
+        throw new RangeError('body');
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return JSON.parse(new TextDecoder().decode(bytes));
 }
 
 const INSERT_EVENT = `INSERT OR IGNORE INTO trace_events
@@ -72,8 +94,8 @@ export async function ingest(db: D1Database, events: TraceEvent[], now: number):
       ),
     );
   }
-  // Only a stage can complete a request's matching + assembly pair.
-  const touched = [...new Set(events.filter((e) => e.type === 'stage').map((e) => e.requestId))];
+  // A stage can complete the matching + assembly pair; a late request event corrects occurred_at.
+  const touched = [...new Set(events.filter((e) => e.type === 'stage' || e.type === 'request').map((e) => e.requestId))];
   let decisions = 0;
   for (const id of touched) decisions += await deriveFor(db, id, now);
   return { stored: events.length, decisions };
