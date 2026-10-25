@@ -55,3 +55,16 @@ test('reject buckets follow the view', () => {
   assert.equal(rejectBucket('rejected', 'Model refused'), 'model_rejected');
   assert.equal(rejectBucket('rejected', null), 'other');
 });
+
+test('a split stage that decodes to a non-object is skipped, not thrown on', () => {
+  const nullStage = ['{"kind":"kallo_trace_v1","requestId":"' + REQUEST_ID + '","eventId":"sx","seq":5,"type":"stage","part":1,"parts":1,"payload":"null"}'];
+  for (const payload of ['null', '42', '"text"', '[]']) {
+    const body = nullStage[0].replace('"payload":"null"', `"payload":${JSON.stringify(payload)}`);
+    const rows = stored([
+      { line: line('s1', 2, 'stage', matching), type: 'stage' },
+      { line: line('s3', 4, 'stage', assembly), type: 'stage' },
+      { line: body, type: 'stage' },
+    ]);
+    assert.equal(deriveDecisions(REQUEST_ID, rows).length, 3, payload);
+  }
+});

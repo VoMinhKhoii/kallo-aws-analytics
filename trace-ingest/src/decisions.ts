@@ -49,11 +49,13 @@ export function reassemble(rows: StoredPart[]): Event[] {
     if (sorted.length !== sorted[0].parts) continue;
     try {
       const lines = sorted.map((p) => JSON.parse(p.body) as Record<string, unknown>);
-      const payload =
+      const payload: unknown =
         sorted[0].parts > 1 || typeof lines[0].payload === 'string'
-          ? (JSON.parse(lines.map((l) => l.payload).join('')) as Record<string, unknown>)
+          ? JSON.parse(lines.map((l) => l.payload).join(''))
           : lines[0];
-      events.push({ type: sorted[0].type, at: sorted[0].emitted_at, payload });
+      // Split parts decode to any JSON value; only an object is an event.
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload)) continue;
+      events.push({ type: sorted[0].type, at: sorted[0].emitted_at, payload: payload as Record<string, unknown> });
     } catch {
       // A malformed event is not a decision source.
     }

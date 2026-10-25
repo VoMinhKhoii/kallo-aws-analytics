@@ -56,3 +56,30 @@ test('a late request event corrects decision times, and a re-post changes nothin
   assert.equal(lite.prepare('SELECT count(*) AS n FROM ingredient_decisions').get()?.n, 3);
   assert.equal(REQUEST_ID, lite.prepare('SELECT DISTINCT request_id FROM trace_events').get()?.request_id);
 });
+
+test('one request that cannot derive does not fail the batch or the others', async () => {
+  const { db, lite } = sqliteD1();
+  const now = Date.parse('2026-10-25T10:00:10.000Z');
+  const other = '7a1c2b8e-3d4a-4b5c-9e7f-0a1b2c3d4e5f';
+  const good = [line('s1', 2, 'stage', matching), line('s3', 4, 'stage', assembly)].map((l) => ({ at: '2026-10-25T10:00:05.000Z', line: l.replaceAll(REQUEST_ID, other) }));
+  // Break derivation for REQUEST_ID only: its stored stage rows are unreadable to deriveFor.
+  const events = parseBatch({ events: [{ at: '2026-10-25T10:00:05.000Z', line: line('s9', 2, 'stage', matching) }, ...good] }, now)!;
+  const realPrepare = db.prepare.bind(db);
+  (db as unknown as { prepare: typeof db.prepare }).prepare = (q: string) => {
+    const s = realPrepare(q);
+    const bind = s.bind.bind(s);
+    return Object.assign(s, { bind: (...v: unknown[]) => (q.startsWith('SELECT') && v[0] === REQUEST_ID ? { all: async () => { throw new Error('boom'); } } : bind(...v)) }) as never;
+  };
+  const errors: unknown[] = [];
+  const original = console.error;
+  console.error = (...args: unknown[]) => void errors.push(args);
+  try {
+    const result = await ingest(db, events, now);
+    assert.equal(result.stored, 3);
+    assert.equal(result.decisions, 3);
+  } finally {
+    console.error = original;
+  }
+  assert.equal(errors.length, 1);
+  assert.equal(lite.prepare('SELECT count(*) AS n FROM trace_events').get()?.n, 3);
+});

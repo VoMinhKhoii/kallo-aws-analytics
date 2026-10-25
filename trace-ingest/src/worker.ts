@@ -97,7 +97,14 @@ export async function ingest(db: D1Database, events: TraceEvent[], now: number):
   // A stage can complete the matching + assembly pair; a late request event corrects occurred_at.
   const touched = [...new Set(events.filter((e) => e.type === 'stage' || e.type === 'request').map((e) => e.requestId))];
   let decisions = 0;
-  for (const id of touched) decisions += await deriveFor(db, id, now);
+  for (const id of touched) {
+    // Decisions are derived data: one request's bad trace must not fail the write or the others.
+    try {
+      decisions += await deriveFor(db, id, now);
+    } catch (e) {
+      console.error('[trace-ingest] derive failed', id, e instanceof Error ? e.message : String(e));
+    }
+  }
   return { stored: events.length, decisions };
 }
 
