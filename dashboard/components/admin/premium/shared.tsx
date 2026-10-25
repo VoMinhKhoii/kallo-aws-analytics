@@ -9,7 +9,7 @@ export async function api<T>(path = '', body?: unknown): Promise<T> {
   if (!response.ok) throw new Error(data.error || 'Request failed.');
   return data as T;
 }
-export interface Account { id: string; email: string; name: string | null; plan: string; freeUntil: string | null; joinedAt: string; grants?: { id: string; kind: string; status: string; expiresAt: string | null }[] }
+export interface Account { id: string; email: string; name: string | null; plan: string; freeUntil: string | null; joinedAt: string; grants?: { id: string; kind: string; status: string; startsAt?: string | null; expiresAt: string | null }[] }
 export interface Activity { id: string; action: string; scope: string; reason: string | null; userCount: number; createdAt: string; undoneAt: string | null; adminEmail: string }
 export interface PremiumData {
   overview: { onFreePremium: number; endingSoon: number; paying: number; upgradedDuringFree: number };

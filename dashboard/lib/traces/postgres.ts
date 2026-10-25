@@ -5,7 +5,7 @@ import { requestColumns } from './query';
 import { postgresDetail, type Row } from './normalize';
 export async function traceRequest(db: AppDb, id: string): Promise<Row | null> {
   const columns = await requestColumns(db);
-  const optional = ['meal_name','model_profile','calories_kcal','protein_g','carbohydrate_g','fat_g','error_code'].map(c => columns.has(c) ? sql`${sql.identifier(c)}` : sql`NULL AS ${sql.identifier(c)}`);
+  const optional = ['meal_name','model_profile','calories_kcal','protein_g','carbohydrate_g','fat_g','error_code','prompt_versions_used','user_id'].map(c => columns.has(c) ? sql`${sql.identifier(c)}` : sql`NULL AS ${sql.identifier(c)}`);
   const rows = await db.execute(sql`SELECT id::text,created_at::text,status,duration_ms,error,raw_input,${sql.join(optional,sql`, `)} FROM public.pipeline_requests WHERE id=${id}::uuid`);
   return rows[0] || null;
 }

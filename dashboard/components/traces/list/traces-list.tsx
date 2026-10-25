@@ -15,13 +15,13 @@ const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export default function TracesList() {
   const router=useRouter();const [win,setWin,ready]=useUrlState('w','24h',['24h','7d','30d']);
   const [q,setQ]=useUrlState('q','');const [status,setStatus]=useUrlState('status','all',['all','success','error','pending']);
-  const [model,setModel]=useUrlState('model','');const [flags,setFlags]=useUrlState('flags','');const [request]=useUrlState('request','');
+  const [model,setModel]=useUrlState('model','');const [flags,setFlags]=useUrlState('flags','');const [user,setUser]=useUrlState('user','');const [request]=useUrlState('request','');
   const [draft,setDraft]=useState<string>(q),[rows,setRows]=useState<TraceSummary[]>([]),[next,setNext]=useState<string|null>(null);
   const [loading,setLoading]=useState(true),[error,setError]=useState(''),[active,setActive]=useState(-1),[version,setVersion]=useState(0);
   const [more,setMore]=useState(false),[models,setModels]=useState<string[]>([]);const search=useRef<HTMLInputElement>(null);const generation=useRef(0);const abort=useRef<AbortController|null>(null);
   const rowsRef=useRef(rows);rowsRef.current=rows;const previousQuery=useRef('');
   useRefocus(()=>setVersion(v=>v+1));
-  const query=new URLSearchParams({w:win,q,status,model,flags,limit:'25'}).toString();
+  const query=new URLSearchParams({w:win,q,status,model,flags,...(uuid.test(user)?{user}:{}),limit:'25'}).toString();
   useEffect(()=>setDraft(q),[q]);
   useEffect(()=>{if(ready&&uuid.test(request))router.replace(`/traces/${request}?w=${win}`);},[ready,request,router,win]);
   useEffect(()=>{
@@ -57,13 +57,13 @@ export default function TracesList() {
     if(e.key==='Enter'&&rows[active])router.push(`/traces/${rows[active].id}?w=${win}`);if(e.key==='c'&&rows[active])void navigator.clipboard.writeText(rows[active].id);
   };window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[active,rows,router,win]);
   useEffect(()=>{if(active>=0)document.querySelector(`[data-trace-id="${rows[active]?.id}"]`)?.scrollIntoView({block:'nearest'});},[active,rows]);
-  const set=(key:string,value:string)=>{const setters:Record<string,(v:string)=>void>={status:setStatus,model:setModel,flags:setFlags};setters[key]?.(value);};
+  const set=(key:string,value:string)=>{const setters:Record<string,(v:string)=>void>={status:setStatus,model:setModel,flags:setFlags,user:setUser};setters[key]?.(value);};
   // The line under the title: what the loaded rows say, so it never claims more than is shown.
   const timed=rows.map(r=>r.durationMs).filter((v):v is number=>v!=null).sort((x,y)=>x-y);const failed=rows.filter(r=>r.status==='error').length;
   const summary=rows.length?`${plural(rows.length,'meal')}${next?' loaded':''} ${win==='24h'?'in the last 24 hours':`in the last ${win.replace('d','')} days`}: ${failed?`${failed} failed`:'none failed'}${timed.length?`, median ${ms((timed[Math.floor((timed.length-1)/2)]+timed[Math.ceil((timed.length-1)/2)])/2)}, slowest ${ms(timed.at(-1))}`:''}.`:undefined;
   return <div className="mx-auto grid w-full min-w-0 max-w-[1320px] grid-cols-[minmax(0,1fr)] gap-4 py-4"><PageHeader title="Traces" description={summary} window={win} onWindow={setWin} refreshing={loading} onRefresh={()=>setVersion(v=>v+1)}/>
     <form className="relative" onSubmit={e=>{e.preventDefault();if(uuid.test(draft.trim()))router.push(`/traces/${draft.trim()}?w=${win}`);else setQ(draft.trim());}}><input ref={search} aria-label="Search meal text or request UUID" placeholder="Search meal text or request UUID…" maxLength={160} value={draft} onChange={e=>setDraft(e.target.value)} className="h-10 w-full rounded-md border border-input bg-background pl-4 pr-6 text-sm"/><kbd className="pointer-events-none absolute right-3 top-2.5 rounded border border-border px-2 text-xs text-muted-foreground">/</kbd></form>
-    <TraceFilters {...{status,model,flags,models,set}}/>
+    <TraceFilters {...{status,model,flags,models,set,user}}/>
     <p aria-live="polite" className="text-xs text-muted-foreground">{loading&&!rows.length?'Loading traces…':rows.length?`${rows.length} shown`:plural(0,'trace')}{next&&<> · <button disabled={more} onClick={loadMore} className="underline">{more?'Loading…':'Load more'}</button></>}{rows.some(r=>pendingEligible(r))&&' · Live'}</p>
     {error&&<p role="alert" className="text-sm text-foreground mark-bad">{error} <button onClick={()=>setVersion(v=>v+1)} className="underline">Retry</button></p>}
     <div aria-label="Meal traces">{!ready||loading&&!rows.length?Array.from({length:10},(_,i)=><div key={i} className="h-14 animate-pulse border-b border-border bg-secondary/30"/>):rows.map((row,i)=><TraceRow key={row.id} row={row} active={i===active} win={win}/>)}</div>

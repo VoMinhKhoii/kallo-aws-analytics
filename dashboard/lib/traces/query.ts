@@ -8,7 +8,7 @@ const date = z.iso.date();
 export const traceFilters = z.object({
   from: date.optional(), to: date.optional(), w: z.enum(['24h','7d','30d']).optional(),
   model: z.string().max(160).default(''), flags: z.string().max(100).default('').refine(v => v.split(',').filter(Boolean).every(f => ['chunked','rescue','fallback','retried','unmatched'].includes(f))), status: z.enum(['all', 'pending', 'success', 'error']).default('all'),
-  q: z.string().max(160).default(''), limit: z.coerce.number().int().min(1).max(50).default(25), cursor: z.string().max(2048).optional(),
+  q: z.string().max(160).default(''), user: z.union([z.string().uuid(), z.literal('')]).default(''), limit: z.coerce.number().int().min(1).max(50).default(25), cursor: z.string().max(2048).optional(),
 }).transform(v => {
   const to = v.to || new Date().toISOString().slice(0,10);
   const from = v.from || new Date(Date.parse(to) - ((v.w === '30d' ? 30 : v.w === '7d' ? 7 : 1)-1)*86400000).toISOString().slice(0,10);
@@ -16,7 +16,7 @@ export const traceFilters = z.object({
 }).refine(v => v.from <= v.to && Date.parse(v.to) - Date.parse(v.from) <= 366 * 86400000);
 export type TraceFilters = z.infer<typeof traceFilters>;
 const position = z.object({ at: z.string().datetime({ offset: true }), id: z.string().uuid(), filters: z.string(), windowAt: z.string().datetime({offset:true}).optional() });
-function filterKey(f: TraceFilters) { return JSON.stringify([f.w ? null : f.from, f.w ? null : f.to, f.status, f.q, f.model, f.flags, f.w]); }
+function filterKey(f: TraceFilters) { return JSON.stringify([f.w ? null : f.from, f.w ? null : f.to, f.status, f.q, f.model, f.flags, f.w, f.user]); }
 export function encodeCursor(at: string, id: string, f: TraceFilters, secret: string, windowAt = new Date().toISOString()): string {
   const payload = Buffer.from(JSON.stringify({ at, id, filters: filterKey(f), windowAt })).toString('base64url');
   return payload + '.' + createHmac('sha256', secret).update('traces:v1:' + payload).digest('base64url');
@@ -71,7 +71,7 @@ export function listQuery(f: TraceFilters, columns: Set<string>, after?: { at: s
         THEN jsonb_array_length(output_json->'mealItems') END) AS derived_items,
       max((input_json->>'unmatchedCount')::int) AS unmatched
       FROM public.pipeline_stage_logs WHERE request_id=r.id) s ON true
-    WHERE ${ids ? sql`r.id IN (${sql.join(ids.map(id=>sql`${id}::uuid`),sql`, `)}) AND` : sql``} ${columns.has('replay_of_request_id') ? sql`r.replay_of_request_id IS NULL` : sql`true`}
+    WHERE ${ids ? sql`r.id IN (${sql.join(ids.map(id=>sql`${id}::uuid`),sql`, `)}) AND` : sql``} ${f.user ? sql`r.user_id = ${f.user}::uuid AND` : sql``} ${columns.has('replay_of_request_id') ? sql`r.replay_of_request_id IS NULL` : sql`true`}
       AND r.created_at >= ${f.w ? sql`${windowAt}::timestamptz - ${f.w === '24h' ? '24 hours' : f.w === '7d' ? '7 days' : '30 days'}::interval` : sql`${f.from}::date::timestamp AT TIME ZONE 'UTC'`}
       AND r.created_at < ${f.w ? sql`${windowAt}::timestamptz` : sql`(${f.to}::date + 1)::timestamp AT TIME ZONE 'UTC'`}
   ), page AS MATERIALIZED (

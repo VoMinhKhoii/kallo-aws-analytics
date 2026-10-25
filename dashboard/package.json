@@ -14,7 +14,8 @@
     "test:admin": "node --import tsx --conditions=react-server --test lib/admin/premium/__tests__/*.test.ts",
     "test:metrics": "node --import tsx --conditions=react-server --test lib/admin/__tests__/*.test.ts",
     "test:ai-usage": "node --import tsx --test lib/ai-usage/__tests__/*.test.ts",
-    "test:traces-ui": "node --import tsx --conditions=react-server --test lib/traces-ui/__tests__/*.test.ts"
+    "test:traces-ui": "node --import tsx --conditions=react-server --test lib/traces-ui/__tests__/*.test.ts",
+    "test:prompts": "node --import tsx --test lib/prompts/__tests__/*.test.ts"
   },
   "dependencies": {
     "@opennextjs/cloudflare": "^1.20.13",

@@ -12,7 +12,7 @@ import { useSessionRole } from '@/lib/use-auth';
 import { OfferEditor } from '@/components/admin/premium/offer-editor';
 import { GiveEditor } from '@/components/admin/premium/give-editor';
 import { AccountSearch } from '@/components/admin/premium/account-search';
-import { ActivityList } from '@/components/admin/premium/activity-list';
+import { ActivityTab } from '@/components/admin/premium/activity-tab';
 import { api, secondary, date, type PremiumData } from '@/components/admin/premium/shared';
 
 export default function PremiumPage() {
@@ -39,7 +39,7 @@ export default function PremiumPage() {
       {data && tab === 'overview' && <><KpiStrip items={[{label:'On free Premium',value:int(data.overview.onFreePremium)},{label:'Ending within 3 days',value:int(data.overview.endingSoon)},{label:'Paying subscribers',value:int(data.overview.paying)},{label:'Upgraded during free access',value:int(data.overview.upgradedDuringFree)}]} /><div className="grid gap-6 pt-6"><section><h2 className={title + ' mb-4'}>Welcome offer</h2><OfferEditor key={JSON.stringify(data.offer)} offer={data.offer} onSaved={onSaved} /></section><section className="border-t border-border pt-6"><h2 className={title + ' mb-4'}>Ending soonest <span className="ml-2 text-xs font-normal text-muted-foreground">{data.ending.length} of {data.overview.onFreePremium} free Premium · <button className="hover:underline" onClick={()=>setTab('accounts')}>Accounts →</button></span></h2>{data.ending.length ? data.ending.map(a => <div key={a.id} className="border-b border-[var(--console-rule)] py-4"><Link href={`/premium?tab=accounts&account=${encodeURIComponent(a.id)}`} className="break-all text-sm hover:underline">{a.email} →</Link><p className="mt-1 text-xs text-muted-foreground">{date(a.freeUntil)} · {new Date(a.freeUntil).getTime()>Date.now()?`in ${Math.max(1,Math.ceil((Date.parse(a.freeUntil)-Date.now())/86400000))} d`:'Ended'}</p></div>) : <p className="text-sm text-muted-foreground">No free Premium grants are nearing their end.</p>}</section></div></>}
       {data && tab === 'give' && <div className="max-w-2xl"><GiveEditor onSaved={onSaved} /></div>}
       {tab === 'accounts' && <div className="max-w-3xl"><AccountSearch selected={[]} onSelect={() => {}} detail initialAccount={accountId} /></div>}
-      {data && tab === 'activity' && <ActivityList rows={data.activity} onSaved={onSaved} />}
+      {data && tab === 'activity' && <ActivityTab rows={data.activity} onSaved={onSaved} />}
       </UrlTabs>
     </>}
   </div>;
