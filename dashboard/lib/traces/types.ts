@@ -33,6 +33,7 @@ export interface TraceDetail {
   id: string; source: 'd1' | 'logging' | 'postgres'; createdAt: string; status: string;
   errorCode: string | null; error: string | null; durationMs: number | null;
   rawInput: string; mealName: string; profile: string | null;
+  userId?: string | null; promptVersions?: Record<string, string> | null;
   summary: { kcal: Nutrient; protein: Nutrient; carbs: Nutrient; fat: Nutrient; items: TraceItem[] };
   stages: TraceStage[]; calls: TraceCall[]; gaps: { after: string; ms: number }[];
   completeness: { stagesExpected: number; stagesFound: number; callsLogged: number; callsBilled: number; truncated: boolean };

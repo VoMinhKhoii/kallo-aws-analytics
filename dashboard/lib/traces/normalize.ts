@@ -37,6 +37,12 @@ export function normalizeCall(c: Row): TraceCall {
     ...(c.response ?? c.response_raw ? { response: typeof (c.response ?? c.response_raw) === 'string' ? (c.response ?? c.response_raw) : JSON.stringify(c.response ?? c.response_raw) } : {}),
   };
 }
+// prompt name → prompt_versions id, as Kallo records it on the request.
+function promptVersions(v: unknown): Record<string, string> | null {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const entries = Object.entries(v as Record<string, unknown>).filter((e): e is [string, string] => typeof e[1] === 'string');
+  return entries.length ? Object.fromEntries(entries) : null;
+}
 export function assembleDetail(request: Row, stages: TraceStage[], calls: TraceCall[], result: Row, source: TraceDetail['source'], billed: number, truncated = false): TraceDetail {
   stages.sort((a,b) => a.index-b.index || a.startedAt.localeCompare(b.startedAt));
   // Older captures record a stage's completed counts on the next stage's input.
@@ -60,7 +66,7 @@ export function assembleDetail(request: Row, stages: TraceStage[], calls: TraceC
   return { id: String(request.id), source, createdAt: timestamp(request.createdAt || request.created_at), status: String(request.status),
     errorCode: str(request.errorCode ?? request.error_code), error: str(request.error), durationMs: n(request.durationMs ?? request.duration_ms),
     rawInput: String(request.rawInput ?? request.raw_input ?? ''), mealName: String(request.mealName ?? request.meal_name ?? (summary.items.map(i => i.name).join(', ') || request.rawInput || request.raw_input || '').slice(0,160)),
-    profile: str(request.profile ?? request.model_profile), summary, stages, calls, gaps,
+    profile: str(request.profile ?? request.model_profile), userId: str(request.user_id), promptVersions: promptVersions(request.prompt_versions_used), summary, stages, calls, gaps,
     completeness: { stagesExpected: 4, stagesFound: stages.length, callsLogged: calls.length, callsBilled: billed, truncated },
   };
 }

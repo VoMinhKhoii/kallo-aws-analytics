@@ -37,6 +37,8 @@ export async function GET(request: Request) {
       const term = z.string().trim().min(2).max(100).parse(query);
       return json(await searchAccounts(connection.db, term));
     }
+    const action = url.searchParams.get('activity');
+    if (action !== null) return json({ activity: await listActivity(connection.db, { action: z.enum(['grant','end','offer','undo']).parse(action), limit: 100 }) });
     const id = url.searchParams.get('account');
     if (id) return json(await getAccount(connection.db, z.string().uuid().parse(id)));
     const [schema] = await connection.db.execute(sql`SELECT to_regclass('public.premium_settings')::text AS settings, to_regclass('public.premium_grant_audit')::text AS audit`);
