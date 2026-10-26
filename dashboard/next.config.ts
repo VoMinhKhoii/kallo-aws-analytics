@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
 
 const nextConfig: NextConfig = {
   async redirects() { return [
@@ -17,3 +18,6 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
+
+// `next dev` gets the wrangler.jsonc bindings (the TRACES D1 database, rate limiters) from a local Miniflare.
+if (process.env.NODE_ENV === "development") void initOpenNextCloudflareForDev();

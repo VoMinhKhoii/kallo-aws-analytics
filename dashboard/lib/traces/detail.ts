@@ -1,14 +1,19 @@
 import { sql } from 'drizzle-orm';
 import type { AppDb } from '../admin/db/client';
 import { traceRequest, loadPostgresDetail } from './postgres';
+import { loadD1Detail, loadD1Payload } from './d1';
 import { loadLoggingDetail, loadLoggingPayload } from './logging';
 import type { TraceDetail, TraceGraphDetail, TracePayload } from './types';
 export async function loadTrace(db: AppDb, id: string): Promise<TraceDetail | null> {
   const row = await traceRequest(db, id);
   if (!row) return null;
   const [count] = await db.execute(sql`SELECT count(*)::int AS calls FROM public.analysis_model_budget_events WHERE request_id=${id} AND request_count=0`);
-  const logging = await loadLoggingDetail(row, Number(count.calls));
-  return selectCapture(logging, () => loadPostgresDetail(db, row, true));
+  const billed = Number(count.calls);
+  const d1 = await loadD1Detail(row, billed);
+  if (d1 && !captureIncomplete(d1)) return d1;
+  // A D1 send can be lost (Cloud Run throttles CPU once a response ends); the stdout capture is the next copy.
+  const logging = await loadLoggingDetail(row, billed);
+  return selectCapture(logging ?? d1, () => loadPostgresDetail(db, row, true));
 }
 export function captureIncomplete(detail: Pick<TraceDetail, 'status' | 'completeness'>): boolean {
   const c = detail.completeness;
@@ -30,12 +35,18 @@ export function graphDetail(detail: TraceDetail): TraceGraphDetail {
 export function traceCacheControl(status: string, refresh = false, incomplete = false): string {
   return !refresh && !incomplete && ['success','error','completed','failed'].includes(status) ? 'private, max-age=3600' : 'no-store';
 }
+// D1 and Logging calls carry the prompt version, not the prompt: show its template, as Postgres does when nothing was rendered.
+async function withTemplate(db: AppDb, payload: { prompt: string | null; response: string | null }, versionId: unknown): Promise<TracePayload> {
+  if (payload.prompt != null || typeof versionId !== 'string' || !/^[0-9a-f-]{36}$/i.test(versionId)) return payload;
+  const [row] = await db.execute(sql`SELECT template_sample FROM public.prompt_versions WHERE id=${versionId}::uuid`);
+  return row?.template_sample == null ? payload : { ...payload, prompt: String(row.template_sample), promptIsTemplate: true };
+}
 export async function nodePayload(db: AppDb, detail: TraceDetail, node: string): Promise<TracePayload | null> {
   const stage = detail.stages.find(s => s.key === node);
   const call = detail.calls.find(c => c.id === node);
   if (!stage && !call) return null;
-  if (detail.source === 'logging') return stage ? { input: stage.input, output: stage.output }
-    : { prompt: call!.prompt ?? null, response: call!.response ?? null, ...(call!.promptIsTemplate ? {promptIsTemplate: true} : {}) };
+  if (detail.source !== 'postgres') return stage ? { input: stage.input, output: stage.output }
+    : withTemplate(db, { prompt: call!.prompt ?? null, response: call!.response ?? null }, call!.promptVersionId);
   // Fetch only the chosen node, independently of graph loader's cumulative payload budget.
   if (stage) {
     const [row] = await db.execute(sql`SELECT input_json,output_json FROM public.pipeline_stage_logs WHERE request_id=${detail.id}::uuid AND id::text=${node}`);
@@ -64,9 +75,11 @@ async function payloadRequest(db:AppDb,id:string) {
 export async function selectedPayload(db: AppDb, id: string, source: TraceDetail['source'], kind: 'stage' | 'call', node: string) {
   const request = await payloadRequest(db,id);
   if (!request) return null;
-  if (source === 'logging') {
-    const payload = await loadLoggingPayload(request, node, kind);
-    return payload ? { payload, status: String(request.status) } : null;
+  if (source !== 'postgres') {
+    const found = await (source === 'd1' ? loadD1Payload : loadLoggingPayload)(request, node, kind);
+    if (!found) return null;
+    const { promptVersionId, ...payload } = found;
+    return { payload: 'prompt' in payload ? await withTemplate(db, payload, promptVersionId) : payload, status: String(request.status) };
   }
   if (kind === 'stage') {
     const [row] = await db.execute(sql`SELECT input_json,output_json FROM public.pipeline_stage_logs WHERE request_id=${id}::uuid AND id::text=${node}`);

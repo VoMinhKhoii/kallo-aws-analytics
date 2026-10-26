@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { googleAccessToken } from '../admin/cloud-monitoring';
 import { assembleDetail, normalizeCall, type Row } from './normalize';
 import type { TraceDetail, TraceStage, TracePayload } from './types';
+/** A node's payload as captured; a call's prompt version lets the reader show its template. */
+export type CapturedPayload = { input: unknown; output: unknown; promptVersionId?: undefined } | { prompt: string | null; response: string | null; promptVersionId: unknown };
 const envelope = z.object({ kind: z.literal('kallo_trace_v1'), requestId: z.string().uuid(), eventId: z.string().min(1).max(160),
   seq: z.number().int().nonnegative(), type: z.enum(['request','stage','llm','final']), part: z.number().int().min(1).max(128), parts: z.number().int().min(1).max(128), truncated: z.boolean().optional() }).passthrough();
 export function reassemble(entries: unknown[], requestId: string): { events: Row[]; truncated: boolean } {
@@ -38,7 +40,7 @@ export function reassemble(entries: unknown[], requestId: string): { events: Row
   }
   return { events: events.sort((a,b) => a.seq-b.seq), truncated };
 }
-export function loggingDetail(request: Row, entries: unknown[], billed: number, incomplete = false): TraceDetail | null {
+export function loggingDetail(request: Row, entries: unknown[], billed: number, incomplete = false, source: 'logging' | 'd1' = 'logging'): TraceDetail | null {
   const { events, truncated } = reassemble(entries, request.id);
   // A lone marker or orphaned model call is not a usable Logging capture.
   if (!events.some(e => e.type === 'request' || e.type === 'stage' || e.type === 'final')) return null;
@@ -48,9 +50,9 @@ export function loggingDetail(request: Row, entries: unknown[], billed: number, 
     key: String(e.eventId), name: String(e.stage || 'unknown'), index: Number(e.index || 0), startedAt: e.startedAt || request.created_at,
     stats: stageStats(e.input, e.output, e.output?.result), durationMs: e.durationMs ?? null, status: e.status || 'unknown', error: e.error ?? null, input: e.input ?? null, output: e.output ?? null, calls: [],
   }));
-  const calls = events.filter(e => e.type === 'llm').map(e => normalizeCall({ ...e, id: e.eventId, createdAt:e.entryTimestamp }));
+  const calls = events.filter(e => e.type === 'llm').map(e => normalizeCall({ ...e, id: e.eventId, createdAt:e.entryTimestamp, has_prompt: e.prompt != null || typeof e.promptVersionId === 'string' }));
   const result = final.summary || final.result || events.findLast(e => e.type === 'stage' && e.stage === 'assembly')?.output?.result || {};
-  return assembleDetail({ ...request, ...req, ...final, id: request.id, createdAt: req.startedAt ?? req.createdAt ?? req.entryTimestamp ?? request.created_at }, stages, calls, result, 'logging', billed,
+  return assembleDetail({ ...request, ...req, ...final, id: request.id, createdAt: req.startedAt ?? req.createdAt ?? req.entryTimestamp ?? request.created_at }, stages, calls, result, source, billed,
     truncated || incomplete || !events.some(e => e.type === 'request') || !events.some(e => e.type === 'final'));
 }
 async function loadLoggingCapture(request: Row, node?: {key: string; kind: 'stage' | 'call'}): Promise<{entries: unknown[]; incomplete: boolean} | null> {
@@ -106,7 +108,7 @@ export async function loadLoggingDetail(request: Row, billed: number): Promise<T
   const capture = await loadLoggingCapture(request);
   return capture ? loggingDetail(request, capture.entries, billed, capture.incomplete) : null;
 }
-export async function loadLoggingPayload(request: Row, key: string, kind: 'stage' | 'call'): Promise<TracePayload | null> {
+export async function loadLoggingPayload(request: Row, key: string, kind: 'stage' | 'call'): Promise<CapturedPayload | null> {
   const capture = await loadLoggingCapture(request, {key, kind});
   if (!capture || capture.incomplete) return null;
   const {events, truncated} = reassemble(capture.entries, request.id);
@@ -114,5 +116,5 @@ export async function loadLoggingPayload(request: Row, key: string, kind: 'stage
   const event = events.find(e => kind === 'call' ? e.type === 'llm' && e.eventId === key : e.type === 'stage' && (e.stage === key || e.eventId === key));
   if (!event) return null;
   return kind === 'stage' ? {input:event.input ?? null, output:event.output ?? null}
-    : {prompt:event.prompt ?? null, response:event.response ?? null, ...(event.promptIsTemplate ? {promptIsTemplate:true} : {})};
+    : {prompt:event.prompt ?? null, response:event.response ?? null, promptVersionId:event.promptVersionId ?? null};
 }

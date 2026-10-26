@@ -12,7 +12,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const node = z.string().min(1).max(180).regex(/^[a-zA-Z0-9_.:-]+$/).safeParse(new URL(request.url).searchParams.get('node'));
   if (!node.success) return json({error:'Invalid trace node.'},400);
   const params = new URL(request.url).searchParams;
-  const source = z.enum(['logging','postgres']).safeParse(params.get('source'));
+  const source = z.enum(['d1','logging','postgres']).safeParse(params.get('source'));
   const kind = z.enum(['stage','call']).safeParse(params.get('kind'));
   if (!source.success || !kind.success) return json({error:'Invalid trace source or node kind.'},400);
   let connection;

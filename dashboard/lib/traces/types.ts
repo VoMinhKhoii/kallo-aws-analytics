@@ -30,7 +30,7 @@ export interface TraceStage {
   status: string; error: string | null; inputBytes?: number; outputBytes?: number; input: unknown; output: unknown; calls: CallId[];
 }
 export interface TraceDetail {
-  id: string; source: 'logging' | 'postgres'; createdAt: string; status: string;
+  id: string; source: 'd1' | 'logging' | 'postgres'; createdAt: string; status: string;
   errorCode: string | null; error: string | null; durationMs: number | null;
   rawInput: string; mealName: string; profile: string | null;
   summary: { kcal: Nutrient; protein: Nutrient; carbs: Nutrient; fat: Nutrient; items: TraceItem[] };
