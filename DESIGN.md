@@ -15,29 +15,49 @@ mistaken for a supported conclusion.
 
 ## Visual direction
 
-- Dark only ("Graphite"): near-black surfaces, light ink. Green, amber, brick
-  and blue are reserved for states and data series.
-- One typeface: Geist for all text and numbers, with tabular figures. Keep
-  labels short and line lengths readable.
-- Borders and row rules establish structure. Cards are used for independent
-  analytical blocks, not as a repeated icon-and-copy grid.
-- No gradients, decorative motion, or visual treatment that implies more
-  precision than the underlying aggregate provides.
+- No cards. The page is open space split by 1px warm rules; colour is kept for
+  data. Charts take the room, and figures stand bare, without boxes.
+- Light and dark themes on one warm neutral ramp. The theme follows the OS
+  until someone presses the sun/moon button in the top bar; the choice is
+  stored in the browser and applied before paint.
+- One bronze accent marks the current page, the chosen tab and focus. Every
+  single choice (window, status, type, metric) is plain text with a bronze
+  underline, never a pill or segmented control.
+- Navigation is a top bar of text links in three groups. Pages have a title and
+  no subtitle: what a page shows is in its numbers. Definitions sit in a
+  footnote or a tooltip.
+- One typeface: DM Sans, variable, at 400, 450, 500 and 550, with tabular
+  figures. Body 14px, captions 12px and never smaller, section titles 16px,
+  page titles 24px, headline figures 38px and supporting figures 22px.
+- Each data page leads with one row of big figures, and every figure is a tab:
+  picking it shows its chart (or its table) in the large panel below. Open
+  work or a companion chart sits to the right of the tabs. Tables and lists
+  follow. A definition goes in a tooltip or footnote, not in a line of small
+  text under the number. The window picker sits beside the page title.
+- Time series are lines, not bars. Where one chart needs two levels of the same
+  measure (p95 and p99), the second is dashed in the same colour.
+- Radii are 3 to 5px. No shadows except on popovers.
+- Icons come from Phosphor at 16px, used sparingly.
 
 ## Tokens
 
-| Token | Value | Use |
-| --- | --- | --- |
-| `--console-bg` | `#0b0c0e` | Main page surface |
-| `--console-panel` | `#111316` | Sidebar and quiet panels |
-| `--console-surface` | `#16191d` | Tables and focused blocks |
-| `--console-ink` | `#eceef1` | Headings and primary values |
-| `--console-muted` | `#8a909a` | Supporting copy and axes |
-| `--console-rule` | `#23272d` | Dividers and field borders |
-| `--console-green` | `#34c493` | Healthy/accepted state |
-| `--console-amber` | `#f0a53a` | Neutral watch state |
-| `--console-brick` | `#f2555a` | Error/rejected state |
-| `--console-blue` | `#5cb8ea` | Links and secondary series |
+| Token | Light | Dark | Use |
+| --- | --- | --- | --- |
+| `--console-bg` | `#ffffff` | `#000000` | Page |
+| `--console-surface` | `#f8f6f3` | `#0d0b0a` | Code blocks, skeletons |
+| `--console-hover` | `#f1eeea` | `#141210` | Hovered rows |
+| `--console-ink` | `#20201e` | `#ffffff` | Headings and figures |
+| `--console-muted` | `#625d57` | `#c2bbb4` | Supporting text, idle tabs |
+| `--console-faint` | `#77716c` | `#9a938c` | Captions, axis ticks, table heads |
+| `--console-quiet` | `#b0a9a2` | `#4f4944` | Idle dots and chevrons, never text |
+| `--console-rule` | `#e8e4df` | `#1c1a18` | Dividers |
+| `--console-rule-strong` | `#ccc5be` | `#36312d` | Inputs, group separators |
+| `--console-accent` | `#806047` | `#c5ac98` | Selected tab, focus |
+| `--console-data` | `#46505b` | `#aeb6bf` | Main series |
+| `--console-data-2` | `#b08a5e` | `#cfa77a` | Second series |
+| `--console-green` | `#2e7d4f` | `#62b384` | Healthy state, good change |
+| `--console-amber` | `#b7791f` | `#dcaa55` | Watch state |
+| `--console-brick` | `#ae5235` | `#d0805f` | Errors, bad change |
 
 Model series use `--model-1` … `--model-7`. Known models keep a fixed slot
 (`dashboard/lib/ai-usage/models.ts`), so a model has the same color on every chart.
@@ -47,8 +67,9 @@ status indicator has a text label, count, pattern, or table equivalent.
 
 ## Layout
 
-- Desktop-first shell: 240px persistent navigation, 56px top utility bar, and
-  a content column capped at 1440px.
+- Desktop-first shell: a 60px top bar holds the navigation; content runs the
+  full width with 28px side margins. Overview adds a 288px right rail for
+  open work.
 - Primary pages are `/`, `/ai`, `/ingredients`, and `/system`. The old pipeline,
   retrieval, and coverage routes redirect into the consolidated pages. Exact
   trace detail is reachable from the Trace viewer. There is no user-behavior page.

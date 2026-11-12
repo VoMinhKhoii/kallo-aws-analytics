@@ -234,3 +234,12 @@ export function trendRows(input: UsageInput, metric: TrendMetric): TrendRow[] {
   const first = rows.findIndex((r) => Object.keys(r).some((k) => k !== "date" && r[k] != null));
   return input.win === 1 || first <= 0 ? rows : rows.slice(first);
 }
+
+/** Per day (hour for 24 h): cost per 1k priced meals and primary calls per meal. */
+export function mealTrendRows(input: UsageInput): TrendRow[] {
+  const byDate = new Map(input.mealsDaily.map((r) => [r.date, r]));
+  return usageRange(input.to, input.win).map((date) => {
+    const m = byDate.get(date);
+    return { date, perK: m?.priced_meals && m.spend_usd != null ? (m.spend_usd / m.priced_meals) * 1000 : null, perMeal: m?.meals ? m.calls / m.meals : null };
+  });
+}

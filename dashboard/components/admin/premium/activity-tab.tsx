@@ -20,7 +20,7 @@ export function ActivityTab({ rows, onSaved }: { rows: Activity[]; onSaved: () =
     return () => { live = false; };
   }, [action, version, rows]);
   return <div className="grid gap-4">
-    <FilterChips value={action} onChange={v => setAction(v as typeof action)} items={ACTIONS.map(value => ({ value, label: LABELS[value] }))} />
+    <FilterChips label="Action filter" value={action} onChange={v => setAction(v as typeof action)} items={ACTIONS.map(value => ({ value, label: LABELS[value] }))} />
     {error && <p role="alert" className="text-sm text-foreground mark-bad">{error}</p>}
     {action === 'all' ? <ActivityList rows={rows} onSaved={() => { onSaved(); setVersion(v => v + 1); }} /> : error ? null : filtered?.action !== action ? <p className="text-sm text-muted-foreground">Loading…</p> : <ActivityList rows={filtered.rows} onSaved={() => { onSaved(); setVersion(v => v + 1); }} />}
   </div>;

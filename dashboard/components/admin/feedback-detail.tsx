@@ -15,7 +15,7 @@ export function FeedbackDetail({ id }: { id: string }) {
   if (loading && !data) return <p className="mt-4 text-xs text-muted-foreground">Loading details…</p>;
   if (error || !data) return <p role="alert" className="mt-4 text-sm text-foreground mark-bad">{error ?? 'Details could not be loaded.'} <button className="underline" onClick={refresh}>Retry</button></p>;
   const r = data.row;
-  const fields: [string, string | null][] = [['User', r.email], ['User ID', r.user_id], ['Platform', r.platform], ['App version', r.app_version], ['Locale', r.locale], ['Route', r.route], ['Created', date(r.created_at)], ['Updated', date(r.updated_at)]];
+  const fields: [string, string | null][] = [['User', r.email], ['User ID', r.user_id], ['Platform', r.platform ? ({ ios: 'iOS', android: 'Android', web: 'Web' } as Record<string, string>)[r.platform] ?? r.platform : null], ['App version', r.app_version], ['Locale', r.locale], ['Route', r.route], ['Created', date(r.created_at)], ['Updated', date(r.updated_at)]];
   return <section className="mt-6 grid gap-6 border-t border-[var(--console-rule)] pt-4">
     <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">{fields.map(([label, value]) => <div key={label} className="grid min-w-0 gap-1"><dt className="text-xs text-muted-foreground">{label}</dt><dd className={`break-all text-sm ${label === 'User ID' ? 'font-mono text-xs' : ''}`}>{value ?? '—'}</dd></div>)}</dl>
     {r.has_screenshot && <figure className="grid gap-2"><figcaption className="text-xs text-muted-foreground">Screenshot</figcaption>

@@ -2,19 +2,7 @@
 
 import { retrySession } from '@/lib/session-store';
 import * as React from "react";
-import {
-  AlertTriangle,
-  ArrowDownRight,
-  ArrowUpRight,
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  CircleHelp,
-  Database,
-  Info,
-  LoaderCircle,
-  RefreshCw,
-} from "lucide-react";
+import { WarningCircle, ArrowDownRight, ArrowUpRight, Check, CaretLeft, CaretRight, Question, Database, Info, CircleNotch, ArrowClockwise } from "@phosphor-icons/react/ssr";
 import type {
   AppHealthRow,
 } from "@/app/lib/types";
@@ -69,7 +57,7 @@ export function PageIntro({
   return (
     <div className="flex flex-col gap-4 border-b border-[var(--console-rule)] py-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
-        <h1 className="text-2xl font-semibold tracking-[-0.02em] text-foreground">{title}</h1>
+        <h1 className="text-2xl font-medium text-foreground">{title}</h1>
         <p className="sr-only">{description}</p>
       </div>
       {children ? <div className="shrink-0">{children}</div> : null}
@@ -91,9 +79,9 @@ export function RefreshButton({
       type="button"
       onClick={() => { void retrySession(); onClick(); }}
       disabled={refreshing}
-      className="inline-flex min-h-8 items-center gap-2 rounded-md border border-[var(--console-rule)] bg-[var(--console-surface)] px-4 text-xs font-medium text-foreground transition-colors hover:bg-[var(--console-panel)] focus-visible:outline-2 focus-visible:outline-[var(--console-blue)] disabled:cursor-wait disabled:opacity-55"
+      className="inline-flex h-8 items-center gap-2 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-[var(--console-accent)] disabled:cursor-wait disabled:opacity-55"
     >
-      <RefreshCw className={cn("size-3.5", refreshing && "animate-spin")} aria-hidden="true" />
+      <ArrowClockwise className={cn("size-3.5", refreshing && "animate-spin")} aria-hidden="true" />
       {refreshing ? "Refreshing…" : label}
     </button>
   );
@@ -128,7 +116,7 @@ export function RangeControl({
               "min-h-8 border-r border-[var(--console-rule)] px-4 text-xs font-medium transition-colors last:border-r-0 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--console-blue)]",
               value === option
                 ? "bg-[var(--console-surface)] text-foreground"
-                : "text-muted-foreground hover:bg-[var(--console-panel)] hover:text-foreground",
+                : "text-muted-foreground hover:bg-secondary hover:text-foreground",
             )}
           >
             {RANGE_LABELS[option]}
@@ -241,7 +229,7 @@ export function Panel({
     <section className={cn("overflow-hidden rounded-lg border border-[var(--console-rule)] bg-[var(--console-surface)]", className)}>
       <div className="flex min-h-14 items-start justify-between gap-4 border-b border-[var(--console-rule)] px-4 py-4 sm:px-6">
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold tracking-[-0.01em] text-foreground">{title}</h2>
+          <h2 className="text-sm font-medium text-foreground">{title}</h2>
           {description ? <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">{description}</p> : null}
         </div>
         <div className="flex shrink-0 items-center gap-2">{source}{action}</div>
@@ -271,16 +259,16 @@ export function MetricState({
   if (loading) {
     return (
       <div className="space-y-4 px-4 py-6 sm:px-6" aria-label="Loading data">
-        <div className="h-3 w-32 animate-pulse rounded bg-[var(--console-panel)]" />
-        <div className="h-3 w-full animate-pulse rounded bg-[var(--console-panel)]" />
-        <div className="h-3 w-4/5 animate-pulse rounded bg-[var(--console-panel)]" />
+        <div className="h-3 w-32 animate-pulse rounded bg-secondary" />
+        <div className="h-3 w-full animate-pulse rounded bg-secondary" />
+        <div className="h-3 w-4/5 animate-pulse rounded bg-secondary" />
       </div>
     );
   }
   if (error) {
     return (
       <div className="flex gap-4 px-4 py-6 sm:px-6" role="alert">
-        <AlertTriangle className="mt-1 size-4 shrink-0 text-[var(--console-brick)]" />
+        <WarningCircle className="mt-1 size-4 shrink-0 text-[var(--console-brick)]" />
         <div>
           <p className="text-xs font-semibold text-foreground">Source unavailable</p>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">{error}</p>
@@ -299,7 +287,7 @@ export function MetricState({
   if (insufficient) {
     return (
       <div className="flex gap-4 px-4 py-6 sm:px-6">
-        <CircleHelp className="mt-1 size-4 shrink-0 text-[var(--console-amber)]" />
+        <Question className="mt-1 size-4 shrink-0 text-[var(--console-amber)]" />
         <div>
           <p className="text-xs font-semibold text-foreground">Insufficient sample</p>
           <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">{insufficientMessage}</p>
@@ -318,7 +306,7 @@ export function InlineNote({ children, tone = "plain" }: { children: React.React
       tone === "error" && "border-[color-mix(in_oklab,var(--console-brick)_26%,var(--console-rule))] bg-[color-mix(in_oklab,var(--console-brick)_5%,var(--console-surface))] text-foreground",
       tone === "plain" && "border-[var(--console-rule)] text-muted-foreground",
     )}>
-      {tone === "watch" ? <CircleHelp className="mt-1 size-3.5 shrink-0 text-[var(--console-amber)]" /> : tone === "error" ? <AlertTriangle className="mt-1 size-3.5 shrink-0 text-[var(--console-brick)]" /> : <Info className="mt-1 size-3.5 shrink-0 text-muted-foreground" />}
+      {tone === "watch" ? <Question className="mt-1 size-3.5 shrink-0 text-[var(--console-amber)]" /> : tone === "error" ? <WarningCircle className="mt-1 size-3.5 shrink-0 text-[var(--console-brick)]" /> : <Info className="mt-1 size-3.5 shrink-0 text-muted-foreground" />}
       <span>{children}</span>
     </div>
   );
@@ -350,15 +338,15 @@ export function MetricRibbon({ items }: { items: RibbonItem[] }) {
 export type BarItem = { label: string; value: number; valueLabel?: React.ReactNode; detail?: React.ReactNode; tone?: "data" | "green" | "amber" | "brick" | "blue" | "neutral" };
 
 export function BarList({ items, emptyLabel = "No observed rows." }: { items: BarItem[]; emptyLabel?: string }) {
-  if (items.length === 0) return <p className="px-4 py-6 text-xs text-muted-foreground sm:px-6">{emptyLabel}</p>;
+  if (items.length === 0) return <p className="py-6 text-sm text-muted-foreground">{emptyLabel}</p>;
   const max = Math.max(...items.map((item) => item.value), 1);
   return (
     <div className="divide-y divide-[var(--console-rule)]">
       {items.map((item) => (
-        <div key={item.label} className="grid grid-cols-[minmax(8rem,15rem)_minmax(4rem,1fr)_auto] items-center gap-4 px-4 py-2 sm:px-6">
-          <div className="min-w-0"><p className="truncate text-xs font-medium text-foreground">{item.label}</p>{item.detail ? <p className="mt-1 truncate text-xs text-muted-foreground">{item.detail}</p> : null}</div>
-          <div className="h-2 overflow-hidden rounded-sm bg-[var(--console-panel)]" aria-hidden="true"><div className={cn("h-full rounded-sm", item.tone === "data" ? "bg-[var(--console-data)]" : item.tone === "green" ? "bg-[var(--console-green)]" : item.tone === "amber" ? "bg-[var(--console-amber)]" : item.tone === "brick" ? "bg-[var(--console-brick)]" : item.tone === "blue" ? "bg-[var(--console-blue)]" : "bg-[var(--console-muted)]")} style={{ width: `${Math.max(0, Math.min(100, (item.value / max) * 100))}%` }} /></div>
-          <span className="tabular text-right text-xs font-medium text-foreground">{item.valueLabel ?? formatNumber(item.value)}</span>
+        <div key={item.label} className="grid grid-cols-[minmax(8rem,15rem)_minmax(4rem,1fr)_auto] items-center gap-6 py-3">
+          <div className="min-w-0"><p className="truncate text-sm text-foreground">{item.label}</p>{item.detail ? <p className="mt-0.5 truncate text-xs text-[var(--console-faint)]">{item.detail}</p> : null}</div>
+          <div className="h-1.5 overflow-hidden rounded-full bg-secondary" aria-hidden="true"><div className={cn("h-full rounded-full", item.tone === "data" ? "bg-[var(--console-data)]" : item.tone === "green" ? "bg-[var(--console-green)]" : item.tone === "amber" ? "bg-[var(--console-amber)]" : item.tone === "brick" ? "bg-[var(--console-brick)]" : item.tone === "blue" ? "bg-[var(--console-blue)]" : "bg-[var(--console-muted)]")} style={{ width: `${Math.max(0, Math.min(100, (item.value / max) * 100))}%` }} /></div>
+          <span className="tabular text-right text-sm text-foreground">{item.valueLabel ?? formatNumber(item.value)}</span>
         </div>
       ))}
     </div>
@@ -378,10 +366,10 @@ export function SimpleTable({
     <div className="overflow-x-auto">
       <table className="w-full min-w-[560px] text-left text-xs">
         {caption ? <caption className="sr-only">{caption}</caption> : null}
-        <thead className="border-b border-[var(--console-rule)] bg-[var(--console-panel)] text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+        <thead className="border-b border-[var(--console-rule)] text-xs text-muted-foreground">
           <tr>{columns.map((column) => {
             const definition = typeof column === "string" ? { label: column, align: "left" as const } : column;
-            return <th key={definition.label} className={cn("h-9 whitespace-nowrap px-4 font-semibold first:pl-4 last:pr-4 sm:px-6", definition.align === "right" && "text-right")}>{definition.label}</th>;
+            return <th key={definition.label} className={cn("h-9 whitespace-nowrap px-4 font-normal first:pl-4 last:pr-4 sm:px-6", definition.align === "right" && "text-right")}>{definition.label}</th>;
           })}</tr>
         </thead>
         <tbody className="divide-y divide-[var(--console-rule)]">{children}</tbody>
@@ -412,15 +400,15 @@ export function TablePager({
       <span className="tabular-nums">{int(first)}–{int(last)} of {formatNumber(total)} {label}</span>
       <div className="flex items-center gap-2">
         <span className="tabular-nums">Page {int(safePage)} of {int(pageCount)}</span>
-        <button type="button" aria-label={`Previous ${label} page`} onClick={() => onPageChange(safePage - 1)} disabled={safePage <= 1} className="inline-flex size-8 items-center justify-center rounded-md border border-[var(--console-rule)] bg-[var(--console-surface)] text-foreground hover:bg-[var(--console-panel)] focus-visible:outline-2 focus-visible:outline-[var(--console-blue)] disabled:cursor-not-allowed disabled:opacity-40"><ChevronLeft className="size-3.5" aria-hidden="true" /></button>
-        <button type="button" aria-label={`Next ${label} page`} onClick={() => onPageChange(safePage + 1)} disabled={safePage >= pageCount} className="inline-flex size-8 items-center justify-center rounded-md border border-[var(--console-rule)] bg-[var(--console-surface)] text-foreground hover:bg-[var(--console-panel)] focus-visible:outline-2 focus-visible:outline-[var(--console-blue)] disabled:cursor-not-allowed disabled:opacity-40"><ChevronRight className="size-3.5" aria-hidden="true" /></button>
+        <button type="button" aria-label={`Previous ${label} page`} onClick={() => onPageChange(safePage - 1)} disabled={safePage <= 1} className="inline-flex size-8 items-center justify-center rounded-md border border-border bg-card text-foreground shadow-[var(--shadow-card)] hover:bg-secondary focus-visible:outline-2 focus-visible:outline-[var(--console-blue)] disabled:cursor-not-allowed disabled:opacity-40"><CaretLeft className="size-3.5" aria-hidden="true" /></button>
+        <button type="button" aria-label={`Next ${label} page`} onClick={() => onPageChange(safePage + 1)} disabled={safePage >= pageCount} className="inline-flex size-8 items-center justify-center rounded-md border border-border bg-card text-foreground shadow-[var(--shadow-card)] hover:bg-secondary focus-visible:outline-2 focus-visible:outline-[var(--console-blue)] disabled:cursor-not-allowed disabled:opacity-40"><CaretRight className="size-3.5" aria-hidden="true" /></button>
       </div>
     </div>
   );
 }
 
 export function TableRow({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <tr className={cn("transition-colors hover:bg-[var(--console-panel)]", className)}>{children}</tr>;
+  return <tr className={cn("transition-colors hover:bg-secondary", className)}>{children}</tr>;
 }
 
 export function TableCell({ children, numeric = false, muted = false, className }: { children: React.ReactNode; numeric?: boolean; muted?: boolean; className?: string }) {
@@ -450,7 +438,7 @@ export function HealthTable({ rows, platform = "all" }: { rows: AppHealthRow[]; 
 }
 
 export function LoadingLine({ label = "Loading" }: { label?: string }) {
-  return <span className="inline-flex items-center gap-2 text-xs text-muted-foreground"><LoaderCircle className="size-3.5 animate-spin" />{label}</span>;
+  return <span className="inline-flex items-center gap-2 text-xs text-muted-foreground"><CircleNotch className="size-3.5 animate-spin" />{label}</span>;
 }
 
 export function SourceSummary({ source, loaded, total }: { source: string; loaded: boolean; total?: number }) {

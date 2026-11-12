@@ -1,4 +1,6 @@
 "use client";
-export function FilterChips({ value, onChange, items }: {value:string; onChange:(v:string)=>void; items:{value:string;label:string}[]}) {
-  return <div role="group" aria-label="Status filter" className="flex flex-wrap gap-2">{items.map(i => <button key={i.value} aria-pressed={value === i.value} onClick={() => onChange(i.value)} className="rounded-md border border-border px-4 py-2 text-xs text-muted-foreground hover:bg-secondary aria-pressed:bg-secondary aria-pressed:text-foreground">{i.label}</button>)}</div>;
+import { TextTabs } from './text-tabs';
+/** Single-choice filter, drawn as text tabs. */
+export function FilterChips({ value, onChange, items, label = "Status filter" }: {value:string; onChange:(v:string)=>void; items:{value:string;label:string}[]; label?: string}) {
+  return <TextTabs value={value} onChange={onChange} items={items} label={label} />;
 }
