@@ -3,7 +3,8 @@ import { floorHour, hourRange } from '@/lib/windows';
 import { weightedPercentile } from '@/lib/ai-usage/chart-data';
 import { compact, decimal, int, ms, pct } from '@/lib/ai-usage/format';
 import { useRefocus } from '@/lib/use-refocus';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { prefetch } from '@/lib/prefetch';
 import { rangeWindow, type ConsoleRange } from '@/components/console/console';
 import { PageHeader } from '@/components/shared/page-header';
 import { PageSkeleton } from '@/components/shared/page-skeleton';
@@ -13,7 +14,7 @@ import { LazySeriesChart } from '@/components/charts/lazy-series-chart';
 import { useCloudMonitoring } from '@/lib/use-cloud-monitoring';
 import { useSessionRole } from '@/lib/use-auth';
 import { RunControl } from './run-control';
-import { PipelinePanel, usePipelineHealth } from './pipeline-health';
+import { HEALTH_URL, PipelinePanel, usePipelineHealth } from './pipeline-health';
 export function System({win, setWin}: {win: string; setWin: (v: string) => void}) {
   const [asOf, setAsOf] = useState(() => new Date());
   const [tab, setTab] = useState('requests');
@@ -22,6 +23,8 @@ export function System({win, setWin}: {win: string; setWin: (v: string) => void}
   const chartMonitoring = useCloudMonitoring(win === '24h' ? floorHour(window.from) : window.from, window.to, win === '24h');
   const auth = useSessionRole();
   const health = usePipelineHealth(auth.role === 'founder');
+  // Founder-only; started before the role is known so it is not a second round trip.
+  useEffect(() => prefetch(HEALTH_URL), []);
   const refresh = () => { setAsOf(new Date()); monitoring.refresh(); chartMonitoring.refresh(); };
   useRefocus(refresh);
   if (monitoring.loading || win === '24h' && chartMonitoring.loading) return <PageSkeleton title="System" cells={5} charts={1} />;

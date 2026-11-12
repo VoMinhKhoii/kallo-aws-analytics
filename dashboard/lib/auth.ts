@@ -8,6 +8,7 @@ import {
   shouldUseSecureSessionCookies,
   SESSION_COOKIE_NAME,
   SESSION_TTL_SECONDS,
+  ROLE_HINT_COOKIE,
   type DashboardRole,
 } from "./auth-config.ts";
 import { encodeSessionClaims, parseSessionClaims, splitSessionToken, type SessionClaims } from "./session-format.ts";
@@ -97,4 +98,5 @@ export function setSessionCookie(response: NextResponse, token: string, request?
 
 export function clearSessionCookie(response: NextResponse, request?: Request): void {
   response.cookies.set({ name: SESSION_COOKIE_NAME, value: "", ...cookieOptions, secure: shouldUseSecureSessionCookies(process.env, request?.url), maxAge: 0 });
+  response.cookies.set({ name: ROLE_HINT_COOKIE, value: "", path: "/", sameSite: "strict", secure: shouldUseSecureSessionCookies(process.env, request?.url), maxAge: 0 });
 }

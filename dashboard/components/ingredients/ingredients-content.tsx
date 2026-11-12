@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { CaretRight } from '@phosphor-icons/react/ssr';
 import { useState } from 'react';
 import { int, pct } from '@/lib/ai-usage/format';
-import dynamic from 'next/dynamic';
+import { preloaded } from '@/components/charts/preloaded';
 import { PageHeader } from '@/components/shared/page-header';
 import { PageSkeleton } from '@/components/shared/page-skeleton';
 import { ChartSkeleton } from '@/components/shared/chart-skeleton';
@@ -15,7 +15,7 @@ import { BarList } from '@/components/console/console';
 import { useIngredients } from './use-ingredients';
 import { DemandList } from './demand-list';
 import { CatalogLists } from './catalog-lists';
-const Histogram = dynamic(() => import('./histogram').then(m => m.Histogram), {ssr: false, loading: () => <ChartSkeleton height={300} />});
+const Histogram = preloaded(() => import('./histogram').then(m => m.Histogram), () => <ChartSkeleton height={300} />);
 export function Ingredients({win, setWin, tab, setTab}: {win: string; setWin: (v: string) => void; tab: string; setTab: (v: string) => void}) {
   const {chartMatches, chartError, bundle, mappings, decisionsDaily, demand, gaps, ranks, reverse, macros, matches, flags} = useIngredients(win);
   const err = (name: keyof typeof bundle.errors) => bundle.errors[name] ?? bundle.error;

@@ -4,7 +4,7 @@ import { apiFetch } from '@/lib/api-fetch';
 import * as React from "react";
 import Link from "next/link";
 import { List, MagnifyingGlass, SignOut } from "@phosphor-icons/react/ssr";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { CommandPalette, MobileNav, useCommandPalette } from "@/components/shell/command-palette";
 import { ThemeToggle } from "@/components/shell/theme-toggle";
 import { NAV } from "@/components/shell/nav-items";
@@ -44,6 +44,15 @@ export function Topbar() {
   const [navOpen, setNavOpen] = React.useState(false);
   const health = useHealth(pathname === "/" || pathname === "/system");
   const auth = useSessionRole(enabled);
+  // The links prefetch once the page has loaded, not during it: ten route
+  // renders at load share the Worker isolate with this page's own requests.
+  const router = useRouter();
+  React.useEffect(() => {
+    if (!enabled) return;
+    const later = window.requestIdleCallback ?? ((fn: () => void) => window.setTimeout(fn, 1));
+    const timer = window.setTimeout(() => later(() => Object.values(NAV).flat().forEach(item => router.prefetch(item.href))), 3000);
+    return () => window.clearTimeout(timer);
+  }, [enabled, router]);
 
   if (!enabled) return null;
 
@@ -68,7 +77,7 @@ export function Topbar() {
         >
           <List className="size-4" />
         </button>
-        <Link href="/" aria-label="Kallo admin home" className="shrink-0 rounded-[5px] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--console-accent)]"><Wordmark /></Link>
+        <Link href="/" prefetch={false} aria-label="Kallo admin home" className="shrink-0 rounded-[5px] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--console-accent)]"><Wordmark /></Link>
         <nav aria-label="Primary navigation" className="hidden h-full items-stretch lg:flex">
           {[NAV.run, NAV.ai, NAV.infra].map((group, g) => (
             <div key={g} className="relative flex items-stretch gap-6 px-6 first:pl-0 before:absolute before:top-1/2 before:left-0 before:h-5 before:w-px before:-translate-y-1/2 before:bg-[var(--console-rule-strong)] first:before:hidden">
@@ -78,6 +87,7 @@ export function Topbar() {
                   <Link
                     key={item.href}
                     href={item.href}
+                    prefetch={false}
                     aria-current={active ? "page" : undefined}
                     className={cn(
                       "relative flex h-full items-center text-[13px] transition-colors focus-visible:outline-2 focus-visible:outline-[var(--console-accent)]",

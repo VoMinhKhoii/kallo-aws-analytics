@@ -1,4 +1,5 @@
 "use client";
-import dynamic from 'next/dynamic';
 import { ChartSkeleton } from '@/components/shared/chart-skeleton';
-export const LazySeriesChart = dynamic(() => import('./series-chart').then(m => m.SeriesChart), { ssr: false, loading: () => <ChartSkeleton /> });
+import { preloaded } from './preloaded';
+// recharts downloads as soon as a page that charts loads, alongside its data.
+export const LazySeriesChart = preloaded(() => import('./series-chart').then(m => m.SeriesChart), () => <ChartSkeleton />);

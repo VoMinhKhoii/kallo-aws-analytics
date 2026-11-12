@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { CaretRight } from '@phosphor-icons/react/ssr';
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api-fetch';
+import { fetchPrefetched } from '@/lib/prefetch';
 import { int, ms, usd } from '@/lib/ai-usage/format';
 import { modelLabel } from '@/lib/traces-ui/graph';
 import type { TraceList, TraceSummary } from '@/lib/traces/types';
@@ -16,6 +17,8 @@ function ago(iso: string) {
   return min < 1 ? 'just now' : min < 60 ? `${Math.floor(min)} min ago` : `${Math.floor(min / 60)} h ago`;
 }
 
+export const LATEST_MEALS_URL = '/api/traces?w=7d&limit=8';
+
 /** The newest meal analyses as people typed them, each opening its trace. */
 export function LatestMeals({ version }: { version: number }) {
   const [rows, setRows] = useState<TraceSummary[] | null>(null);
@@ -23,7 +26,7 @@ export function LatestMeals({ version }: { version: number }) {
   const [retry, setRetry] = useState(0);
   useEffect(() => {
     let active = true; setError(null);
-    apiFetch(`/api/traces?w=7d&limit=8${version || retry ? '&refresh=1' : ''}`, { cache: 'no-store' })
+    (version || retry ? apiFetch(`${LATEST_MEALS_URL}&refresh=1`, { cache: 'no-store' }) : fetchPrefetched(LATEST_MEALS_URL, { cache: 'no-store' }))
       .then(async r => { const body = await r.json(); if (r.status === 403) throw new Error('Meal traces need founder access.'); if (!r.ok) throw new Error(body.error ?? 'Meal traces could not be loaded.'); return body as TraceList; })
       .then(body => { if (active) setRows(body.rows); })
       .catch(e => { if (active) setError(e instanceof Error ? e.message : 'Meal traces could not be loaded.'); });
