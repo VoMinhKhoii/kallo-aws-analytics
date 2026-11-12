@@ -3,7 +3,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { ArrowElbowDownLeft, MagnifyingGlass } from "@phosphor-icons/react/ssr";
 import { ALL_NAV } from "@/components/shell/nav-items";
-import { isActive, KalloTile } from "@/components/shell/sidebar";
+import { isActive, Wordmark } from "@/components/shell/sidebar";
 import { cn } from "@/lib/utils";
 
 export function useCommandPalette() {
@@ -89,12 +89,12 @@ export function MobileNav({ open, onClose, pathname }: { open: boolean; onClose:
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 bg-black/25 lg:hidden" onClick={onClose} role="dialog" aria-modal="true" aria-label="Navigation">
-      <nav className="bg-sidebar h-full w-64 border-r p-4" onClick={(e) => e.stopPropagation()}>
-        <p className="flex items-center gap-2 px-2 pb-4 text-sm font-medium"><KalloTile />Kallo admin</p>
+      <nav className="h-full w-64 border-r border-border bg-background p-4" onClick={(e) => e.stopPropagation()}>
+        <p className="px-2 pt-2 pb-6"><Wordmark /></p>
         {ALL_NAV.map((n) => (
           <button key={n.href} onClick={() => { onClose(); router.push(n.href); }}
-                  className={cn("mb-0.5 flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm",
-                                isActive(n.href, pathname) ? "bg-card font-medium shadow-[var(--shadow-raised)]" : "text-muted-foreground")}>
+                  className={cn("mb-0.5 flex h-9 w-full items-center gap-2 rounded-[5px] px-2 text-left text-sm",
+                                isActive(n.href, pathname) ? "bg-secondary text-foreground" : "text-muted-foreground")}>
             <n.icon weight="fill" className="size-4" />
             {n.label}
           </button>

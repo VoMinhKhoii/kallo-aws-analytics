@@ -24,5 +24,10 @@ export function useIngredients(win: string) {
   const ranks = aggregateRanks(bundle.data?.ingredient_rank_distribution ?? []);
   const reverse = aggregateReverse(bundle.data?.corpus_reverse_lookup ?? []);
   const macros = aggregateMacros(bundle.data?.macro_distributions ?? []);
-  return {chartMatches: win === '24h' ? matchRateRows(chart.data?.match_rate ?? [], usageRange(window.to, 1)) : undefined, chartError: win === '24h' ? chart.error ?? chart.errors.match_rate : null, bundle: {...bundle, refresh, loading: bundle.loading || chart.loading, refreshing: bundle.refreshing || chart.refreshing}, mappings, demand, gaps, ranks, reverse, macros, matches: matchRateRows(bundle.data?.match_rate ?? [], usageRange(window.to, window.days as 1|7|30)), flags: bundle.data?.implausible_foods ?? []};
+  // Selector decisions per UTC day (daily top 50 queries), for the Decisions and Acceptance charts.
+  const decisionDays = new Map<string, { decisions: number; accepted: number }>();
+  for (const r of bundle.data?.ingredient_mappings ?? []) { if (!r.date) continue; const d = decisionDays.get(r.date) ?? { decisions: 0, accepted: 0 }; d.decisions += r.decision_count; d.accepted += r.accepted_count; decisionDays.set(r.date, d); }
+  // Mapping rows are daily, so the 24 h window shows the days it touches.
+  const decisionsDaily = (window.days === 1 ? [...decisionDays.keys()].sort() : usageRange(window.to, window.days as 7|30)).map(date => { const d = decisionDays.get(date.slice(0, 10)); return { date, decisions: d?.decisions ?? null, acceptance: d?.decisions ? d.accepted / d.decisions : null }; });
+  return {chartMatches: win === '24h' ? matchRateRows(chart.data?.match_rate ?? [], usageRange(window.to, 1)) : undefined, chartError: win === '24h' ? chart.error ?? chart.errors.match_rate : null, bundle: {...bundle, refresh, loading: bundle.loading || chart.loading, refreshing: bundle.refreshing || chart.refreshing}, mappings, decisionsDaily, demand, gaps, ranks, reverse, macros, matches: matchRateRows(bundle.data?.match_rate ?? [], usageRange(window.to, window.days as 1|7|30)), flags: bundle.data?.implausible_foods ?? []};
 }

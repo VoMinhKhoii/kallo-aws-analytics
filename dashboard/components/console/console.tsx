@@ -79,7 +79,7 @@ export function RefreshButton({
       type="button"
       onClick={() => { void retrySession(); onClick(); }}
       disabled={refreshing}
-      className="inline-flex h-8 items-center gap-2 rounded-md border border-border bg-card px-3 text-sm text-foreground shadow-[var(--shadow-card)] transition-colors hover:bg-secondary focus-visible:outline-2 focus-visible:outline-[var(--console-blue)] disabled:cursor-wait disabled:opacity-55"
+      className="inline-flex h-8 items-center gap-2 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-[var(--console-accent)] disabled:cursor-wait disabled:opacity-55"
     >
       <ArrowClockwise className={cn("size-3.5", refreshing && "animate-spin")} aria-hidden="true" />
       {refreshing ? "Refreshing…" : label}
@@ -338,15 +338,15 @@ export function MetricRibbon({ items }: { items: RibbonItem[] }) {
 export type BarItem = { label: string; value: number; valueLabel?: React.ReactNode; detail?: React.ReactNode; tone?: "data" | "green" | "amber" | "brick" | "blue" | "neutral" };
 
 export function BarList({ items, emptyLabel = "No observed rows." }: { items: BarItem[]; emptyLabel?: string }) {
-  if (items.length === 0) return <p className="px-4 py-6 text-xs text-muted-foreground sm:px-6">{emptyLabel}</p>;
+  if (items.length === 0) return <p className="py-6 text-sm text-muted-foreground">{emptyLabel}</p>;
   const max = Math.max(...items.map((item) => item.value), 1);
   return (
     <div className="divide-y divide-[var(--console-rule)]">
       {items.map((item) => (
-        <div key={item.label} className="grid grid-cols-[minmax(8rem,15rem)_minmax(4rem,1fr)_auto] items-center gap-4 px-4 py-2 sm:px-6">
-          <div className="min-w-0"><p className="truncate text-xs font-medium text-foreground">{item.label}</p>{item.detail ? <p className="mt-1 truncate text-xs text-muted-foreground">{item.detail}</p> : null}</div>
+        <div key={item.label} className="grid grid-cols-[minmax(8rem,15rem)_minmax(4rem,1fr)_auto] items-center gap-6 py-3">
+          <div className="min-w-0"><p className="truncate text-sm text-foreground">{item.label}</p>{item.detail ? <p className="mt-0.5 truncate text-xs text-[var(--console-faint)]">{item.detail}</p> : null}</div>
           <div className="h-1.5 overflow-hidden rounded-full bg-secondary" aria-hidden="true"><div className={cn("h-full rounded-full", item.tone === "data" ? "bg-[var(--console-data)]" : item.tone === "green" ? "bg-[var(--console-green)]" : item.tone === "amber" ? "bg-[var(--console-amber)]" : item.tone === "brick" ? "bg-[var(--console-brick)]" : item.tone === "blue" ? "bg-[var(--console-blue)]" : "bg-[var(--console-muted)]")} style={{ width: `${Math.max(0, Math.min(100, (item.value / max) * 100))}%` }} /></div>
-          <span className="tabular text-right text-xs font-medium text-foreground">{item.valueLabel ?? formatNumber(item.value)}</span>
+          <span className="tabular text-right text-sm text-foreground">{item.valueLabel ?? formatNumber(item.value)}</span>
         </div>
       ))}
     </div>

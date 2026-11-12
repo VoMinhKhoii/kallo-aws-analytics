@@ -5,40 +5,46 @@ import { useEffect,useMemo,useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { TraceGraphDetail } from '@/lib/traces/types';
 import { useResource } from '@/lib/traces-ui/use-resource';
-import { adjacentStep,buildGraph,terminal,afterResponseText,classifyCall } from '@/lib/traces-ui/graph';
+import { adjacentStep,buildGraph,terminal } from '@/lib/traces-ui/graph';
 import { useUrlState } from '@/lib/use-url-state';
-import { modelLabel,plural } from '@/lib/traces-ui/graph';
 import { RefreshButton } from '@/components/console/console';
 import { CaretLeft, Question } from "@phosphor-icons/react/ssr";
-import { compact,ms,usd } from '@/lib/ai-usage/format';
-import { MealSummary } from './meal-summary';
 import { DetailSkeleton } from './detail-skeleton';
 import { ShortcutSheet } from './shortcut-sheet';
-import { StatusDot } from '../status-dot';
-const PipelineCanvas=dynamic(()=>import('../canvas/pipeline-canvas'),{ssr:false,loading:()=> <div className="h-[520px] animate-pulse bg-secondary/30"/>});
-const StepPanel=dynamic(()=>import('./step-panel'),{ssr:false});
+import { TraceSummaryCard } from './trace-summary-card';
+const PipelineCanvas=dynamic(()=>import('../canvas/pipeline-canvas'),{ssr:false,loading:()=> <div className="h-full min-h-[520px] animate-pulse bg-[var(--console-surface)]"/>});
+const StepModal=dynamic(()=>import('./step-modal').then(m=>m.StepModal),{ssr:false});
 const poll=(t:TraceGraphDetail)=>Date.now()-Date.parse(t.createdAt)<600000&&(!terminal(t.status)||t.completeness.truncated||t.completeness.callsLogged<t.completeness.callsBilled||(t.status==='success'&&t.completeness.stagesFound<t.completeness.stagesExpected));
 export default function TraceDetail({id}:{id:string}) {
   const router=useRouter();const {data:t,error,loading,notFound,refresh}=useResource<TraceGraphDetail>(`/api/traces/${encodeURIComponent(id)}`,poll);
-  const [step,setStep]=useUrlState('step',''),[win]=useUrlState('w','24h');const [fit,setFit]=useState(0),[shortcuts,setShortcuts]=useState(false),[copied,setCopied]=useState(false),[expanded,setExpanded]=useState(false),[panelWidth,setPanelWidth]=useState(480);
+  const [step,setStep]=useUrlState('step',''),[win]=useUrlState('w','24h');const [fit,setFit]=useState(0),[shortcuts,setShortcuts]=useState(false);
   const graph=useMemo(()=>t?buildGraph(t):{nodes:[],edges:[]},[t]);const selected=graph.nodes.find(n=>n.id===step);
+  const parentId=graph.edges.find(e=>e.target===step&&e.sourceHandle==='bottom')?.source;const parent=graph.nodes.find(n=>n.id===parentId);
   const openItem=(item:number)=>{const url=new URL(window.location.href);url.searchParams.set('step','assembly');url.searchParams.set('item',String(item));window.history.pushState(null,'',url);window.dispatchEvent(new Event('dashboard-url'));};
   const close=()=>{const url=new URL(window.location.href);url.searchParams.delete('step');url.searchParams.delete('item');window.history.pushState(null,'',url);window.dispatchEvent(new Event('dashboard-url'));};
   const navigate=(direction:number)=>{const next=adjacentStep(graph.nodes,step,direction);if(next)setStep(next);};
-  const copy=()=>{void navigator.clipboard.writeText(id).then(()=>setCopied(true));};
   useEffect(()=>{const key=(e:KeyboardEvent)=>{if(e.metaKey||e.ctrlKey||e.altKey||e.target instanceof HTMLElement&&e.target.closest('input,textarea,select,[contenteditable]'))return;
     if(shortcuts){if(e.key==='Escape'){e.preventDefault();setShortcuts(false);}return;}
-    if(e.key==='['||e.key===']'){e.preventDefault();navigate(e.key==='['?-1:1);}if(e.key==='f'){e.preventDefault();setFit(n=>n+1);}if(e.key==='c')copy();if(e.key==='?'){e.preventDefault();setShortcuts(true);}if(e.key==='Escape'){e.preventDefault();if(step)close();else router.push(`/traces?w=${win}`);}
+    if(e.key==='['||e.key===']'){e.preventDefault();navigate(e.key==='['?-1:1);}if(e.key==='f'&&!step){e.preventDefault();setFit(n=>n+1);}if(e.key==='c'&&!step)void navigator.clipboard.writeText(id);if(e.key==='?'){e.preventDefault();setShortcuts(true);}
+    // The step dialog closes itself on Escape; without one, Escape goes back to the list.
+    if(e.key==='Escape'&&!step){e.preventDefault();router.push(`/traces?w=${win}`);}
   };window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);});
   if(!t&&loading)return <DetailSkeleton/>;
-  if(notFound)return <div className="py-6"><h1 className="text-2xl">No trace for this id</h1><Link href="/traces" className="mt-4 block text-sm underline">Search traces</Link></div>;
-  if(!t)return <div role="alert" className="py-6 text-sm text-foreground mark-bad">{error}<button className="ml-4 underline" onClick={refresh}>Retry</button></div>;
-  const cost=t.calls.length&&t.calls.every(c=>c.costUsd!=null)?t.calls.reduce((s,c)=>s+c.costUsd!,0):null;
-  return <div className="trace-workspace min-w-0 py-4"><header className="shrink-0 border-b border-border pb-4"><div className="flex min-w-0 items-center gap-4"><Link href={`/traces?w=${win}`} className="inline-flex shrink-0 items-center gap-1 pt-1 text-sm text-muted-foreground hover:text-foreground"><CaretLeft aria-hidden="true" className="size-3.5"/>Traces</Link><h1 className="min-w-0 flex-1 text-2xl font-medium"><button className={`block w-full text-left ${expanded?'whitespace-normal break-words':'line-clamp-2 break-words'}`} title={t.rawInput||t.mealName} aria-expanded={expanded} onClick={()=>setExpanded(v=>!v)}>{t.rawInput||t.mealName||'Meal trace'}</button></h1></div><div className="mt-4 flex flex-wrap items-center gap-2 break-words text-xs text-muted-foreground"><button onClick={copy} title={id}>{id.slice(0,8)} {copied?'Copied':'⧉'}</button><span>· {new Date(t.createdAt).toISOString().replace('T',' ').slice(0,19)} UTC</span><StatusDot status={t.status}/><span>{t.status}{t.errorCode&&` · ${t.errorCode}`}</span><span className="min-w-0 max-w-full">· {ms(t.durationMs)} · {[...new Set(t.calls.map(c=>modelLabel(c.model)))].join(' → ')} · {usd(cost)} · {compact(t.calls.reduce((s,c)=>s+(c.inputTokens??0)+(c.outputTokens??0)+(c.thoughtTokens??0),0))} tokens · {plural(t.calls.length,'attempt')} · {plural(t.rawInput.length,'char')}</span>{t.userId&&<Link className="font-mono hover:underline" href={`/traces?w=${win}&user=${t.userId}`} title={`All traces from user ${t.userId}`}>· user {t.userId.slice(0,8)}</Link>}{t.promptVersions&&<span title={Object.entries(t.promptVersions).map(([n,v])=>`${n}: ${v}`).join('\n')}>· prompts {Object.entries(t.promptVersions).map(([n,v])=><Link key={n} className="font-mono hover:underline" href={`/prompts?prompt=${encodeURIComponent(n)}`}>{n}@{v.slice(0,8)} </Link>)}</span>}{t.calls.some(c=>classifyCall(c,t)==='afterResponse')&&<span className="mark-warn">Dropped / after response · {afterResponseText(t.calls.filter(c=>classifyCall(c,t)==='afterResponse'),t)}</span>}<span className="ml-auto"><RefreshButton refreshing={loading} onClick={refresh}/></span><button className="rounded-md p-2 hover:bg-secondary" onClick={()=>setShortcuts(true)} aria-label="Keyboard shortcuts"><Question className="size-4"/></button></div></header>
-    {error&&<p role="alert" className="py-2 text-xs text-foreground mark-bad">{error} <button onClick={refresh} className="underline">Retry</button></p>}
-    {(!terminal(t.status)||t.completeness.stagesFound<t.completeness.stagesExpected||t.completeness.truncated)&&<p className="py-2 text-xs text-muted-foreground mark-warn">{!terminal(t.status)&&'Live · updates every 5 s · '}{t.completeness.stagesFound} of {t.completeness.stagesExpected} stages recorded{t.completeness.truncated&&' · Partial capture'}</p>}
-    {step&&!selected&&<p className="py-2 text-xs text-muted-foreground mark-warn">Step not recorded: {step} <button className="underline" onClick={close}>Close</button></p>}
-    <MealSummary panelOpen={!!selected} trace={t} openAssembly={openItem}/><div className="trace-detail-body relative mt-4 min-w-0 flex-1"><div className="min-w-0 flex-1"><PipelineCanvas graph={graph} selected={selected?.id??''} onSelect={setStep} duration={t.durationMs??0} fit={fit} panelWidth={selected?panelWidth:0}/></div>{selected&&<StepPanel key={selected.id} trace={t} step={selected} close={close} navigate={navigate} onWidthChange={setPanelWidth}/>}</div>
+  if(notFound)return <div className="grid gap-4 pt-7"><h1 className="text-2xl font-semibold">No trace for this id</h1><Link href="/traces" className="text-sm underline">Search traces</Link></div>;
+  if(!t)return <div role="alert" className="pt-7 text-sm text-foreground mark-bad">{error}<button className="ml-4 underline" onClick={refresh}>Retry</button></div>;
+  return <div className="trace-workspace min-w-0 pt-5 pb-6">
+    <header className="flex shrink-0 items-center gap-4 pb-4">
+      <Link href={`/traces?w=${win}`} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><CaretLeft aria-hidden="true" className="size-3.5"/>Traces</Link>
+      <span className="ml-auto"><RefreshButton refreshing={loading} onClick={refresh}/></span>
+      <button className="grid size-8 place-items-center rounded-[5px] text-muted-foreground hover:bg-secondary hover:text-foreground" onClick={()=>setShortcuts(true)} aria-label="Keyboard shortcuts"><Question className="size-4"/></button>
+    </header>
+    {error&&<p role="alert" className="pb-2 text-sm text-foreground mark-bad">{error} <button onClick={refresh} className="underline">Retry</button></p>}
+    {step&&!selected&&<p className="pb-2 text-sm text-muted-foreground mark-warn">Step not recorded: {step} <button className="underline" onClick={close}>Close</button></p>}
+    <div className="relative min-h-[560px] flex-1 overflow-hidden rounded-[5px] border border-border bg-background">
+      <PipelineCanvas graph={graph} selected={selected?.id??''} onSelect={setStep} duration={t.durationMs??0} fit={fit} panelWidth={0}/>
+      <TraceSummaryCard trace={t} win={win} openItem={openItem}/>
+    </div>
+    {selected&&<StepModal key={selected.id} trace={t} step={selected} parent={parent} close={close} navigate={navigate}/>}
     {shortcuts&&<ShortcutSheet close={()=>setShortcuts(false)}/>}
   </div>;
 }

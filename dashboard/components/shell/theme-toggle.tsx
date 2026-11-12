@@ -1,70 +1,37 @@
 "use client";
 import * as React from "react";
-import { Desktop, Moon, Sun } from "@phosphor-icons/react/ssr";
-import { cn } from "@/lib/utils";
+import { Moon, Sun } from "@phosphor-icons/react/ssr";
 import { THEME_KEY as KEY } from "./theme-script";
 
-type Theme = "light" | "dark" | "system";
+const isDark = () => document.documentElement.classList.contains("dark");
 
-function apply(theme: Theme) {
-  const dark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-  document.documentElement.classList.toggle("dark", dark);
-  document.documentElement.style.colorScheme = dark ? "dark" : "light";
-}
-
-const OPTIONS: { value: Theme; label: string; icon: typeof Sun }[] = [
-  { value: "light", label: "Light", icon: Sun },
-  { value: "dark", label: "Dark", icon: Moon },
-  { value: "system", label: "System", icon: Desktop },
-];
-
+/** One button: shows the theme it switches to. Until it is pressed the page follows the OS. */
 export function ThemeToggle() {
-  const [theme, setTheme] = React.useState<Theme>("system");
+  const [dark, setDark] = React.useState<boolean | null>(null);
 
   React.useEffect(() => {
-    try {
-      const stored = localStorage.getItem(KEY);
-      if (stored === "light" || stored === "dark") setTheme(stored);
-    } catch {}
-  }, []);
-
-  // Follow the OS while on System.
-  React.useEffect(() => {
-    if (theme !== "system") return;
+    setDark(isDark());
+    let stored: string | null = null;
+    try { stored = localStorage.getItem(KEY); } catch {}
+    if (stored) return;
     const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const onChange = () => apply("system");
+    const onChange = () => { document.documentElement.classList.toggle("dark", media.matches); document.documentElement.style.colorScheme = media.matches ? "dark" : "light"; setDark(media.matches); };
     media.addEventListener("change", onChange);
     return () => media.removeEventListener("change", onChange);
-  }, [theme]);
+  }, []);
 
-  const choose = (next: Theme) => {
-    setTheme(next);
-    try {
-      if (next === "system") localStorage.removeItem(KEY);
-      else localStorage.setItem(KEY, next);
-    } catch {}
-    apply(next);
+  const toggle = () => {
+    const next = !isDark();
+    document.documentElement.classList.toggle("dark", next);
+    document.documentElement.style.colorScheme = next ? "dark" : "light";
+    try { localStorage.setItem(KEY, next ? "dark" : "light"); } catch {}
+    setDark(next);
   };
 
+  const label = dark ? "Switch to light mode" : "Switch to dark mode";
   return (
-    <div role="radiogroup" aria-label="Theme" className="flex items-center gap-0.5 rounded-lg bg-[var(--console-surface)] p-0.5">
-      {OPTIONS.map(({ value, label, icon: Icon }) => (
-        <button
-          key={value}
-          type="button"
-          role="radio"
-          aria-checked={theme === value}
-          aria-label={label}
-          title={label}
-          onClick={() => choose(value)}
-          className={cn(
-            "grid size-7 place-items-center rounded-md transition-colors focus-visible:outline-2 focus-visible:outline-[var(--console-blue)]",
-            theme === value ? "bg-card text-foreground shadow-[var(--shadow-raised)]" : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          <Icon weight="fill" className="size-3.5" />
-        </button>
-      ))}
-    </div>
+    <button type="button" onClick={toggle} aria-label={label} title={label} className="grid size-8 place-items-center rounded-[5px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-[var(--console-accent)]">
+      {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
+    </button>
   );
 }

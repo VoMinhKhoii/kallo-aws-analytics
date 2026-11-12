@@ -36,7 +36,7 @@ export function UsageTooltip({
   const total = rows.reduce((s, r) => s + r.value, 0);
   const extra = note?.(payload[0]?.payload ?? {});
   return (
-    <div className="w-[min(240px,65vw)] max-w-full rounded-lg border border-border bg-popover px-4 py-2 text-xs shadow-lg dark:shadow-black/40">
+    <div className="w-[min(240px,65vw)] max-w-full rounded-[5px] border border-[var(--console-rule-strong)] bg-popover px-3 py-2 text-xs shadow-[0_8px_24px_rgb(0_0_0/0.08)]">
       <div className="mb-2 flex items-center justify-between gap-4">
         <span className="font-medium text-foreground">{label ? /^\d{4}-\d{2}-\d{2}/.test(label) ? longDate(label) : label : ""}</span>
         {extra ? <span className="text-xs text-muted-foreground mark-warn">{extra}</span> : null}

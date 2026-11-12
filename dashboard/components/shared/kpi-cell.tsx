@@ -1,16 +1,14 @@
 import type * as React from "react";
 import { ArrowDownRight, ArrowUpRight } from "@phosphor-icons/react/ssr";
 
-/** Label, the figure, its definition, then how it moved. */
+/** Label, the figure, how it moved, then what it counts. */
 export function Cell({ label, value, delta: d, sub, spark, title }: { label: string; value: string; delta?: React.ReactNode; sub?: React.ReactNode; spark?: React.ReactNode; title?: string }) {
   return (
-    <div className="flex min-h-[112px] min-w-0 flex-col gap-2 px-4 py-4">
+    <div className="flex min-w-0 flex-col gap-1">
       <span className="min-w-0 break-words text-sm text-muted-foreground">{label}</span>
-      <div className="grid gap-1">
-        <span title={title} className="tabular text-[28px] leading-8 font-medium">{value}</span>
-        {sub ? <span className="min-w-0 break-words text-xs text-muted-foreground">{sub}</span> : null}
-      </div>
-      {d ? <div className="mt-auto">{d}</div> : null}
+      <span title={title} className="tabular text-[30px] leading-9 font-medium tracking-[-0.75px]">{value}</span>
+      {d ? <div>{d}</div> : null}
+      {sub ? <span className="min-w-0 break-words text-xs text-[var(--console-faint)]">{sub}</span> : null}
       {spark ? <div className="mt-auto">{spark}</div> : null}
     </div>
   );
@@ -24,11 +22,11 @@ export function Change({ change, goodUp, title, vs }: { change: { text: string; 
   const Arrow = change.up ? ArrowUpRight : ArrowDownRight;
   return (
     <span title={title} className="inline-flex min-w-0 items-center gap-1 text-xs leading-4">
-      <span className={`tabular inline-flex shrink-0 items-center gap-0.5 font-medium ${tone}`}>
+      <span className={`tabular inline-flex shrink-0 items-center gap-0.5 ${tone}`}>
         {!flat && <Arrow weight="bold" className="size-3" aria-hidden="true" />}
         {change.text}
       </span>
-      {vs ? <span className="truncate text-muted-foreground">{vs}</span> : null}
+      {vs ? <span className="truncate text-[var(--console-faint)]">{vs}</span> : null}
     </span>
   );
 }

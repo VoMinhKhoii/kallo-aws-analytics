@@ -4,38 +4,35 @@ import type { ModelSummary } from "@/lib/ai-usage/aggregate";
 import { int, ms, pct, usd } from "@/lib/ai-usage/format";
 import { ModelBadge } from "./model-badge";
 
-const num = "px-4 py-2 text-right tabular whitespace-nowrap";
+const num = "py-2.5 pl-4 text-right tabular whitespace-nowrap";
 
 /** One row per model, most expensive first: the numbers the charts above are drawn from. */
 export function ModelTable({ models, unit }: { models: ModelSummary[]; unit: string }) {
   const rows = [...models].filter((m) => m.calls > 0).sort((a, b) => (b.spend ?? 0) - (a.spend ?? 0) || b.calls - a.calls);
   if (!rows.length) return null;
   return (
-    <section className="min-w-0 rounded-xl border border-border bg-card px-4 py-4 shadow-[var(--shadow-card)]">
-      <div className="mb-2 flex flex-wrap items-baseline gap-x-4">
-        <h2 className="text-sm font-medium">Models</h2>
-        <span className="text-muted-foreground text-xs">{unit === "24h" ? "Rolling 24 hours" : `Last ${unit}`} · percentiles over raw calls, most expensive first</span>
-      </div>
-      <div className="-mx-4 overflow-x-auto">
+    <section className="min-w-0 border-t border-border pt-5">
+      <h2 className="mb-3 text-base font-medium" title={`${unit === "24h" ? "Rolling 24 hours" : `Last ${unit}`} · percentiles over raw calls, most expensive first`}>Models</h2>
+      <div className="overflow-x-auto">
         <table className="w-full min-w-[860px] text-sm">
-          <thead className="text-muted-foreground text-xs">
+          <thead className="text-xs text-[var(--console-faint)]">
             <tr className="border-b border-border">
-              <th className="px-4 py-2 text-left font-normal">Model</th>
-              <th className="px-4 py-2 text-right font-normal">Calls</th>
-              <th className="px-4 py-2 text-right font-normal">Spend</th>
-              <th className="px-4 py-2 text-right font-normal">Share of spend</th>
-              <th className="px-4 py-2 text-right font-normal">$ / 1k calls</th>
-              <th className="px-4 py-2 text-right font-normal">p95</th>
-              <th className="px-4 py-2 text-right font-normal">p99</th>
-              <th className="px-4 py-2 text-right font-normal">Errors</th>
-              <th className="px-4 py-2 text-right font-normal">Fallbacks</th>
-              <th className="px-4 py-2 text-right font-normal">Cache hit</th>
+              <th className="py-2 pr-4 text-left font-normal">Model</th>
+              <th className="py-2 pl-4 text-right font-normal">Calls</th>
+              <th className="py-2 pl-4 text-right font-normal">Spend</th>
+              <th className="py-2 pl-4 text-right font-normal">Share of spend</th>
+              <th className="py-2 pl-4 text-right font-normal">$ / 1k calls</th>
+              <th className="py-2 pl-4 text-right font-normal">p95</th>
+              <th className="py-2 pl-4 text-right font-normal">p99</th>
+              <th className="py-2 pl-4 text-right font-normal">Errors</th>
+              <th className="py-2 pl-4 text-right font-normal">Fallbacks</th>
+              <th className="py-2 pl-4 text-right font-normal">Cache hit</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((m) => (
               <tr key={m.meta.key} className="border-b border-border last:border-0">
-                <td className="px-4 py-2">
+                <td className="py-2.5 pr-4">
                   <span className="flex min-w-0 items-center gap-2">
                     <ModelBadge meta={m.meta} size={22} />
                     <span className="grid min-w-0 leading-tight">

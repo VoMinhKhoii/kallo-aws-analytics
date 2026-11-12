@@ -1,8 +1,11 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ReactFlow,Controls,Background,useReactFlow,useNodesInitialized,getViewportForBounds } from '@xyflow/react';
+import { ReactFlow,Controls,Background,BackgroundVariant,MiniMap,MarkerType,useReactFlow,useNodesInitialized,getViewportForBounds } from '@xyflow/react';
 import type { buildGraph,Step } from '@/lib/traces-ui/graph';
-import { TraceNode,type FlowNode } from './trace-node';
+import { TraceNode,NODE_WIDTH,NODE_HEIGHT,GAP_HEIGHT,type FlowNode } from './trace-node';
+import { statusTone } from '../status-badge';
+// graph.ts lays steps out on a 250 px grid for 220 px cards; the table cards need more room.
+const SX=NODE_WIDTH/220*1.04,SY=2;
 import { GapEdge } from './gap-edge';
 import { TimelineRuler } from './timeline-ruler';
 const edgeTypes={gap:GapEdge};
@@ -13,14 +16,14 @@ export function CanvasContent({graph,selected,onSelect,duration,fit,panelWidth}:
   const [hover,setHover]=useState<Step|null>(null);
   // Fixed sizes (same as TraceNode): the flow has no onNodesChange, so measured sizes never
   // reach these node objects and React Flow's queued fitView never runs. We frame it ourselves.
-  const nodes:FlowNode[]=useMemo(()=>graph.nodes.map(s=>({id:s.id,type:s.kind,position:s.position,width:220,height:s.afterResponse?108:s.kind==='gap'?40:88,data:{...s},selected:s.id===selected,draggable:false})),[graph,selected]);
-  const edges=useMemo(()=>graph.edges.map(e=>({...e,type:e.label?'gap':'smoothstep',style:{stroke:e.failed?'var(--console-brick)':'var(--console-muted)',strokeWidth:1,strokeDasharray:e.dotted?'2 4':e.dashed?'6 4':undefined},labelStyle:{fill:'var(--console-muted)',fontSize: 12},labelBgStyle:{fill:'var(--console-bg)'}})),[graph]);
+  const nodes:FlowNode[]=useMemo(()=>graph.nodes.map(s=>({id:s.id,type:s.kind,position:{x:s.position.x*SX,y:s.position.y*SY},width:NODE_WIDTH,height:s.kind==='gap'?GAP_HEIGHT:NODE_HEIGHT,data:{...s},selected:s.id===selected,draggable:false})),[graph,selected]);
+  const edges=useMemo(()=>graph.edges.map(e=>{const color=e.failed?'var(--console-brick)':'var(--console-faint)';return {...e,type:e.label?'gap':'smoothstep',markerEnd:{type:MarkerType.ArrowClosed,width:14,height:14,color},style:{stroke:color,strokeWidth:1.25,strokeDasharray:e.dotted?'2 4':e.dashed?'6 4':undefined},labelStyle:{fill:'var(--console-muted)',fontSize: 12},labelBgStyle:{fill:'var(--console-bg)'}};}),[graph]);
   const closedZoom=useRef<number|null>(null);
   const fitGraph=useCallback(()=>{
     if(!canvas.current)return;
     const {width,height}=canvas.current.getBoundingClientRect();
     const bounds=flow.getNodesBounds(flow.getNodes());
-    const fit=getViewportForBounds(bounds,width,height,.1,1.25,{top:'60px',right:'60px',bottom:'60px',left:'40px'});
+    const fit=getViewportForBounds(bounds,width,height,.1,1,{top:'210px',right:'60px',bottom:'60px',left:'60px'});
     // A narrow screen cannot fit the whole pipeline legibly: start at the first step at a
     // readable zoom, vertically centred, and let the reader pan along it.
     // The spine is the top row, so a graph taller than the canvas is pinned by its top edge.
@@ -74,5 +77,5 @@ export function CanvasContent({graph,selected,onSelect,duration,fit,panelWidth}:
     observer.observe(canvas.current);
     return()=>{observer.disconnect();cancelAnimationFrame(frame);};
   },[frameSelection]);
-  return <div className="trace-canvas flex h-full min-h-[520px] flex-col"><div ref={canvas} className="trace-canvas-main min-h-[480px] flex-1"><ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} onNodeClick={(_,n)=>onSelect(n.id)} onNodeMouseEnter={(_,n)=>setHover(n.data)} onNodeMouseLeave={()=>setHover(null)} minZoom={.1} maxZoom={1.5} nodesConnectable={false} proOptions={{hideAttribution:true}}><Background gap={24} color="var(--console-rule)"/><Controls className="max-md:!hidden" position="top-right" showInteractive={false} fitViewOptions={{padding:.2,minZoom:.1,maxZoom:1.25}}/></ReactFlow></div><TimelineRuler steps={graph.nodes} step={hover} duration={duration}/></div>;
+  return <div className="trace-canvas flex h-full min-h-[520px] flex-col"><div ref={canvas} className="trace-canvas-main min-h-[480px] flex-1"><ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} onNodeClick={(_,n)=>onSelect(n.id)} onNodeMouseEnter={(_,n)=>setHover(n.data)} onNodeMouseLeave={()=>setHover(null)} minZoom={.1} maxZoom={1.5} nodesConnectable={false} proOptions={{hideAttribution:true}}><Background variant={BackgroundVariant.Dots} gap={20} size={1.2} color="var(--console-rule-strong)"/><Controls position="bottom-left" showInteractive={false} fitViewOptions={{padding:.2,minZoom:.1,maxZoom:1.25}}/><MiniMap className="max-md:!hidden" position="bottom-right" pannable zoomable nodeColor={n=>n.data.kind==='ghost'?'var(--console-rule-strong)':`color-mix(in oklab, ${statusTone(String(n.data.status))} 55%, var(--console-surface))`} nodeStrokeWidth={0} nodeBorderRadius={4} maskColor="color-mix(in oklab, var(--console-bg) 70%, transparent)" style={{background:'var(--console-surface)',border:'1px solid var(--console-rule)',borderRadius:5,width:180,height:110}}/></ReactFlow></div><TimelineRuler steps={graph.nodes} step={hover} duration={duration}/></div>;
 }

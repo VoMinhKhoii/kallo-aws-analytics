@@ -5,7 +5,8 @@ import { useUrlState } from '@/lib/use-url-state';
 import { useRefocus } from '@/lib/use-refocus';
 import { PageHeader } from '@/components/shared/page-header';
 import { UrlTabs } from '@/components/shared/url-tabs';
-import { KpiStrip } from '@/components/shared/kpi-strip';
+import { MetricTabs } from '@/components/shared/metric-tabs';
+import { LazySeriesChart } from '@/components/charts/lazy-series-chart';
 import { PageSkeleton } from '@/components/shared/page-skeleton';
 import { useCallback, useEffect, useState } from 'react';
 import { CaretRight } from '@phosphor-icons/react/ssr';
@@ -18,6 +19,7 @@ import { ActivityTab } from '@/components/admin/premium/activity-tab';
 import { api, secondary, date, type PremiumData } from '@/components/admin/premium/shared';
 
 export default function PremiumPage() {
+  const [metric, setMetric] = useState('free');
   const auth = useSessionRole();
   const [tab, setTab] = useUrlState('tab', 'overview', ['overview','give','accounts','activity']);
   const [accountId]=useUrlState('account','');
@@ -30,23 +32,28 @@ export default function PremiumPage() {
   useEffect(() => { if (auth.role === 'founder') void load(); else if (!auth.loading) setLoading(false); }, [auth.role, auth.loading, load]);
   useRefocus(() => { if (auth.role === 'founder') void load(); });
   function onSaved() { setSaved(true); void load(); }
-  return <div className="mx-auto max-w-[1320px] space-y-4 py-6">
+  return <div className="space-y-6">
     <PageHeader title="Premium" refreshing={loading} onRefresh={() => { if(auth.role === 'founder')void load(); }} />
     {auth.error ? <p role="alert" className="text-sm">Session unavailable: {auth.error}. Use Refresh to retry.</p> : auth.role !== 'founder' && !auth.loading ? <p className="text-sm">Premium management requires founder access. Sign in with your founder account.</p> : <>
       <UrlTabs value={tab} onChange={v => { setTab(v); setSaved(false); }} items={[{value:'overview',label:'Overview'},{value:'give',label:'Give / End'},{value:'accounts',label:'Accounts'},{value:'activity',label:'Activity'}]}>
       {saved && <p role="status" className="mb-6 text-sm text-foreground mark-good">Change saved and recorded in Activity.</p>}
-      {error && <div role="alert" className="mb-6 rounded-md border border-[var(--console-rule)] p-6"><p className="text-sm text-foreground mark-bad">{error}</p><button className={secondary + ' mt-4'} onClick={() => void load()}>Try again</button></div>}
+      {error && <div role="alert" className="mb-6 border-t border-border pt-5"><p className="text-sm text-foreground mark-bad">{error}</p><button className={secondary + ' mt-4'} onClick={() => void load()}>Try again</button></div>}
       {loading && !data && <PageSkeleton title="Premium" cells={4} charts={0} rows />}
-      {data && tab === 'overview' && <><KpiStrip items={[{label:'On free Premium',value:int(data.overview.onFreePremium)},{label:'Ending within 3 days',value:int(data.overview.endingSoon)},{label:'Paying subscribers',value:int(data.overview.paying)},{label:'Upgraded during free access',value:int(data.overview.upgradedDuringFree)}]} /><div className="grid items-start gap-4 lg:grid-cols-2">
-        <MetricSection card title="Welcome offer" description="Free Premium for new signups"><OfferEditor key={JSON.stringify(data.offer)} offer={data.offer} onSaved={onSaved} /></MetricSection>
-        <MetricSection card title="Ending soonest" description={`${int(data.ending.length)} of ${int(data.overview.onFreePremium)} on free Premium`} action={<button type="button" className="inline-flex shrink-0 items-center gap-1 text-sm text-muted-foreground hover:text-foreground" onClick={()=>setTab('accounts')}>Accounts<CaretRight aria-hidden="true" className="size-3.5" /></button>} empty={!data.ending.length}>
-          <div className="-mx-4 -mb-4 divide-y divide-border border-t border-border">{data.ending.map(a => { const left = Math.ceil((Date.parse(a.freeUntil)-Date.now())/86400000); return <Link key={a.id} href={`/premium?tab=accounts&account=${encodeURIComponent(a.id)}`} className="group flex items-center gap-4 px-4 py-3 transition-colors last:rounded-b-xl hover:bg-secondary">
-            <span className="grid min-w-0 flex-1"><span className="truncate text-sm">{a.email}</span><span className="text-xs text-muted-foreground">{date(a.freeUntil)}</span></span>
-            <span className="tabular shrink-0 text-sm text-muted-foreground">{left > 0 ? `in ${left} d` : 'Ended'}</span>
-            <CaretRight aria-hidden="true" className="size-4 shrink-0 text-[var(--console-quiet)] transition-colors group-hover:text-foreground" />
-          </Link>; })}</div>
-        </MetricSection>
-      </div></>}
+      {data && tab === 'overview' && <div className="grid gap-10">
+        <MetricTabs value={metric} onChange={setMetric} tabs={[{key:'free',label:'On free Premium',value:int(data.overview.onFreePremium)},{key:'ending',label:'Ending within 3 days',value:int(data.overview.endingSoon)},{key:'paying',label:'Paying subscribers',value:int(data.overview.paying)},{key:'upgraded',label:'Upgraded while free',value:int(data.overview.upgradedDuringFree),title:'Paying accounts whose first paid grant started during free Premium'}]}
+          aside={<MetricSection title="Ending soonest" action={<button type="button" className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground hover:text-foreground" onClick={()=>setTab('accounts')}>Accounts<CaretRight aria-hidden="true" className="size-3" /></button>} empty={!data.ending.length}>
+            <div className="divide-y divide-border border-y border-border">{data.ending.map(a => { const left = Math.ceil((Date.parse(a.freeUntil)-Date.now())/86400000); return <Link key={a.id} href={`/premium?tab=accounts&account=${encodeURIComponent(a.id)}`} className="group flex items-center gap-4 py-3 transition-colors hover:bg-secondary">
+              <span className="grid min-w-0 flex-1"><span className="truncate text-sm">{a.email}</span><span className="text-xs text-[var(--console-faint)]">{date(a.freeUntil)}</span></span>
+              <span className="tabular shrink-0 text-sm text-muted-foreground">{left > 0 ? `in ${left} d` : 'Ended'}</span>
+              <CaretRight aria-hidden="true" className="size-3 shrink-0 text-[var(--console-quiet)] transition-colors group-hover:text-foreground" />
+            </Link>; })}</div>
+          </MetricSection>}>
+          {metric === 'ending'
+            ? <LazySeriesChart bare compact height={300} integer partialLast={false} title="Free Premium ending per day" rows={data.endingByDay} series={[{key:'ending',label:'Ending, next 14 days',color:'var(--console-data)'}]} />
+            : <LazySeriesChart bare compact height={300} integer title="Per day, last 30 days" rows={data.trend} series={[metric === 'free' ? {key:'freeStarted',label:'Free Premium given',color:'var(--console-data)'} : metric === 'paying' ? {key:'paidStarted',label:'New paying accounts',color:'var(--console-data)'} : {key:'upgraded',label:'Upgraded while free',color:'var(--console-data)'}]} />}
+        </MetricTabs>
+        <div className="max-w-2xl"><MetricSection title="Welcome offer"><OfferEditor key={JSON.stringify(data.offer)} offer={data.offer} onSaved={onSaved} /></MetricSection></div>
+      </div>}
       {data && tab === 'give' && <div className="max-w-2xl"><GiveEditor onSaved={onSaved} /></div>}
       {tab === 'accounts' && <div className="max-w-3xl"><AccountSearch selected={[]} onSelect={() => {}} detail initialAccount={accountId} onChanged={onSaved} /></div>}
       {data && tab === 'activity' && <ActivityTab rows={data.activity} onSaved={onSaved} />}
