@@ -1,5 +1,6 @@
 'use client';
-import { apiFetch } from '@/lib/api-fetch';
+import { apiFetch, revalidateIfStale } from '@/lib/api-fetch';
+import { fetchPrefetched } from '@/lib/prefetch';
 import { useCallback, useEffect, useState } from 'react';
 import { useRefocus } from '@/lib/use-refocus';
 export function useResource<T>(url:string|null,poll?:(data:T)=>boolean) {
@@ -12,8 +13,9 @@ export function useResource<T>(url:string|null,poll?:(data:T)=>boolean) {
     const load=async()=>{
       if(document.hidden&&latest){schedule();return;}
       setState(s=>s.url===url?({...s,loading:true,error:null}):({url,data:null,loading:true,error:null,notFound:false}));
-      try{const r=await apiFetch(url+(url.includes('?')?'&':'?')+(version?'refresh=1':''),{signal:controller.signal,cache:version?'reload':'default'});const body=await r.json();if(!r.ok){setState(s=>({...s,error:body.error??'Request failed',loading:false,notFound:r.status===404}));failures++;if(r.status!==404&&latest&&poll?.(latest))schedule();return;}
+      try{const r=version?await apiFetch(url+(url.includes('?')?'&':'?')+'refresh=1',{signal:controller.signal,cache:'reload'}):await fetchPrefetched(url,{signal:controller.signal,cache:'default'});const body=await r.json();if(!r.ok){setState(s=>({...s,error:body.error??'Request failed',loading:false,notFound:r.status===404}));failures++;if(r.status!==404&&latest&&poll?.(latest))schedule();return;}
         failures=0;latest=body;setState({data:body,error:null,loading:false,notFound:false,url});if(poll?.(body))schedule();
+        revalidateIfStale(r,url,async fresh=>{const next=await fresh.json().catch(()=>null);if(next&&!controller.signal.aborted){latest=next;setState({data:next,error:null,loading:false,notFound:false,url});}},controller.signal);
       }catch(e){if(!controller.signal.aborted)setState(s=>({...s,loading:false,error:e instanceof Error?e.message:'Request failed'}));failures++;if(!controller.signal.aborted&&latest&&poll?.(latest))schedule();}
     };void load();return()=>{controller.abort();clearTimeout(timer);};
   // Poll predicates are pure module-level functions.

@@ -1,5 +1,6 @@
 'use client';
 import dynamic from 'next/dynamic';
+import { preloaded } from '@/components/charts/preloaded';
 import Link from 'next/link';
 import { useEffect,useMemo,useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -12,7 +13,8 @@ import { CaretLeft, Question } from "@phosphor-icons/react/ssr";
 import { DetailSkeleton } from './detail-skeleton';
 import { ShortcutSheet } from './shortcut-sheet';
 import { TraceSummaryCard } from './trace-summary-card';
-const PipelineCanvas=dynamic(()=>import('../canvas/pipeline-canvas'),{ssr:false,loading:()=> <div className="h-full min-h-[520px] animate-pulse bg-[var(--console-surface)]"/>});
+// The canvas (xyflow) downloads alongside the trace, not after it.
+const PipelineCanvas=preloaded(()=>import('../canvas/pipeline-canvas').then(m=>m.default),()=> <div className="h-full min-h-[520px] animate-pulse bg-[var(--console-surface)]"/>);
 const StepModal=dynamic(()=>import('./step-modal').then(m=>m.StepModal),{ssr:false});
 const poll=(t:TraceGraphDetail)=>Date.now()-Date.parse(t.createdAt)<600000&&(!terminal(t.status)||t.completeness.truncated||t.completeness.callsLogged<t.completeness.callsBilled||(t.status==='success'&&t.completeness.stagesFound<t.completeness.stagesExpected));
 export default function TraceDetail({id}:{id:string}) {
