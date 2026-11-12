@@ -22,12 +22,16 @@ function useHealth(enabled = true): { state: "checking" | "live" | "down"; detai
   React.useEffect(() => {
     if (!enabled) return;
     let active = true;
-    apiFetch("/api/admin/status", { cache: "no-store" })
-      .then((response) => response.json())
-      .then((body) => active && setHealth(body))
-      .catch(() => active && setFailed(true));
+    // A background indicator: checked after the page's own data, not alongside it.
+    const timer = window.setTimeout(() => {
+      apiFetch("/api/admin/status", { cache: "no-store" })
+        .then((response) => response.json())
+        .then((body) => active && setHealth(body))
+        .catch(() => active && setFailed(true));
+    }, 1500);
     return () => {
       active = false;
+      window.clearTimeout(timer);
     };
   }, [enabled]);
 

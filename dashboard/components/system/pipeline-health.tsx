@@ -28,7 +28,7 @@ export function PipelinePanel({ health }: { health: ReturnType<typeof usePipelin
     <div className="overflow-x-auto"><table className="w-full text-left text-sm"><caption className="mb-3 text-left text-sm text-muted-foreground">Most common errors, last 7 days. Requests are kept {data.retentionDays} days.</caption>
       <thead className="text-xs text-[var(--console-faint)]"><tr>{['Error', 'Count', 'Last seen', 'Latest message'].map(h => <th key={h} className="py-2 pr-4 font-normal">{h}</th>)}</tr></thead>
       <tbody>{data.topErrors.map(e => <tr key={e.code} className="border-t border-border align-top">
-        <td className="py-3 pr-4"><Link className="hover:underline" href={`/traces?status=error&w=7d`}>{e.code}</Link></td>
+        <td className="py-3 pr-4"><Link prefetch={false} className="hover:underline" href={`/traces?status=error&w=7d`}>{e.code}</Link></td>
         <td className="tabular py-3 pr-4">{int(e.count)}</td>
         <td className="whitespace-nowrap py-3 pr-4 text-muted-foreground">{date(e.lastSeen)}</td>
         <td className="max-w-[640px] break-words py-3 text-muted-foreground">{e.sample ?? '—'}</td>
