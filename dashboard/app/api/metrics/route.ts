@@ -4,6 +4,7 @@ import { METRIC_NAMES, type MetricName } from "@/app/lib/types";
 import { getLiveMetrics } from '@/lib/admin/live-metrics';
 import { aggregateCache } from "@/lib/admin/cache";
 import { authorizeRequest } from '@/lib/auth';
+import { edgeCached, AGGREGATE_TTL, NO_STORE } from '@/lib/edge-cache';
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,7 @@ export async function GET(request: Request) {
   const refresh = url.searchParams.get("refresh") === "1";
   if (url.searchParams.has('w') && !['24h','7d','30d'].includes(url.searchParams.get('w')!)) return Response.json({error:'Invalid date window.'},{status:400});
   const source = from.includes('T') || process.env.METRICS_SOURCE === 'postgres' ? 'postgres' : 'aws';
+  return edgeCached(request, access.session.role, AGGREGATE_TTL, async () => {
   const loadMetric = async (metric: MetricName) => {
     try {
       return { metric, ...await aggregateCache.get(`metrics:v2:${source}:${access.session.role}:${metric}:${from}:${to}`, 60000, async () => {
@@ -43,10 +45,13 @@ export async function GET(request: Request) {
       }, refresh) };
     } catch { return { metric, error: 'The metric could not be loaded.' }; }
   };
-  const parts = [];
-  for (let i = 0; i < requested.length; i += 4) {
-    parts.push(...await Promise.all((requested as MetricName[]).slice(i, i + 4).map(loadMetric)));
-  }
+  // At most four loads at once, each lane taking the next metric as soon as it
+  // finishes, so one slow metric does not hold up a whole batch of four.
+  const queue = [...requested] as MetricName[];
+  const parts: Awaited<ReturnType<typeof loadMetric>>[] = [];
+  await Promise.all(Array.from({ length: Math.min(4, queue.length) }, async () => {
+    for (let metric = queue.shift(); metric; metric = queue.shift()) parts.push(await loadMetric(metric));
+  }));
   const bundle = {
     from, to,
     data: Object.fromEntries(parts.filter(p => !('error' in p)).map(p => [p.metric, 'value' in p ? p.value : undefined])),
@@ -55,6 +60,7 @@ export async function GET(request: Request) {
     collectedAtByMetric: Object.fromEntries(parts.flatMap(p => 'collectedAt' in p ? [[p.metric, p.collectedAt]] : [])),
   };
   return Response.json(bundle, {
-    headers: { "Cache-Control": refresh ? "private, no-store" : "private, max-age=30, stale-while-revalidate=300" },
+    headers: { "Cache-Control": refresh ? "private, no-store" : "private, max-age=30, stale-while-revalidate=300", ...(Object.keys(bundle.errors).length ? { [NO_STORE]: "1" } : {}) },
+  });
   });
 }

@@ -16,6 +16,10 @@
   ],
   // Workers AI, for the /email page's "Translate" button.
   "ai": { "binding": "AI" },
+  // Pooled connections to Kallo's production Postgres (session pooler origin, query caching off).
+  // Saves the ~250 ms TCP/TLS/auth handshake every request paid from the edge. Local dev and tests
+  // ignore it and use DATABASE_URL (lib/admin/db/client.ts); localConnectionString only satisfies wrangler.
+  "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "594ce35905104d5488f405f5efb51c0f", "localConnectionString": "postgres://localhost:5432/postgres" }],
   // Kallo's private feedback screenshots, streamed to founders by /api/admin/feedback/[id]/screenshot.
   "r2_buckets": [{ "binding": "SCREENSHOTS", "bucket_name": "kallo-prod-feedback-screenshots" }],
   "observability": { "enabled": true, "traces": { "enabled": true, "head_sampling_rate": 0.1 } },

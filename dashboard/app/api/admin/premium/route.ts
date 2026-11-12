@@ -44,12 +44,11 @@ export async function GET(request: Request) {
     if (id) return json(await getAccount(connection.db, z.string().uuid().parse(id)));
     const [schema] = await connection.db.execute(sql`SELECT to_regclass('public.premium_settings')::text AS settings, to_regclass('public.premium_grant_audit')::text AS audit`);
     if (!schema.settings || !schema.audit) return json({ error: 'The Premium migrations from Kallo PRs #414–415 have not been applied to the production database.', code: 'MIGRATIONS_REQUIRED' }, 503);
-    const overview = await getOverview(connection.db);
-    const offer = await getWelcomeOffer(connection.db);
-    const activity = await listActivity(connection.db);
-    const ending = await listEndingSoon(connection.db);
-    const trend = await getPremiumTrend(connection.db);
-    const endingByDay = await getEndingByDay(connection.db);
+    // Independent reads: one round trip together rather than six in a row.
+    const [overview, offer, activity, ending, trend, endingByDay] = await Promise.all([
+      getOverview(connection.db), getWelcomeOffer(connection.db), listActivity(connection.db),
+      listEndingSoon(connection.db), getPremiumTrend(connection.db), getEndingByDay(connection.db),
+    ]);
     return json({ overview, offer, activity, ending, trend, endingByDay });
   } catch (error) {
     if (error instanceof z.ZodError) return json({ error: error.issues[0].message }, 400);

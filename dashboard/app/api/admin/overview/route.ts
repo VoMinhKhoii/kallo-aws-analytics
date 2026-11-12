@@ -3,6 +3,7 @@ import { authorizeRequest } from '@/lib/auth';
 import { connectAdminDb } from '@/lib/admin/db/client';
 import { aggregateCache } from '@/lib/admin/cache';
 import { loadOverview } from '@/lib/admin/overview';
+import { edgeCached, AGGREGATE_TTL } from '@/lib/edge-cache';
 export const dynamic = 'force-dynamic';
 export async function GET(request:Request) {
   const access=authorizeRequest(request);
@@ -11,12 +12,12 @@ export async function GET(request:Request) {
   const days=z.enum(['24h','7','30']).safeParse(params.get('days')||params.get('w')?.replace(/d$/,'')||'30');
   const json=(v:unknown,status=200,cache='no-store')=>Response.json(v,{status,headers:{'Cache-Control':cache}});
   if (!days.success) return json({error:'Invalid date window.'},400);
-  try {
+  return edgeCached(request,access.session.role,AGGREGATE_TTL,async()=>{ try {
     const refresh=params.get('refresh')==='1';
     const result=await aggregateCache.get(`overview:v3:${process.env.DATABASE_URL}:${access.session.role}:${days.data}:${new Date().toISOString().slice(0,10)}`,60000,async()=>{
       const connection=connectAdminDb({statementTimeoutMs:8000});
       try { return await loadOverview(connection.db,days.data === '24h' ? '24h' : Number(days.data)); } finally { await connection.close(); }
     },refresh);
     return json({...result.value,collectedAt:result.collectedAt},200,refresh?'no-store':'private, max-age=30, stale-while-revalidate=300');
-  } catch { return json({error:'Production overview could not be loaded.'},502); }
+  } catch { return json({error:'Production overview could not be loaded.'},502); } });
 }

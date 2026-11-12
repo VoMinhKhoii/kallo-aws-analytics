@@ -1,5 +1,6 @@
 import { aggregateCache } from '@/lib/admin/cache';
 import { authorizeRequest } from '@/lib/auth';
+import { edgeCached } from '@/lib/edge-cache';
 import { getAuthConfig } from '@/lib/auth-config';
 import { connectAdminDb } from '@/lib/admin/db/client';
 import { traceFilters, listTraces, decodeCursor } from '@/lib/traces/query';
@@ -13,12 +14,12 @@ export async function GET(request: Request) {
   const secret = getAuthConfig().sessionSecret;
   try { if (parsed.data.cursor) decodeCursor(parsed.data.cursor, parsed.data, secret); }
   catch { return json({ error: 'Invalid cursor.' }, 400); }
-  try {
+  return edgeCached(request, access.session.role, { fresh: 30_000, stale: 300_000 }, async () => { try {
     const refresh = new URL(request.url).searchParams.get('refresh') === '1';
     const result = await aggregateCache.get('traces:v2:' + (process.env.DATABASE_URL || '') + ':' + JSON.stringify(parsed.data), 30000, async () => {
       const connection = connectAdminDb({ statementTimeoutMs: 8000 });
       try { return await listTraces(connection.db, parsed.data, secret); } finally { await connection.close(); }
     }, refresh);
     return json(result.value, 200, refresh ? 'no-store' : 'private, max-age=30');
-  } catch { return json({ error: 'Traces could not be loaded.' }, 502); }
+  } catch { return json({ error: 'Traces could not be loaded.' }, 502); } });
 }
