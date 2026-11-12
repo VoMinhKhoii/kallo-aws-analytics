@@ -7,9 +7,8 @@ import { date } from '@/components/admin/premium/shared';
 import type { PipelineHealth as Health } from '@/lib/admin/health';
 
 /** Meal pipeline health: always the last 24 h / 7 d, whatever the page window. Founder only. */
-export const HEALTH_URL = '/api/admin/health';
 export function usePipelineHealth(enabled: boolean) {
-  return useResource<Health>(enabled ? HEALTH_URL : null);
+  return useResource<Health>(enabled ? '/api/admin/health' : null);
 }
 
 /** The panel under the Meal success tab: success and latency, then the most common errors. */
