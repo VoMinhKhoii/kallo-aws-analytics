@@ -32,7 +32,7 @@ export function LatestMeals({ version }: { version: number }) {
       .catch(e => { if (active) setError(e instanceof Error ? e.message : 'Meal traces could not be loaded.'); });
     return () => { active = false; };
   }, [version, retry]);
-  return <MetricSection title="Latest meals" action={<Link href="/traces?w=7d" className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground hover:text-foreground">All traces<CaretRight aria-hidden="true" className="size-3" /></Link>} error={error} retry={() => setRetry(n => n + 1)} empty={rows?.length === 0}>
+  return <MetricSection title="Latest meals" action={<Link prefetch={false} href="/traces?w=7d" className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground hover:text-foreground">All traces<CaretRight aria-hidden="true" className="size-3" /></Link>} error={error} retry={() => setRetry(n => n + 1)} empty={rows?.length === 0}>
     {rows == null
       ? <div role="status" aria-label="Loading latest meals">{Array.from({ length: 8 }, (_, i) => <div key={i} className="h-10 animate-pulse border-b border-border" />)}</div>
       : <div role="table" aria-label="Latest meals" className="text-sm">
@@ -46,7 +46,7 @@ export function LatestMeals({ version }: { version: number }) {
         </div>
         {rows.map(r => {
           const model = [r.modelCall1, r.modelCall2].filter((x, i, a) => x && a.indexOf(x) === i).map(m => modelLabel(m!)).join(' → ') || r.models.map(modelLabel).join(', ') || '—';
-          return <Link key={r.id} role="row" href={`/traces/${r.id}?w=7d`} className={`${COLS} h-10 border-b border-border transition-colors hover:bg-secondary focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--console-accent)]`}>
+          return <Link prefetch={false} key={r.id} role="row" href={`/traces/${r.id}?w=7d`} className={`${COLS} h-10 border-b border-border transition-colors hover:bg-secondary focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--console-accent)]`}>
             <span role="cell" className="flex min-w-0 items-center gap-2"><StatusDot status={r.status} /><span title={r.rawInput} className="truncate">{r.rawInput || r.mealName || 'Untitled meal'}</span>{(r.errorCode || r.error) && <span className="shrink-0 text-xs text-[var(--console-brick)]">{r.errorCode ?? r.error}</span>}</span>
             <span role="cell" title={model} className="hidden truncate text-muted-foreground md:block">{model}</span>
             <span role="cell" className="tabular text-right">{ms(r.durationMs)}</span>
