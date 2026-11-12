@@ -45,12 +45,12 @@ export function TraceExplorer() {
                 return (
                   <TableRow key={row[9]}>
                     <TableCell>
-                      <Link href={`/traces/${encodeURIComponent(row[9])}`} className="font-mono text-xs text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--console-blue)]">
+                      <Link prefetch={false} href={`/traces/${encodeURIComponent(row[9])}`} className="font-mono text-xs text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--console-blue)]">
                         {row[0]}
                       </Link>
                     </TableCell>
                     <TableCell muted><span className="whitespace-nowrap font-mono text-xs">{row[1]} {row[2]}</span></TableCell>
-                    <TableCell className="max-w-96"><Link href={`/traces/${encodeURIComponent(row[9])}`} className="line-clamp-2 font-medium leading-5 text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--console-blue)]">{row[3]}</Link></TableCell>
+                    <TableCell className="max-w-96"><Link prefetch={false} href={`/traces/${encodeURIComponent(row[9])}`} className="line-clamp-2 font-medium leading-5 text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--console-blue)]">{row[3]}</Link></TableCell>
                     <TableCell numeric>{formatDuration(row[4])}</TableCell>
                     <TableCell numeric>{formatNumber(row[5])}</TableCell>
                     <TableCell muted><span className="whitespace-nowrap tabular-nums">{row[6]} accepted · {row[7]} unmatched · {row[8]} rejected</span></TableCell>

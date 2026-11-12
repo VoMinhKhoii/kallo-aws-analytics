@@ -109,7 +109,7 @@ export function metricQuery(metric: MetricName, from: string, to: string): SQL {
           AND length(btrim(regexp_replace(ingredient_query, '[[:space:]]+', ' ', 'g'))) BETWEEN 1 AND 160 GROUP BY 1,2,3,4,5),
       examples AS (SELECT date,food_id,food_name,source,count(*)::int AS query_count,
         (array_agg(query ORDER BY n DESC,query))[1:5] AS query_examples FROM queries GROUP BY 1,2,3,4),
-      grouped AS (SELECT f.*,coalesce(e.query_count,0) AS query_count,coalesce(e.query_examples,ARRAY[]::text[]) AS query_examples
+      grouped AS (SELECT f.*,coalesce(e.query_count,0) AS query_count,to_json(coalesce(e.query_examples,ARRAY[]::text[])) AS query_examples
         FROM foods f LEFT JOIN examples e ON f.date=e.date AND f.food_id=e.food_id
           AND f.food_name IS NOT DISTINCT FROM e.food_name AND f.source IS NOT DISTINCT FROM e.source)
       SELECT *, row_number() OVER (ORDER BY decision_count DESC,query_count DESC,date,food_id,coalesce(food_name,''),coalesce(source,''))::int AS rank
@@ -148,7 +148,7 @@ export function metricQuery(metric: MetricName, from: string, to: string): SQL {
       SELECT dates.date,b.nutrient,b.low::float AS bucket_min,b.high::float AS bucket_max,count(v.amount)::int AS count FROM dates CROSS JOIN buckets b LEFT JOIN values v ON v.date=dates.date AND v.nutrient=b.nutrient AND v.amount>=b.low AND (b.high IS NULL OR v.amount<b.high) GROUP BY 1,2,3,4 ORDER BY 1,2,3`;
     case 'implausible_foods': return sql`WITH foods AS (SELECT id,name_en,type_en,coalesce(calories_kcal,0)::float AS calories_kcal,coalesce(protein_g,0)::float AS protein_g,coalesce(carbohydrate_g,0)::float AS carbohydrate_g,coalesce(fat_g,0)::float AS fat_g FROM analytics.v_food_composition), scored AS (SELECT *,4*protein_g+4*carbohydrate_g+9*fat_g AS macro_calories_kcal FROM foods)
       SELECT *,CASE WHEN calories_kcal>0 THEN abs(macro_calories_kcal-calories_kcal)/calories_kcal ELSE 0 END AS mismatch_share,
-      array_remove(ARRAY[CASE WHEN calories_kcal>0 AND protein_g=0 AND carbohydrate_g=0 AND fat_g=0 THEN 'kcal_positive_all_macros_zero' END,CASE WHEN carbohydrate_g=0 AND lower(type_en) ~ '(bread|cereal|grain|noodle|pasta|rice|starch|tuber)' THEN 'carb_staple_zero_carbohydrate' END,CASE WHEN calories_kcal>0 AND abs(macro_calories_kcal-calories_kcal)/calories_kcal>0.4 THEN 'macro_calorie_mismatch_over_40_percent' END],NULL) AS reasons
+      to_json(array_remove(ARRAY[CASE WHEN calories_kcal>0 AND protein_g=0 AND carbohydrate_g=0 AND fat_g=0 THEN 'kcal_positive_all_macros_zero' END,CASE WHEN carbohydrate_g=0 AND lower(type_en) ~ '(bread|cereal|grain|noodle|pasta|rice|starch|tuber)' THEN 'carb_staple_zero_carbohydrate' END,CASE WHEN calories_kcal>0 AND abs(macro_calories_kcal-calories_kcal)/calories_kcal>0.4 THEN 'macro_calorie_mismatch_over_40_percent' END],NULL)) AS reasons
       FROM scored WHERE (calories_kcal>0 AND (abs(macro_calories_kcal-calories_kcal)/calories_kcal>0.4 OR (protein_g=0 AND carbohydrate_g=0 AND fat_g=0))) OR (carbohydrate_g=0 AND lower(type_en) ~ '(bread|cereal|grain|noodle|pasta|rice|starch|tuber)') ORDER BY name_en LIMIT 1000`;
   }
 }

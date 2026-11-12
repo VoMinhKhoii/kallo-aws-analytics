@@ -1,5 +1,5 @@
 "use client";
-import { apiFetch } from '@/lib/api-fetch';
+import { apiFetch, revalidateIfStale } from '@/lib/api-fetch';
 
 import { useRefocus } from "@/lib/use-refocus";
 import * as React from "react";
@@ -20,10 +20,15 @@ export function useCloudMonitoring(from: string, to: string, enabled = true) {
     let active = true;
     const refresh = refreshKey > 0;
     setState((previous) => ({ ...previous, loading: !previous.data, refreshing: Boolean(previous.data), error: null }));
-    apiFetch(`/api/cloud-monitoring?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}${refresh ? "&refresh=1" : ""}`, { cache: "no-store" })
+    const url = `/api/cloud-monitoring?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+    apiFetch(url + (refresh ? "&refresh=1" : ""), { cache: "no-store" })
       .then(async (response) => {
         const body = await response.json().catch(() => null) as (CloudMonitoringResponse & { error?: string }) | null;
         if (!response.ok || !body) throw new Error(body?.error ?? "Cloud Monitoring request failed");
+        revalidateIfStale(response, url, async (fresh) => {
+          const data = await fresh.json().catch(() => null) as CloudMonitoringResponse | null;
+          if (active && data) setState((previous) => ({ ...previous, data }));
+        });
         return body;
       })
       .then((data) => active && setState({ data, loading: false, refreshing: false, error: null }))

@@ -1,5 +1,5 @@
 "use client";
-import { apiFetch } from '@/lib/api-fetch';
+import { apiFetch, revalidateIfStale } from '@/lib/api-fetch';
 
 import { useRefocus } from "@/lib/use-refocus";
 import * as React from "react";
@@ -7,6 +7,7 @@ import type { DashboardMetrics, MetricBundle, MetricName } from "@/app/lib/types
 
 const memo = new Map<string, MetricBundle>();
 const waiting = new Map<string, Promise<MetricBundle>>();
+const freshListeners = new Map<string, Set<(bundle: MetricBundle) => void>>();
 
 export function metricBundleUrl(
   metrics: readonly MetricName[],
@@ -43,6 +44,12 @@ async function load(url: string, bypass = false): Promise<MetricBundle> {
         throw new Error("The metrics endpoint returned an invalid response");
       }
       memo.set(url, body);
+      revalidateIfStale(response, url, async (fresh) => {
+        const next = await fresh.json().catch(() => null) as MetricBundle | null;
+        if (!next || typeof next.data !== "object" || typeof next.errors !== "object") return;
+        memo.set(url, next);
+        freshListeners.get(url)?.forEach((fn) => fn(next));
+      });
       return body;
     })
     .finally(() => waiting.delete(url));
@@ -93,6 +100,9 @@ export function useMetricBundle(
       return;
     }
     let active = true;
+    const onFresh = (bundle: MetricBundle) => { if (active) setState((previous) => ({ ...previous, data: bundle.data, errors: bundle.errors })); };
+    if (!freshListeners.has(url)) freshListeners.set(url, new Set());
+    freshListeners.get(url)!.add(onFresh);
     setState((previous) => ({ ...previous, loading: !previous.data, refreshing: Boolean(previous.data), error: null }));
     const requestUrl = bypass ? `${url}&refresh=1` : url;
     load(requestUrl, bypass)
@@ -105,6 +115,7 @@ export function useMetricBundle(
       });
     return () => {
       active = false;
+      freshListeners.get(url)?.delete(onFresh);
     };
   }, [enabled, refreshKey, url]);
 

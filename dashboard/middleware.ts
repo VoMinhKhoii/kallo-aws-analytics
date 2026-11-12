@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthConfig, isSameOrigin, safeReturnPath, SESSION_COOKIE_NAME } from "@/lib/auth-config";
+import { getAuthConfig, isSameOrigin, ROLE_HINT_COOKIE, safeReturnPath, SESSION_COOKIE_NAME, shouldUseSecureSessionCookies } from "@/lib/auth-config";
 import { verifySessionTokenEdge } from "@/lib/auth-edge";
 
 const PUBLIC_PATHS = new Set([
@@ -81,5 +81,10 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     }
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next();
+  const hint = `${session.role}.${session.exp}`;
+  if (!isApi(pathname) && request.cookies.get(ROLE_HINT_COOKIE)?.value !== hint) {
+    response.cookies.set({ name: ROLE_HINT_COOKIE, value: hint, path: "/", sameSite: "strict", secure: shouldUseSecureSessionCookies(process.env, request.url), maxAge: Math.max(0, session.exp - Math.floor(Date.now() / 1000)) });
+  }
+  return response;
 }

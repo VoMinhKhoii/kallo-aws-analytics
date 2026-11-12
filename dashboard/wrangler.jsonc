@@ -9,6 +9,10 @@
   "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "kallo-admin" }],
   // Kallo's AI meal traces, filled by the kallo-trace-ingest Worker (../trace-ingest).
   "d1_databases": [{ "binding": "TRACES", "database_name": "kallo-traces", "database_id": "1cc13d01-7f6d-4fb4-9012-ddc4058f71dd" }],
+  // Pooled connections to Kallo's production Postgres (session pooler origin, query caching off).
+  // Saves the ~250 ms TCP/TLS/auth handshake every request paid from the edge. Local dev and tests
+  // ignore it and use DATABASE_URL (lib/admin/db/client.ts); localConnectionString only satisfies wrangler.
+  "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "594ce35905104d5488f405f5efb51c0f", "localConnectionString": "postgres://localhost:5432/postgres" }],
   // Kallo's private feedback screenshots, streamed to founders by /api/admin/feedback/[id]/screenshot.
   "r2_buckets": [{ "binding": "SCREENSHOTS", "bucket_name": "kallo-prod-feedback-screenshots" }],
   "observability": { "enabled": true, "traces": { "enabled": true, "head_sampling_rate": 0.1 } },

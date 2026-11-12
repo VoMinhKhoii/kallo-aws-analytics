@@ -1,5 +1,6 @@
 'use client';
 import dynamic from 'next/dynamic';
+import { preloaded } from '@/components/charts/preloaded';
 import Link from 'next/link';
 import { useEffect,useMemo,useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -12,7 +13,8 @@ import { CaretLeft, Question } from "@phosphor-icons/react/ssr";
 import { DetailSkeleton } from './detail-skeleton';
 import { ShortcutSheet } from './shortcut-sheet';
 import { TraceSummaryCard } from './trace-summary-card';
-const PipelineCanvas=dynamic(()=>import('../canvas/pipeline-canvas'),{ssr:false,loading:()=> <div className="h-full min-h-[520px] animate-pulse bg-[var(--console-surface)]"/>});
+// The canvas (xyflow) downloads alongside the trace, not after it.
+const PipelineCanvas=preloaded(()=>import('../canvas/pipeline-canvas').then(m=>m.default),()=> <div className="h-full min-h-[520px] animate-pulse bg-[var(--console-surface)]"/>);
 const StepModal=dynamic(()=>import('./step-modal').then(m=>m.StepModal),{ssr:false});
 const poll=(t:TraceGraphDetail)=>Date.now()-Date.parse(t.createdAt)<600000&&(!terminal(t.status)||t.completeness.truncated||t.completeness.callsLogged<t.completeness.callsBilled||(t.status==='success'&&t.completeness.stagesFound<t.completeness.stagesExpected));
 export default function TraceDetail({id}:{id:string}) {
@@ -30,11 +32,11 @@ export default function TraceDetail({id}:{id:string}) {
     if(e.key==='Escape'&&!step){e.preventDefault();router.push(`/traces?w=${win}`);}
   };window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);});
   if(!t&&loading)return <DetailSkeleton/>;
-  if(notFound)return <div className="grid gap-4 pt-7"><h1 className="text-2xl font-semibold">No trace for this id</h1><Link href="/traces" className="text-sm underline">Search traces</Link></div>;
+  if(notFound)return <div className="grid gap-4 pt-7"><h1 className="text-2xl font-semibold">No trace for this id</h1><Link prefetch={false} href="/traces" className="text-sm underline">Search traces</Link></div>;
   if(!t)return <div role="alert" className="pt-7 text-sm text-foreground mark-bad">{error}<button className="ml-4 underline" onClick={refresh}>Retry</button></div>;
   return <div className="trace-workspace min-w-0 pt-5 pb-6">
     <header className="flex shrink-0 items-center gap-4 pb-4">
-      <Link href={`/traces?w=${win}`} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><CaretLeft aria-hidden="true" className="size-3.5"/>Traces</Link>
+      <Link prefetch={false} href={`/traces?w=${win}`} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><CaretLeft aria-hidden="true" className="size-3.5"/>Traces</Link>
       <span className="ml-auto"><RefreshButton refreshing={loading} onClick={refresh}/></span>
       <button className="grid size-8 place-items-center rounded-[5px] text-muted-foreground hover:bg-secondary hover:text-foreground" onClick={()=>setShortcuts(true)} aria-label="Keyboard shortcuts"><Question className="size-4"/></button>
     </header>

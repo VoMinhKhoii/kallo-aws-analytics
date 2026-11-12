@@ -1,9 +1,10 @@
 'use client';
 import { int, ms, pct, delta } from '@/lib/ai-usage/format';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { prefetch } from '@/lib/prefetch';
 import { CaretRight } from '@phosphor-icons/react/ssr';
-import { LatestMeals } from './latest-meals';
+import { LATEST_MEALS_URL, LatestMeals } from './latest-meals';
 import { PageHeader } from '@/components/shared/page-header';
 import { PageSkeleton } from '@/components/shared/page-skeleton';
 import { Change } from '@/components/shared/kpi-cell';
@@ -17,6 +18,8 @@ type Tab = 'meals' | 'errors' | 'users' | 'latency' | 'signups';
 
 export function Overview({win,setWin}:{win:string;setWin:(v:string)=>void}) {
   const {data,error,loading,refresh:reloadOverview}=useOverview(win);
+  // Latest meals renders under the overview; fetch it alongside rather than after.
+  useEffect(()=>prefetch(LATEST_MEALS_URL),[]);
   const [reload,setReload]=useState(0);
   const [tab,setTab]=useState<Tab>('meals');
   const refresh=()=>{reloadOverview();setReload(n=>n+1);};
@@ -46,7 +49,7 @@ export function Overview({win,setWin}:{win:string;setWin:(v:string)=>void}) {
   const attentionList=<section aria-label="Needs attention">
     <h2 className="text-base font-medium">Needs attention</h2>
     <ul className="mt-2">
-      {attention.map(i=><li key={i.label}><Link href={i.href} className="group flex items-center gap-3 border-b border-border py-3 text-sm focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--console-accent)]">
+      {attention.map(i=><li key={i.label}><Link prefetch={false} href={i.href} className="group flex items-center gap-3 border-b border-border py-3 text-sm focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--console-accent)]">
         <span className="size-1.5 shrink-0 rounded-full" style={{background:i.count?i.tone:'var(--console-quiet)'}}/>
         <span className={cn('min-w-0 flex-1',i.count?'':'text-muted-foreground')}>{i.label}</span>
         <span className={cn('tabular',i.count?'font-medium':'text-[var(--console-faint)]')}>{int(i.count)}</span>
