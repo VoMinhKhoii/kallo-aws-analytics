@@ -71,10 +71,10 @@ export function AiUsage({ win, setWin }: { win: WindowDays; setWin: (win: Window
     ? `${usd(summary.spend.value)} spent ${win === 1 ? "in the last 24 hours" : `in the last ${win} days`}${top?.spend ? `, ${pct(top.share, 0)} of it on ${top.meta.label}` : ""}. ${!failing ? "No model call failed." : failing === top ? `It also failed most often, on ${pct(failing.errorRate)} of its calls.` : `${failing.meta.label} failed ${pct(failing.errorRate)} of its calls.`}`
     : `Spend, latency and reliability per model · ${win === 1 ? "rolling 24 hours" : "UTC days"}`;
   return (
-    <div className="mx-auto flex max-w-[1320px] flex-col gap-4 py-4">
+    <div className="mx-auto flex max-w-[1320px] flex-col gap-4 py-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="grid gap-1">
-          <h1 className="text-2xl font-semibold tracking-tight">AI usage</h1>
+          <h1 className="text-2xl font-medium">AI usage</h1>
           <p className="text-muted-foreground text-sm">{finding}</p>
         </div>
         <div className="flex items-center gap-2">

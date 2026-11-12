@@ -2,9 +2,10 @@
 import { apiFetch } from '@/lib/api-fetch';
 
 import * as React from "react";
-import { LogOut, Menu, Search, ShieldCheck } from "lucide-react";
+import { List, MagnifyingGlass, ShieldCheck, SignOut } from "@phosphor-icons/react/ssr";
 import { usePathname } from "next/navigation";
 import { CommandPalette, MobileNav, useCommandPalette } from "@/components/shell/command-palette";
+import { ThemeToggle } from "@/components/shell/theme-toggle";
 import { cn } from "@/lib/utils";
 import { useSessionRole } from "@/lib/use-auth";
 
@@ -33,18 +34,6 @@ function useHealth(enabled = true): { state: "checking" | "live" | "down"; detai
   return { state: "down", detail: health.reason ?? "The production database is unavailable" };
 }
 
-const TITLES: Record<string, string> = {
-  "/": "Overview",
-  "/premium": "Premium",
-  "/requests": "Requests",
-  "/feedback": "Feedback",
-  "/analytics": "Analytics",
-  "/ai": "AI",
-  "/ingredients": "Ingredients",
-  "/system": "System",
-  "/traces": "Traces",
-};
-
 export function Topbar() {
   const pathname = usePathname();
   const enabled = pathname !== "/login";
@@ -52,7 +41,6 @@ export function Topbar() {
   const [navOpen, setNavOpen] = React.useState(false);
   const health = useHealth(pathname === "/" || pathname === "/system");
   const auth = useSessionRole(enabled);
-  const title = (pathname.startsWith("/traces/") ? `Traces / ${pathname.split("/")[2].slice(0,8)}` : TITLES[pathname]) ?? "Kallo admin";
 
   if (!enabled) return null;
 
@@ -75,30 +63,30 @@ export function Topbar() {
           aria-label="Open navigation"
           className="grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-[var(--console-surface)] hover:text-foreground focus-visible:outline-2 focus-visible:outline-[var(--console-blue)] lg:hidden"
         >
-          <Menu className="size-4" />
+          <List className="size-4" />
         </button>
-        <div className="hidden min-w-0 items-center text-sm text-muted-foreground sm:flex">
-          <span className="truncate">{title}</span>
-        </div>
-        <div className="flex min-w-0 flex-1 justify-center">
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            className="flex h-8 w-full max-w-sm items-center gap-2 rounded-md border border-[var(--console-rule)] bg-[var(--console-surface)] px-4 text-left text-xs text-muted-foreground transition-colors hover:border-[var(--console-ink)] hover:text-foreground focus-visible:outline-2 focus-visible:outline-[var(--console-blue)]"
-          >
-            <Search className="size-3.5" />
-            <span className="truncate">Search pages and traces</span>
-            <kbd className="ml-auto hidden rounded border border-[var(--console-rule)] bg-[var(--console-panel)] px-2 py-1 text-xs sm:inline">⌘K</kbd>
-          </button>
-        </div>
-        {(pathname === "/" || pathname === "/system") && <div className="flex shrink-0 items-center gap-2" title={health.detail}>
-          <span className={cn("size-2 rounded-full", health.state === "live" ? "bg-[var(--console-green)]" : health.state === "down" ? "bg-[var(--console-brick)]" : "bg-[var(--console-amber)]")} />
-          <span className="hidden text-xs text-muted-foreground md:inline">{health.state === "live" ? "Live" : health.state === "down" ? "Unavailable" : "Checking"}</span>
-        </div>
-        }<div className="flex items-center gap-2 border-l border-[var(--console-rule)] pl-4" title={auth.expiresAt ? `Session expires ${new Date(auth.expiresAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}` : undefined}>
-          <ShieldCheck className="size-3.5 text-muted-foreground" aria-hidden="true" />
-          <span className="text-xs font-medium text-muted-foreground">{auth.error ? "Session unavailable" : auth.loading ? "Checking access" : auth.role === "founder" ? "Founder" : auth.role === "reviewer" ? "Reviewer" : "No session"}</span>
-          {auth.role ? <button type="button" onClick={() => void logout()} className="ml-1 rounded p-1 text-muted-foreground hover:bg-[var(--console-surface)] hover:text-foreground focus-visible:outline-2 focus-visible:outline-[var(--console-blue)]" aria-label="Log out"><LogOut className="size-3.5" /></button> : null}
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="flex h-8 w-full max-w-xs items-center gap-2 rounded-lg bg-[var(--console-surface)] pr-1 pl-2 text-left text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-[var(--console-blue)]"
+        >
+          <MagnifyingGlass className="size-4 shrink-0" />
+          <span className="truncate">Search</span>
+          <kbd className="ml-auto hidden h-6 items-center rounded-md border border-[var(--console-rule)] bg-card px-2 font-sans text-xs text-muted-foreground sm:inline-flex">⌘K</kbd>
+        </button>
+        <div className="ml-auto flex shrink-0 items-center gap-4">
+          {(pathname === "/" || pathname === "/system") && (
+            <div className="flex items-center gap-2" title={health.detail}>
+              <span className={cn("size-2 rounded-full", health.state === "live" ? "bg-[var(--console-green)]" : health.state === "down" ? "bg-[var(--console-brick)]" : "bg-[var(--console-amber)]")} />
+              <span className="hidden text-sm text-muted-foreground md:inline">{health.state === "live" ? "Live" : health.state === "down" ? "Unavailable" : "Checking"}</span>
+            </div>
+          )}
+          <ThemeToggle />
+          <div className="flex items-center gap-2" title={auth.expiresAt ? `Session expires ${new Date(auth.expiresAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}` : undefined}>
+            <ShieldCheck weight="fill" className="size-4 text-[var(--console-quiet)]" aria-hidden="true" />
+            <span className="hidden text-sm text-muted-foreground sm:inline">{auth.error ? "Session unavailable" : auth.loading ? "Checking access" : auth.role === "founder" ? "Founder" : auth.role === "reviewer" ? "Reviewer" : "No session"}</span>
+            {auth.role ? <button type="button" onClick={() => void logout()} className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-[var(--console-surface)] hover:text-foreground focus-visible:outline-2 focus-visible:outline-[var(--console-blue)]" aria-label="Log out" title="Log out"><SignOut className="size-4" /></button> : null}
+          </div>
         </div>
       </header>
       <CommandPalette open={open} onClose={() => setOpen(false)} />

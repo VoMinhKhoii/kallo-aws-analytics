@@ -18,7 +18,7 @@ export function PipelineHealth() {
     { label: 'Meal p95 · 24 h', value: ms(data.latency24h.p95) },
     { label: 'Meal p99 · 24 h', value: ms(data.latency24h.p99) },
   ] : [];
-  return <MetricSection title="Meal pipeline" description="Rejected non-meal input is not counted as a failure; replays are left out." loading={loading && !data} error={error} retry={refresh}>
+  return <MetricSection title="Meal pipeline" description="Rejected non-meal input is not counted as a failure; replays are left out" loading={loading && !data} error={error} retry={refresh}>
     {data && <div className="grid gap-4">
       <KpiStrip items={items} />
       <div className="overflow-x-auto"><table className="w-full text-left text-sm"><caption className="mb-2 text-left text-xs text-muted-foreground">Most common errors, last 7 days</caption>

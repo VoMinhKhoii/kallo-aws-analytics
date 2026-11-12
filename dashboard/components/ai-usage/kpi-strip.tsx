@@ -9,16 +9,16 @@ import { Cell, Change } from "@/components/shared/kpi-cell";
 type Good = "down" | "up";
 
 function DeltaPill({ kpi, good, unit, points }: { kpi: Kpi; good: Good; unit: string; points?: boolean }) {
-  return <Change change={delta(kpi.cur, kpi.prev, points)} goodUp={good === "up"} title={unit === "24h" ? "Rolling last 24 hours vs preceding 24 hours" : `Last ${unit} of complete days vs the ${unit} before`} />;
+  return <Change change={delta(kpi.cur, kpi.prev, points)} goodUp={good === "up"} vs={unit === "24h" ? "vs prior 24 h" : `vs prior ${unit}`} title={unit === "24h" ? "Rolling last 24 hours vs preceding 24 hours" : `Last ${unit} of complete days vs the ${unit} before`} />;
 }
 
 
 export function KpiStrip({ summary, unit }: { summary: Summary; unit: string }) {
   const { spend, perKMeals, calls, cacheRate } = summary;
   return (
-    <section aria-label="Summary" className="grid grid-cols-2 divide-border overflow-hidden rounded-xl border border-border bg-card md:grid-cols-5 md:divide-x [&>*]:border-border max-md:[&>*]:border-b">
+    <section aria-label="Summary" className="grid grid-cols-2 divide-border overflow-hidden rounded-xl border border-border bg-card shadow-[var(--shadow-card)] md:grid-cols-5 md:divide-x [&>*]:border-border max-md:[&>*]:border-b">
       <Cell label="Spend" value={usd(spend.value)} delta={<DeltaPill kpi={spend} good="down" unit={unit} />} />
-      <Cell label={unit === "24h" ? "Meals analysed" : "Today so far"} value={unit === "24h" ? compact(summary.mealCount) : usd(summary.today.spend)} sub={unit === "24h" ? "Rolling last 24 hours" : `${plural(summary.today.meals, 'meal')} analysed`} />
+      <Cell label={unit === "24h" ? "Meals analysed" : "Today so far"} value={unit === "24h" ? compact(summary.mealCount) : usd(summary.today.spend)} sub={unit === "24h" ? "last 24 h" : plural(summary.today.meals, 'meal')} />
       <Cell
         label="Cost / 1k meals"
         value={usd(perKMeals.value)}

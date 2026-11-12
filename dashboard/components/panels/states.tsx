@@ -1,11 +1,11 @@
 "use client";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { WarningCircle, CircleNotch } from "@phosphor-icons/react/ssr";
 import { Card, CardContent } from "@/components/ui/card";
 
 export function Loading({ label = "Querying", rows = 3 }: { label?: string; rows?: number }) {
   return (
     <div className="text-muted-foreground flex items-center gap-2 px-6 py-6 text-xs">
-      <Loader2 className="size-3.5 animate-spin" />
+      <CircleNotch className="size-3.5 animate-spin" />
       {label}…
       <span className="sr-only">{rows}</span>
     </div>
@@ -18,7 +18,7 @@ export function Failed({ error, code }: { error: string; code?: string }) {
     <div className="px-6 py-6">
       <div className="rounded-lg border border-l-2 border-l-[var(--chart-3)] bg-[color-mix(in_oklab,var(--chart-3)_8%,transparent)] px-4 py-2">
         <p className="flex items-center gap-2 text-xs font-medium text-foreground">
-          <AlertTriangle className="size-3.5" />
+          <WarningCircle className="size-3.5" />
           {unconfigured ? "No data source configured" : "Query failed"}
         </p>
         <p className="text-muted-foreground mt-1 text-xs leading-relaxed">

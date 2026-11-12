@@ -3,65 +3,111 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Neutral dark, dark only: grey grounds with no tint, blue is the one data hue.
-   Text uses two colours (foreground, muted-foreground); status colour lives in marks. */
+/* Light and dark share one structure: zinc greys with no tint, one accent for
+   the main series, focus and selection. Text uses two colours (foreground,
+   muted-foreground); status colour lives in marks. `.dark` on <html> is set
+   before paint from the stored choice or the OS (components/shell/theme-toggle). */
 :root {
-  color-scheme: dark;
+  color-scheme: light;
   --radius: 0.75rem;
 
-  --console-bg: #0a0a0a;
-  --console-panel: #141414;
-  --console-surface: #1f1f1f;
-  --console-ink: #ededed;
-  --console-muted: #a1a1a1;
-  --console-quiet: #6b6b6b; /* neutral series beside the data hue, never text */
-  --console-rule: #262626;
-  --console-data: #4c8df6; /* the main series only */
-  --console-green: #3fb950;
-  --console-amber: #f0883e; /* warnings: orange, not yellow */
-  --console-brick: #f85149;
-  --console-blue: #4c8df6; /* focus */
+  --console-bg: #fafafa;
+  --console-panel: #ffffff;
+  --console-surface: #f4f4f5;
+  --console-ink: #18181b;
+  --console-muted: #71717a;
+  --console-quiet: #a1a1aa; /* neutral series and idle icons, never body text */
+  --console-rule: #e4e4e7;
+  --console-data: #3e63dd; /* the accent: main series, focus */
+  --console-green: #16a34a;
+  --console-amber: #ea580c;
+  --console-brick: #dc2626;
+  --console-blue: #3e63dd;
 
-  --background: #0a0a0a;
-  --foreground: #ededed;
-  --card: #141414;
-  --card-foreground: #ededed;
-  --popover: #1f1f1f;
-  --popover-foreground: #ededed;
-  --primary: #ededed;
-  --primary-foreground: #0a0a0a;
-  --secondary: #1a1a1a;
-  --secondary-foreground: #ededed;
-  --muted: #1a1a1a;
-  --muted-foreground: #a1a1a1;
-  --accent: #1f1f1f;
-  --accent-foreground: #ededed;
-  --destructive: #f85149;
-  --border: #262626;
-  --input: #333333;
-  --ring: #4c8df6;
+  --shadow-card: 0 1px 2px rgb(24 24 27 / 0.04);
+  --shadow-raised: 0 1px 2px rgb(24 24 27 / 0.08), 0 0 0 1px rgb(24 24 27 / 0.06);
+
+  --background: var(--console-bg);
+  --foreground: var(--console-ink);
+  --card: var(--console-panel);
+  --card-foreground: var(--console-ink);
+  --popover: #ffffff;
+  --popover-foreground: var(--console-ink);
+  --primary: var(--console-ink);
+  --primary-foreground: #ffffff;
+  --secondary: var(--console-surface);
+  --secondary-foreground: var(--console-ink);
+  --muted: var(--console-surface);
+  --muted-foreground: var(--console-muted);
+  --accent: var(--console-surface);
+  --accent-foreground: var(--console-ink);
+  --destructive: var(--console-brick);
+  --border: var(--console-rule);
+  --input: #d4d4d8;
+  --ring: var(--console-blue);
 
   /* Model series. lib/ai-usage/models.ts pins known models to a slot so a
      model keeps its color on every chart. */
-  --model-1: #4c8df6;
+  --model-1: #3e63dd;
+  --model-2: #ea7a1f;
+  --model-3: #12a07a;
+  --model-4: #8e5cd9;
+  --model-5: #d6409f;
+  --model-6: #0894b3;
+  --model-7: #8b8b94;
+
+  --chart-1: #3e63dd;
+  --chart-2: #ea7a1f;
+  --chart-3: #12a07a;
+  --chart-4: #8e5cd9;
+  --chart-5: #a1a1aa;
+
+  --sidebar: #f4f4f5;
+  --sidebar-foreground: var(--console-ink);
+  --sidebar-accent: #e9e9ec;
+  --sidebar-accent-foreground: var(--console-ink);
+  --sidebar-border: var(--console-rule);
+}
+
+.dark {
+  color-scheme: dark;
+
+  --console-bg: #101012;
+  --console-panel: #18181b;
+  --console-surface: #232327;
+  --console-ink: #ededef;
+  --console-muted: #a1a1aa;
+  --console-quiet: #63636b;
+  --console-rule: #27272a;
+  --console-data: #5b7cf0;
+  --console-green: #3fb950;
+  --console-amber: #f0883e;
+  --console-brick: #f85149;
+  --console-blue: #6d8bf5;
+
+  --shadow-card: none;
+  --shadow-raised: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 0 0 1px rgb(255 255 255 / 0.04);
+
+  --popover: #1c1c1f;
+  --primary-foreground: #101012;
+  --input: #34343a;
+
+  --model-1: #5b7cf0;
   --model-2: #fb923c;
   --model-3: #34c493;
   --model-4: #c792ea;
   --model-5: #f472b6;
   --model-6: #22d3ee;
-  --model-7: #a1a1a1;
+  --model-7: #a1a1aa;
 
-  --chart-1: #4c8df6;
+  --chart-1: #5b7cf0;
   --chart-2: #f0883e;
   --chart-3: #34c493;
   --chart-4: #c792ea;
-  --chart-5: #6b6b6b;
+  --chart-5: #63636b;
 
-  --sidebar: #0a0a0a;
-  --sidebar-foreground: #ededed;
-  --sidebar-accent: #1a1a1a;
-  --sidebar-accent-foreground: #ededed;
-  --sidebar-border: #262626;
+  --sidebar: #0c0c0e;
+  --sidebar-accent: #1c1c1f;
 }
 
 @theme inline {
@@ -141,6 +187,6 @@
 .trace-detail-body { display: flex; min-height: 520px; height: 0; }
 .trace-step-panel { position: relative; z-index: 20; width: var(--drawer-width); max-width: 65%; display: flex; flex-direction: column; box-shadow: -8px 0 24px rgb(0 0 0 / .16); }
 .trace-panel-scroll { min-height: 0; flex: 1; }
-.react-flow { --xy-background-color: var(--console-bg); --xy-controls-button-background-color: var(--console-panel); --xy-controls-button-color: var(--console-ink); --xy-controls-button-border-color: var(--console-rule); }
+.react-flow { --xy-background-color: var(--console-bg); --xy-edge-stroke: var(--console-quiet); --xy-controls-button-background-color: var(--console-panel); --xy-controls-button-background-color-hover: var(--console-surface); --xy-controls-button-color: var(--console-ink); --xy-controls-button-color-hover: var(--console-ink); --xy-controls-button-border-color: var(--console-rule); }
 .react-flow .react-flow__panel { margin: 16px; }
 @media (max-width: 767px) { .trace-workspace:has(.trace-step-panel) .meal-summary-details { display: none; } .trace-workspace:has(.trace-step-panel) .meal-summary { position: sticky; top: 56px; z-index: 21; background: var(--console-bg); } .trace-step-panel { position: fixed; inset: auto 0 0; width: 100%; max-width: 100%; height: 55dvh; max-height: var(--sheet-height, 55dvh); border-left: 0; border-top: 1px solid var(--console-rule); } }

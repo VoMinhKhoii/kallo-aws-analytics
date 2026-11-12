@@ -30,7 +30,7 @@ function PointTooltip({ active, payload }: { active?: boolean; payload?: readonl
     ["Cache hit", pct(p.m.cacheRate, 0)],
   ];
   return (
-    <div className="min-w-52 rounded-lg border border-border bg-popover px-4 py-2 text-xs shadow-lg shadow-black/40">
+    <div className="min-w-52 rounded-lg border border-border bg-popover px-4 py-2 text-xs shadow-lg dark:shadow-black/40">
       <div className="mb-2 flex items-center gap-2 font-medium">
         <span className="size-2 rounded-[2px]" style={{ background: p.m.meta.color }} />
         {p.m.meta.label}
@@ -95,9 +95,9 @@ export function CostLatency({ models, compact = false }: { models: ModelSummary[
   const place = placements(points, maxX, maxY);
 
   return (
-    <section className="flex h-full flex-col rounded-xl border border-border bg-card">
+    <section className="flex h-full flex-col rounded-xl border border-border bg-card shadow-[var(--shadow-card)]">
       <div className="px-4 pt-4">
-        <h2 className="text-sm font-semibold">Cost vs latency</h2>
+        <h2 className="text-sm font-medium">Cost vs latency</h2>
         <p className="text-muted-foreground text-sm">$ / 1k calls against p95. Bubble size is call volume.</p>
       </div>
       {models.filter(m=>m.p95==null&&m.calls>0).map(m=><p key={m.meta.key} className="px-4 pt-2 text-xs text-muted-foreground">{m.meta.label}: no per-call latency in this window.</p>)}

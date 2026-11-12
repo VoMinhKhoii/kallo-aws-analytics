@@ -11,9 +11,9 @@ export function ModelTable({ models, unit }: { models: ModelSummary[]; unit: str
   const rows = [...models].filter((m) => m.calls > 0).sort((a, b) => (b.spend ?? 0) - (a.spend ?? 0) || b.calls - a.calls);
   if (!rows.length) return null;
   return (
-    <section className="min-w-0 rounded-xl border border-border bg-card px-4 py-4">
+    <section className="min-w-0 rounded-xl border border-border bg-card px-4 py-4 shadow-[var(--shadow-card)]">
       <div className="mb-2 flex flex-wrap items-baseline gap-x-4">
-        <h2 className="text-sm font-semibold">Models</h2>
+        <h2 className="text-sm font-medium">Models</h2>
         <span className="text-muted-foreground text-xs">{unit === "24h" ? "Rolling 24 hours" : `Last ${unit}`} · percentiles over raw calls, most expensive first</span>
       </div>
       <div className="-mx-4 overflow-x-auto">

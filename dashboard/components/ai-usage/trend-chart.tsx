@@ -65,10 +65,10 @@ export function TrendChart({
   });
 
   return (
-    <section className="flex h-full flex-col rounded-xl border border-border bg-card px-4 py-4">
+    <section className="flex h-full flex-col rounded-xl border border-border bg-card px-4 py-4 shadow-[var(--shadow-card)]">
       <div className="mb-2 flex items-center justify-between gap-4">
         <div className="flex flex-wrap items-baseline gap-x-4">
-          <h2 className="text-sm font-semibold">{title}</h2>
+          <h2 className="text-sm font-medium">{title}</h2>
           <span className="text-muted-foreground text-xs">{subtitle ?? (since ? `since ${shortDate(since.slice(0,10))}` : "")}</span>
         </div>
         {action}
@@ -84,16 +84,16 @@ export function TrendChart({
             <ResponsiveContainer>
               <ComposedChart barGap={stacked?undefined:"-100%"} data={rows} onMouseMove={state => setHoveredRow(state.activePayload?.[0]?.payload ?? null)} onMouseLeave={() => setHoveredRow(null)} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
                 {bars && <defs>{shown.map(m => <pattern key={m.key} id={`${hatchId}-${m.key}`} width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="5" height="5" fill={m.color} fillOpacity={0.25} /><line x1="0" y1="0" x2="0" y2="5" stroke={m.color} strokeWidth={2} /></pattern>)}</defs>}
-                <CartesianGrid vertical={false} stroke="var(--console-rule)" />
+                <CartesianGrid vertical={false} stroke="var(--console-rule)" strokeDasharray="2 4" />
                 <XAxis dataKey="date" ticks={ticks} tickFormatter={v => hourly ? String(v).slice(11, 16) : shortDate(String(v).slice(0,10))} tickLine={false} axisLine={false} minTickGap={36} tick={{ fill: "var(--console-muted)", fontSize: 12 }} />
                 <YAxis allowDecimals={!bars&&!integer} domain={duration?[0,duration.at(-1)!]:numeric.domain} allowDataOverflow={percent} ticks={duration??numeric.ticks} tickFormatter={axisFormat} tickLine={false} axisLine={false} width={64} tick={({x, y, payload}) => <text x={Number(x) - 8} y={y} textAnchor="end" dominantBaseline="central" fill="var(--console-muted)" fontSize={12}>{axisFormat(Number(payload.value))}</text>} />
                 <Tooltip
                   allowEscapeViewBox={{x: false, y: false}}
-                  cursor={{ stroke: "var(--console-muted)", strokeDasharray: "3 3" }}
+                  cursor={bars ? { fill: "var(--console-surface)" } : { stroke: "var(--console-muted)", strokeDasharray: "3 3" }}
                   content={(p) => <UsageTooltip active={p.active} payload={p.payload as never} label={p.label as string} models={byKey} format={format} />}
                 />
                 {shown.map((m, index) => bars ? (
-                  <Bar key={m.key} dataKey={m.key} stackId={stacked?"counts":undefined} maxBarSize={stacked||index === 0 ? 36 : 14} fill={m.color} fillOpacity={focus.opacity(m.key)} isAnimationActive={animate} onAnimationEnd={() => setAnimate(false)} animationDuration={600}>
+                  <Bar key={m.key} dataKey={m.key} stackId={stacked?"counts":undefined} maxBarSize={stacked||index === 0 ? 12 : 6} radius={stacked ? undefined : [2, 2, 0, 0]} fill={m.color} fillOpacity={focus.opacity(m.key)} isAnimationActive={animate} onAnimationEnd={() => setAnimate(false)} animationDuration={600}>
                     {rows.map(row => <Cell key={row.date} fill={(hourly ? partialLast && row.date===rows.at(-1)?.date && row.date.slice(0,10)===today : row.date.slice(0,10)===today) ? `url(#${hatchId}-${m.key})` : m.color} />)}
                   </Bar>
                 ) : (

@@ -13,7 +13,7 @@ export function SeriesChart({ title, subtitle, rows, series, format = 'number', 
   hourly?: boolean;
   partialLast?: boolean; stacked?: boolean; step?: boolean; integer?: boolean; windowLabel?: string; seriesSubs?: Record<string,string>; compact?: boolean; height?: number;
 }) {
-  const fmt = format === 'percent' ? pct : format === 'duration' ? ms : integer ? int : bars ? compact : decimal;
+  const fmt = format === 'percent' ? pct : format === 'duration' ? ms : integer || bars ? int : decimal;
   const axis = format === 'percent' ? (v:number)=>pct(v,0) : format === 'duration' ? (v:number)=>`${Math.round(v/1000)} s` : compact;
   const models: ModelMeta[] = series.map(s => ({...s, id: s.key, vendor: 'Other', role: ''}));
   return <TrendChart title={title} subtitle={subtitle} rows={rows} models={models} format={fmt} axis={axis} seriesOnly bars={bars} hourly={hourly} partialLast={partialLast} stacked={stacked} step={step} integer={integer} totals={bars} windowLabel={windowLabel} durationAxis={format==='duration'} percent={format==='percent'} seriesSubs={seriesSubs} compact={inlineLegend} height={height} />;

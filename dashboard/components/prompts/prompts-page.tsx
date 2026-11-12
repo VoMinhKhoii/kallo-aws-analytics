@@ -25,11 +25,11 @@ export default function PromptsPage() {
   useEffect(() => { setPair([versions[1]?.id ?? versions[0]?.id ?? '', versions[0]?.id ?? '']); }, [history.data]); // eslint-disable-line react-hooks/exhaustive-deps
   const before = versions.find(v => v.id === pair[0]), after = versions.find(v => v.id === pair[1]);
   if (auth.loading || (list.loading && !list.data)) return <PageSkeleton title="Prompts" cells={0} charts={0} rows />;
-  if (auth.role !== 'founder') return <div className="mx-auto max-w-[1320px] py-4"><PageHeader title="Prompts" /><p className="text-sm">Prompt history requires founder access.</p></div>;
+  if (auth.role !== 'founder') return <div className="mx-auto max-w-[1320px] py-6"><PageHeader title="Prompts" /><p className="text-sm">Prompt history requires founder access.</p></div>;
   const prompts = list.data?.prompts ?? [];
   const option = (v: PromptVersion) => `${date(v.firstSeenAt)} · ${short(v.codeHash)}${v.gitSha ? ` · ${short(v.gitSha)}` : ''}`;
-  return <div className="mx-auto grid max-w-[1320px] gap-4 py-4">
-    <PageHeader title="Prompts" description={prompts.length ? `${int(prompts.length)} prompts; a new version is recorded the first time a changed prompt builder runs.` : undefined} refreshing={list.loading || history.loading} onRefresh={() => { list.refresh(); history.refresh(); }} />
+  return <div className="mx-auto grid max-w-[1320px] gap-4 py-6">
+    <PageHeader title="Prompts" description={prompts.length ? `${int(prompts.length)} prompts; a new version is recorded the first time a changed prompt builder runs` : undefined} refreshing={list.loading || history.loading} onRefresh={() => { list.refresh(); history.refresh(); }} />
     <div className="grid items-start gap-4 lg:grid-cols-3">
       <MetricSection card title="Catalog" error={list.error} retry={list.refresh} empty={!prompts.length}>
         <div className="-mx-4 divide-y divide-border border-t border-border">{prompts.map(p =>
@@ -39,7 +39,7 @@ export default function PromptsPage() {
           </button>)}</div>
       </MetricSection>
       <div className="min-w-0 lg:col-span-2">
-        <MetricSection card title={name || 'Pick a prompt'} description={name && versions.length ? `${int(versions.length)} most recent versions, newest first` : 'Choose a prompt from the catalog to see its versions.'} loading={!!name && history.loading && !history.data} error={history.error} retry={history.refresh} empty={!name}>
+        <MetricSection card title={name || 'Pick a prompt'} description={name && versions.length ? `${int(versions.length)} most recent versions, newest first` : undefined} loading={!!name && history.loading && !history.data} error={history.error} retry={history.refresh} empty={!name} emptyLabel="Choose a prompt from the catalog to see its versions.">
           {versions.length > 0 && <div className="grid gap-4">
             <div className="grid gap-2 sm:grid-cols-2">{(['From', 'To'] as const).map((label, side) =>
               <label key={label} className="grid gap-1 text-xs text-muted-foreground">{label}

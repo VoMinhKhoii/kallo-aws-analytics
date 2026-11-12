@@ -1,7 +1,7 @@
 import { apiFetch } from '@/lib/api-fetch';
-export const field = 'min-w-0 w-full rounded-md border border-[var(--console-rule)] bg-[var(--console-surface)] px-4 py-2 text-sm focus:outline-2 focus:outline-[var(--console-blue)]';
-export const button = 'rounded-md border border-[var(--console-muted)] bg-[var(--console-surface)] px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-[var(--console-rule)] disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--console-blue)]';
-export const secondary = 'rounded-md border border-[var(--console-rule)] px-4 py-2 text-sm hover:bg-[var(--console-panel)] disabled:opacity-40';
+export const field = 'h-9 min-w-0 w-full rounded-md border border-input bg-card px-3 text-sm shadow-[var(--shadow-card)] focus:outline-2 focus:outline-offset-[-1px] focus:outline-[var(--console-blue)]';
+export const button = 'inline-flex h-9 items-center justify-center gap-2 rounded-md bg-foreground px-4 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--console-blue)]';
+export const secondary = 'inline-flex h-8 items-center justify-center gap-2 rounded-md border border-border bg-card px-3 text-sm text-foreground shadow-[var(--shadow-card)] transition-colors hover:bg-secondary disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-[var(--console-blue)]';
 export const date = (value: string | null) => value ? new Date(value).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) : 'No end date';
 export async function api<T>(path = '', body?: unknown): Promise<T> {
   const response = await apiFetch('/api/admin/premium' + path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : { cache: 'no-store' });

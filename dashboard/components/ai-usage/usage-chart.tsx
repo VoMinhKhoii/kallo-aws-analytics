@@ -45,10 +45,10 @@ export function UsageChart({ input, models }: { input: UsageInput; models: Model
     .map(({ meta, sum }) => ({ meta, value: def.format(sum), sub: `${pct(total ? sum / total : 0, 0)} of ${def.label.toLowerCase()}` }));
 
   return (
-    <section className="flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card">
+    <section className="flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card shadow-[var(--shadow-card)]">
       <div className="flex flex-wrap items-stretch border-b border-border">
         <div className="flex min-w-56 flex-1 flex-col justify-center gap-1 px-4 py-2">
-          <h2 className="text-sm font-semibold">Usage by model</h2>
+          <h2 className="text-sm font-medium">Usage by model</h2>
           <p className="text-muted-foreground text-sm">{input.win === 1 ? "Hourly, UTC. Current hour is still filling (hatched)." : "Daily, UTC. Today is still filling (hatched)."}</p>
         </div>
         <div className="flex" role="tablist" aria-label="Metric">

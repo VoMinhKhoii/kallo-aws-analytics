@@ -15,8 +15,11 @@ mistaken for a supported conclusion.
 
 ## Visual direction
 
-- Dark only ("Graphite"): near-black surfaces, light ink. Green, amber, brick
-  and blue are reserved for states and data series.
+- Light and dark themes on one zinc ramp with no tint. The theme follows the
+  OS until someone picks Light or Dark in the top bar; the choice is stored in
+  the browser and applied before paint. One accent (indigo blue) marks the main
+  series, focus and selection. Green, amber and brick are kept for states.
+- Icons come from Phosphor, filled at 16px, in the text colour of their row.
 - One typeface: Geist for all text and numbers, with tabular figures. Keep
   labels short and line lengths readable.
 - Borders and row rules establish structure. Cards are used for independent
@@ -26,18 +29,23 @@ mistaken for a supported conclusion.
 
 ## Tokens
 
-| Token | Value | Use |
-| --- | --- | --- |
-| `--console-bg` | `#0b0c0e` | Main page surface |
-| `--console-panel` | `#111316` | Sidebar and quiet panels |
-| `--console-surface` | `#16191d` | Tables and focused blocks |
-| `--console-ink` | `#eceef1` | Headings and primary values |
-| `--console-muted` | `#8a909a` | Supporting copy and axes |
-| `--console-rule` | `#23272d` | Dividers and field borders |
-| `--console-green` | `#34c493` | Healthy/accepted state |
-| `--console-amber` | `#f0a53a` | Neutral watch state |
-| `--console-brick` | `#f2555a` | Error/rejected state |
-| `--console-blue` | `#5cb8ea` | Links and secondary series |
+| Token | Light | Dark | Use |
+| --- | --- | --- | --- |
+| `--console-bg` | `#fafafa` | `#101012` | Page surface |
+| `--console-panel` | `#ffffff` | `#18181b` | Cards |
+| `--console-surface` | `#f4f4f5` | `#232327` | Inputs, hovered rows, segmented tracks |
+| `--console-ink` | `#18181b` | `#ededef` | Headings and primary values |
+| `--console-muted` | `#71717a` | `#a1a1aa` | Supporting copy, axes, idle icons |
+| `--console-quiet` | `#a1a1aa` | `#63636b` | Neutral series and chevrons, never body text |
+| `--console-rule` | `#e4e4e7` | `#27272a` | Dividers and card borders |
+| `--console-data` | `#3e63dd` | `#5b7cf0` | The accent: main series |
+| `--console-green` | `#16a34a` | `#3fb950` | Healthy state, good change |
+| `--console-amber` | `#ea580c` | `#f0883e` | Watch state |
+| `--console-brick` | `#dc2626` | `#f85149` | Error state, bad change |
+| `--console-blue` | `#3e63dd` | `#6d8bf5` | Focus ring |
+
+Cards carry `--shadow-card` (a 1px soft shadow in light, none in dark); the
+active nav row and selected segment carry `--shadow-raised`.
 
 Model series use `--model-1` … `--model-7`. Known models keep a fixed slot
 (`dashboard/lib/ai-usage/models.ts`), so a model has the same color on every chart.
