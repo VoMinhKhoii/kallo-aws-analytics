@@ -276,6 +276,10 @@ export type CloudRunSystemPoint = {
   normal_p50_ms?: number;
   normal_p95_ms?: number;
   normal_p99_ms?: number;
+  /** Real visitors, no AI routes, no bots (log-based metric kallo_app_latency). */
+  app_p50_ms?: number;
+  app_p95_ms?: number;
+  app_p99_ms?: number;
   startup_p95_ms?: number;
   cpu_p95?: number;
   memory_p95?: number;
@@ -293,6 +297,8 @@ export type CloudMonitoringResponse = {
   alignment_seconds: number;
   window_p95_ms?: number | null;
   window_p99_ms?: number | null;
+  window_app_p95_ms?: number | null;
+  window_app_p99_ms?: number | null;
   collected_at: string;
   route_source?: "cloud-logging-dynamodb";
   route_points?: number;
