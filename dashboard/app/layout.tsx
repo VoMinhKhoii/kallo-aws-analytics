@@ -7,6 +7,8 @@ import { Topbar } from "@/components/shell/topbar";
 export const metadata: Metadata = {
   title: "Kallo admin",
   description: "Administration and analytics for Kallo",
+  // Private tool: keep every page, the sign-in page included, out of search results.
+  robots: { index: false, follow: false },
 };
 
 // One typeface everywhere; numbers use Geist's tabular figures.
