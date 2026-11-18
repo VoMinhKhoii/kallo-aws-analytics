@@ -19,6 +19,7 @@ export async function googleAccessToken(scope = 'https://www.googleapis.com/auth
   cachedTokens.set(scope, { value: body.access_token, expires: Date.now() + 3300 * 1000 });
   return body.access_token;
 }
+const APP_LATENCY_METRIC = 'logging.googleapis.com/user/kallo_app_latency';
 interface GoogleSeries { metric?: { labels?: Record<string,string> }; points?: { interval: { endTime: string }; value: { doubleValue?: number; int64Value?: string } }[] }
 
 export async function getDirectMonitoring(from: string, to: string, refresh = false, role = "founder"): Promise<CloudMonitoringResponse> {
@@ -35,7 +36,7 @@ async function collectMonitoring(from: string, to: string): Promise<CloudMonitor
   const end = new Date(Math.min(Date.parse(to) + (hourly ? 0 : 86400000), Date.now())).toISOString();
   const rows = new Map<string, CloudRunSystemPoint>();
   const windowRows = new Map<string, CloudRunSystemPoint>();
-  async function collect(field: keyof CloudRunSystemPoint, metric: string, aligner: string, reducer: string, count = false, period = alignment, destination = rows) {
+  async function collect(field: keyof CloudRunSystemPoint, metric: string, aligner: string, reducer: string, count = false, period = alignment, destination = rows, scale = 1) {
     const params = new URLSearchParams({ filter: `metric.type = "${metric}" AND resource.type = "cloud_run_revision" AND resource.labels.service_name = "${service}" AND resource.labels.location = "${location}"`, 'interval.startTime': hourly ? from : from + 'T00:00:00Z', 'interval.endTime': end, view: 'FULL', 'aggregation.alignmentPeriod': period + 's', 'aggregation.perSeriesAligner': aligner, 'aggregation.crossSeriesReducer': reducer, pageSize: '10000' });
     if (count) params.append('aggregation.groupByFields', 'metric.labels.response_code_class');
     do {
@@ -47,7 +48,7 @@ async function collectMonitoring(from: string, to: string): Promise<CloudMonitor
         const row = destination.get(timestamp) || { timestamp };
         const value = Number(point.value.doubleValue ?? point.value.int64Value ?? 0);
         if (count) { row.request_count = (row.request_count || 0) + value; if (series.metric?.labels?.response_code_class?.startsWith('5')) row.error_count = (row.error_count || 0) + value; }
-        else Object.assign(row, { [field]: value });
+        else Object.assign(row, { [field]: value * scale });
         destination.set(timestamp, row);
       }
       if (!body.nextPageToken) break;
@@ -57,12 +58,17 @@ async function collectMonitoring(from: string, to: string): Promise<CloudMonitor
   await Promise.all([
     ...(hourly ? [95,99].map(n => collect(`p${n}_ms` as keyof CloudRunSystemPoint,'run.googleapis.com/request_latencies','ALIGN_SUM',`REDUCE_PERCENTILE_${n}`,false,86400,windowRows)) : []),
     ...[50,95,99].map(n => collect(`p${n}_ms` as keyof CloudRunSystemPoint,'run.googleapis.com/request_latencies','ALIGN_SUM',`REDUCE_PERCENTILE_${n}`)),
+    // Real visitors only, without the AI routes (meal analysis, label scans), uptime checks, crawlers or our
+    // SEO tools: the log-based metric `kallo_app_latency` in cal-487315, recorded in seconds. Optional, so a
+    // project without the metric still shows the rest of the page.
+    ...(hourly ? [95,99].map(n => collect(`app_p${n}_ms` as keyof CloudRunSystemPoint,APP_LATENCY_METRIC,'ALIGN_SUM',`REDUCE_PERCENTILE_${n}`,false,86400,windowRows,1000).catch(() => undefined)) : []),
+    ...[50,95,99].map(n => collect(`app_p${n}_ms` as keyof CloudRunSystemPoint,APP_LATENCY_METRIC,'ALIGN_SUM',`REDUCE_PERCENTILE_${n}`,false,alignment,rows,1000).catch(() => undefined)),
     collect('request_count','run.googleapis.com/request_count','ALIGN_SUM','REDUCE_SUM',true),
     collect('startup_p95_ms','run.googleapis.com/container/startup_latencies','ALIGN_SUM','REDUCE_PERCENTILE_95'),
     collect('cpu_p95','run.googleapis.com/container/cpu/utilizations','ALIGN_SUM','REDUCE_PERCENTILE_95'),
     collect('memory_p95','run.googleapis.com/container/memory/utilizations','ALIGN_SUM','REDUCE_PERCENTILE_95'),
     collect('instances','run.googleapis.com/container/instance_count','ALIGN_MEAN','REDUCE_SUM'),
   ]);
-  const value: CloudMonitoringResponse = { source: 'google-cloud-monitoring', delivery_source: 'cloudflare-direct', project, service, location, from, to, alignment_seconds: alignment, collected_at: new Date().toISOString(), ...(hourly ? {window_p95_ms:[...windowRows.values()].at(-1)?.p95_ms ?? null,window_p99_ms:[...windowRows.values()].at(-1)?.p99_ms ?? null} : {}), series: [...rows.values()].sort((a,b) => a.timestamp.localeCompare(b.timestamp)).map(row => ({ ...row, error_count: row.error_count || 0, error_rate: row.request_count ? (row.error_count || 0) / row.request_count : 0 })) };
+  const value: CloudMonitoringResponse = { source: 'google-cloud-monitoring', delivery_source: 'cloudflare-direct', project, service, location, from, to, alignment_seconds: alignment, collected_at: new Date().toISOString(), ...(hourly ? {window_p95_ms:[...windowRows.values()].at(-1)?.p95_ms ?? null,window_p99_ms:[...windowRows.values()].at(-1)?.p99_ms ?? null,window_app_p95_ms:[...windowRows.values()].at(-1)?.app_p95_ms ?? null,window_app_p99_ms:[...windowRows.values()].at(-1)?.app_p99_ms ?? null} : {}), series: [...rows.values()].sort((a,b) => a.timestamp.localeCompare(b.timestamp)).map(row => ({ ...row, error_count: row.error_count || 0, error_rate: row.request_count ? (row.error_count || 0) / row.request_count : 0 })) };
   return value;
 }
