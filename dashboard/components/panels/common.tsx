@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import { TrendingUp, TrendingDown } from "lucide-react";
+import { TrendUp, TrendDown } from "@phosphor-icons/react/ssr";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -36,7 +36,7 @@ export function StatRow({ stats }: { stats: Stat[] }) {
                     s.delta.good ? "text-muted-foreground mark-good" : "text-muted-foreground mark-bad"
                   )}
                 >
-                  {s.delta.dir === "up" ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}
+                  {s.delta.dir === "up" ? <TrendUp className="size-3" /> : <TrendDown className="size-3" />}
                   {s.delta.value}
                 </span>
               )}
