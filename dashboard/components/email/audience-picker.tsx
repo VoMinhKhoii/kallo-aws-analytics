@@ -10,7 +10,7 @@ type Group = Extract<AudienceInput, { kind: 'group' }>;
 const defaults: Group = { kind: 'group', plan: 'any', activity: 'any', language: 'any' };
 
 /** Who gets the campaign, with a live count of who it reaches. */
-export function AudiencePicker({ value, onChange, disabled, onCount }: { value: AudienceInput; onChange: (a: AudienceInput) => void; disabled?: boolean; onCount?: (c: AudienceCount | null) => void }) {
+export function AudiencePicker({ value, onChange, onCount }: { value: AudienceInput; onChange: (a: AudienceInput) => void; onCount?: (c: AudienceCount | null) => void }) {
   const [picked, setPicked] = useState<Account[]>([]);
   const [count, setCount] = useState<AudienceCount | null>(null);
   const [error, setError] = useState('');
@@ -38,18 +38,18 @@ export function AudiencePicker({ value, onChange, disabled, onCount }: { value: 
 
   return <div className="grid gap-4">
     <label className="grid gap-2 text-sm">Send to
-      <select className={field} disabled={disabled} value={value.kind} onChange={e => onChange(e.target.value === 'group' ? defaults : e.target.value === 'users' ? { kind: 'users', userIds: picked.map(a => a.id) } : { kind: 'everyone' })}>
+      <select className={field} value={value.kind} onChange={e => onChange(e.target.value === 'group' ? defaults : e.target.value === 'users' ? { kind: 'users', userIds: picked.map(a => a.id) } : { kind: 'everyone' })}>
         <option value="everyone">Everyone</option><option value="group">A group</option><option value="users">Picked accounts</option>
       </select>
     </label>
     {value.kind === 'group' && <div className="grid gap-4 sm:grid-cols-3">
-      <label className="grid gap-2 text-sm">Plan<select className={field} disabled={disabled} value={group.plan} onChange={e => set({ plan: e.target.value as Group['plan'] })}><option value="any">Any plan</option><option value="paying">Paying</option><option value="complimentary">On free Premium</option><option value="free">Free plan</option></select></label>
-      <label className="grid gap-2 text-sm">Activity<select className={field} disabled={disabled} value={group.activity} onChange={e => set({ activity: e.target.value as Group['activity'] })}><option value="any">Any</option><option value="active7">Logged a meal in 7 days</option><option value="active30">Logged a meal in 30 days</option><option value="inactive30">No meal in 30 days</option></select></label>
-      <label className="grid gap-2 text-sm">App language<select className={field} disabled={disabled} value={group.language} onChange={e => set({ language: e.target.value as Group['language'] })}><option value="any">Any</option><option value="en">English</option><option value="vi">Vietnamese</option></select></label>
-      <label className="grid gap-2 text-sm">Joined from<input type="date" className={field} disabled={disabled} value={group.joinedFrom ?? ''} onChange={e => set({ joinedFrom: e.target.value || undefined })} /></label>
-      <label className="grid gap-2 text-sm">Joined through<input type="date" className={field} disabled={disabled} value={group.joinedTo ?? ''} onChange={e => set({ joinedTo: e.target.value || undefined })} /></label>
+      <label className="grid gap-2 text-sm">Plan<select className={field} value={group.plan} onChange={e => set({ plan: e.target.value as Group['plan'] })}><option value="any">Any plan</option><option value="paying">Paying</option><option value="complimentary">On free Premium</option><option value="free">Free plan</option></select></label>
+      <label className="grid gap-2 text-sm">Activity<select className={field} value={group.activity} onChange={e => set({ activity: e.target.value as Group['activity'] })}><option value="any">Any</option><option value="active7">Logged a meal in 7 days</option><option value="active30">Logged a meal in 30 days</option><option value="inactive30">No meal in 30 days</option></select></label>
+      <label className="grid gap-2 text-sm">App language<select className={field} value={group.language} onChange={e => set({ language: e.target.value as Group['language'] })}><option value="any">Any</option><option value="en">English</option><option value="vi">Vietnamese</option></select></label>
+      <label className="grid gap-2 text-sm">Joined from<input type="date" className={field} value={group.joinedFrom ?? ''} onChange={e => set({ joinedFrom: e.target.value || undefined })} /></label>
+      <label className="grid gap-2 text-sm">Joined through<input type="date" className={field} value={group.joinedTo ?? ''} onChange={e => set({ joinedTo: e.target.value || undefined })} /></label>
     </div>}
-    {value.kind === 'users' && !disabled && <>
+    {value.kind === 'users' && <>
       <AccountSearch selected={picked} onSelect={a => pick(picked.some(p => p.id === a.id) ? picked.filter(p => p.id !== a.id) : [...picked, a])} />
       <div className="flex flex-wrap gap-2">{picked.map(a => <button type="button" key={a.id} className={secondary} onClick={() => pick(picked.filter(p => p.id !== a.id))}>{a.email} ×</button>)}</div>
       {value.userIds.length > picked.length && <p className="text-xs text-muted-foreground">{value.userIds.length - picked.length} account{value.userIds.length - picked.length === 1 ? '' : 's'} picked earlier.</p>}
