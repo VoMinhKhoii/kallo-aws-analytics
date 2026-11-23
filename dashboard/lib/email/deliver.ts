@@ -48,7 +48,7 @@ export async function deliverBatch(db: EmailDb, campaign: Campaign, origin: stri
   // The provider refused the key or domain: stop here rather than walk the rest
   // of the audience into the same refusal. With Cloudflare, other emails in the
   // batch may have gone out before the refusal; those stay recorded as sent.
-  if (blocked) throw new EmailError(`${blocked}. The refused emails are back in the queue; fix the sender, then resume.`);
+  if (blocked) throw new EmailError(`${blocked}. The refused emails were not sent; fix the sender, then resume.`);
   await finishIfDone(db, campaign.id, now());
   const retry = outcomes.find(o => o.status === 'retry');
   return { claimed: claimed.length, throttled: retry ? (retry.error ?? 'Throttled') : null, stalled: outcomes.every(o => o.status === 'retry') };

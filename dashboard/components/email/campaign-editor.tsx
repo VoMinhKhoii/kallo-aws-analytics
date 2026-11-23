@@ -151,7 +151,8 @@ export function CampaignEditor({ initial, failed, providers, testAddress, onBack
   const problem = contentProblem(content);
   const canSend = !locked && !problem && info.configured && (count?.reachable ?? 0) > 0;
 
-  return <div className="grid gap-6" onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); void save(); } }}>
+  // While a send is starting, nothing can change: what goes out is what was confirmed.
+  return <fieldset disabled={busy === 'start'} className="m-0 grid min-w-0 gap-6 border-0 p-0" onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); void save(); } }}>
     <div className="flex flex-wrap items-center gap-4">
       <button type="button" className={secondary} onClick={() => { if (!dirty || window.confirm('Leave without saving?')) onBack(); }}><ArrowLeft className="size-3.5" aria-hidden />Campaigns</button>
       <input aria-label="Campaign name" maxLength={120} className={field + ' max-w-md flex-1 font-medium'} value={name} disabled={locked} onChange={e => edit(setName)(e.target.value)} placeholder="Campaign name" />
@@ -205,7 +206,7 @@ export function CampaignEditor({ initial, failed, providers, testAddress, onBack
             <select aria-label="Insert a merge tag" className={tool} value="" onChange={e => e.target.value && editor.current?.insert(e.target.value)}><option value="">Merge tag…</option>{TAG_SNIPPETS.map(t => <option key={t.html} value={t.html}>{t.label} {t.html}</option>)}</select>
             <select aria-label="Insert a brand color" className={tool} value="" onChange={e => e.target.value && editor.current?.insert(e.target.value)}><option value="">Brand color…</option>{Object.entries(EMAIL_COLORS).map(([k, v]) => <option key={k} value={v}>{COLOR_NAMES[k as keyof typeof EMAIL_COLORS]} {v}</option>)}</select>
           </div>}
-          <div className="min-h-0 flex-1"><CodeEditor ref={editor} label={`${LOCALE_NAMES[lang]} HTML body`} value={content[lang].html} readOnly={locked} onChange={html => setLocale({ html })} /></div>
+          <div className="min-h-0 flex-1"><CodeEditor ref={editor} label={`${LOCALE_NAMES[lang]} HTML body`} value={content[lang].html} readOnly={locked || busy === 'start'} onChange={html => setLocale({ html })} /></div>
         </div>
         <div className={frame}>
           <EmailPreview content={content} locale={lang} name={sample} from={info.from} />
@@ -249,5 +250,5 @@ export function CampaignEditor({ initial, failed, providers, testAddress, onBack
           <div className="flex flex-wrap gap-4"><button type="button" className={button} disabled={!canSend || typed !== 'SEND' || !!busy} onClick={() => void start()}>{busy === 'start' ? 'Starting…' : 'Send now'}</button><button type="button" className={secondary + ' h-9'} disabled={!!busy} onClick={() => { setConfirming(false); setTyped(''); }}>Cancel</button></div>
         </div>}
     </section>}
-  </div>;
+  </fieldset>;
 }

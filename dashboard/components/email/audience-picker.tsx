@@ -60,7 +60,8 @@ export function AudiencePicker({ value, onChange, onCount }: { value: AudienceIn
       <label className="grid gap-2 text-sm">Joined through<input type="date" className={field} value={group.joinedTo ?? ''} onChange={e => set({ joinedTo: e.target.value || undefined })} /></label>
     </div>}
     {value.kind === 'users' && <>
-      <AccountSearch selected={labelled} onSelect={toggle} />
+      {/* Every saved ID shows as selected in search, labelled or not, so clicking one is a visible removal. */}
+      <AccountSearch selected={ids.map(id => labelled.find(a => a.id === id) ?? ({ id } as Account))} onSelect={toggle} />
       <div className="flex flex-wrap gap-2">{labelled.map(a => <button type="button" key={a.id} className={secondary} onClick={() => toggle(a)}>{a.email} ×</button>)}</div>
       {earlier > 0 && <p className="text-xs text-muted-foreground">{earlier} account{earlier === 1 ? '' : 's'} picked earlier, still included.</p>}
     </>}
