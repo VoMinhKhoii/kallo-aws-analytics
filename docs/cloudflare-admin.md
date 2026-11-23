@@ -14,6 +14,9 @@ Credentials are Worker secrets and never included in the browser bundle.
 - `/`: production account counts, request trends, and open feedback.
 - `/premium`: welcome-offer settings, account search/details, selected/group/everyone
   grants, end free access, preview counts, and audited undo.
+- `/email`: campaign email. Write the body in HTML with a live preview, keep an
+  English and a Vietnamese version, pick an audience, send a test, then send. See
+  [Email campaigns](#email-campaigns).
 - `/requests`: paginated original requests, stage timings, and model-call metadata.
 - `/feedback`: paginated feedback and status triage.
 - `/analytics`, `/ingredients`: the existing analytics contract, aggregated
@@ -60,6 +63,8 @@ npm run typecheck
 npm run test:admin
 npm run test:metrics
 npm run test:ai-usage
+npm run test:email
+npx wrangler d1 migrations apply kallo-admin-email --remote
 npm run deploy
 ```
 
@@ -88,6 +93,45 @@ Deploy order at cutover: the ingest Worker and its secret, then the backfill
 from Cloud Logging, then Kallo with `TRACE_INGEST_URL` / `TRACE_INGEST_SECRET`,
 then this dashboard.
 
+## Email campaigns
+
+`/email` is founder-only. A campaign is an HTML body per language, an audience and
+a sender.
+
+- **Content.** The founder writes only the inside of the card. `lib/email/render.ts`
+  wraps it in Kallo's email layout (logo, espresso card, footer copied from Kallo's
+  `lib/infra/email/templates/layout.ts`), fills `{{name}}`, `{{name|fallback}}`,
+  `{{email}}` and `{{unsubscribe_url}}`, and builds the plain-text part. The
+  preview, test sends and real sends all use this one renderer.
+- **Languages.** Each recipient gets the version for their app language
+  (`user_profiles.preferred_locale`). An empty Vietnamese version falls back to
+  English. "Translate from English" drafts it with Workers AI (the `AI` binding);
+  nothing is sent until the founder sends it.
+- **Audience.** Read from Postgres at send time (`lib/email/audience.ts`): everyone,
+  a group (plan, meal activity, app language, signup dates) or picked accounts.
+  Only confirmed, live, non-anonymous addresses. Paying accounts can be emailed.
+- **Store.** The `kallo-admin-email` D1 database (`EMAIL_DB`, schema in
+  `dashboard/migrations/`) holds drafts, a row per recipient once a campaign
+  starts, and the suppression list. Kallo's Postgres is only read.
+- **Sending.** Starting a campaign freezes it and queues its recipients. The open
+  page then sends one batch per request (50 with Resend, 20 with Cloudflare).
+  Closing the tab pauses the send; opening the campaign resumes it. A recipient is
+  sent at most once: only throttled (429) sends are retried, and a batch left
+  unanswered for 10 minutes is marked failed instead of resent.
+- **Unsubscribe.** Every email has a footer link and `List-Unsubscribe` /
+  `List-Unsubscribe-Post` headers pointing at the public
+  `/api/email/unsubscribe` route, signed with `EMAIL_LINK_SECRET`. Unsubscribes
+  and permanent bounces join the suppression list, which every later send skips.
+- **Senders.** Resend (`RESEND_API_KEY`) is meant for campaigns, from
+  `Kallo <hello@news.kallo.fit>` by default. Cloudflare Email Sending
+  (`CLOUDFLARE_EMAIL_API_TOKEN`, from `mail.kallo.fit`) works too, but Cloudflare
+  allows transactional mail only, and Kallo's sign-in emails share that sender. The
+  page warns before a campaign goes out through it.
+
+Before the first real campaign: verify `news.kallo.fit` in Resend (its DNS records
+go on the `kallo.fit` zone), set `RESEND_API_KEY` and `EMAIL_LINK_SECRET`, and
+apply the D1 migration.
+
 ## Secrets
 
 Set these through Cloudflare secrets using interactive stdin or an ignored,
@@ -101,6 +145,10 @@ protected file. Never put values into command arguments or commits.
 - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_PUBLISHABLE_KEY`
 - `GOOGLE_MONITORING_CREDENTIALS` (existing read-only service-account JSON)
 - `GCP_PROJECT_ID`, `GCP_CLOUD_RUN_SERVICE`, `GCP_CLOUD_RUN_LOCATION`
+- `EMAIL_LINK_SECRET` (32+ random characters; signs unsubscribe links, so never
+  rotate it once campaigns are out)
+- `RESEND_API_KEY` and, optionally, `CLOUDFLARE_EMAIL_API_TOKEN` (Email Sending:
+  Edit). Optional overrides: `RESEND_FROM`, `CLOUDFLARE_EMAIL_FROM`, `EMAIL_REPLY_TO`
 
 `METRICS_SOURCE=postgres` is a nonsecret Wrangler variable. Optional AWS mode needs
 `API_BASE_URL`, `DASHBOARD_TOKEN`, and an active AWS data stack. Local secrets belong

@@ -8,7 +8,14 @@
   "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
   "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "kallo-admin" }],
   // Kallo's AI meal traces, filled by the kallo-trace-ingest Worker (../trace-ingest).
-  "d1_databases": [{ "binding": "TRACES", "database_name": "kallo-traces", "database_id": "1cc13d01-7f6d-4fb4-9012-ddc4058f71dd" }],
+  "d1_databases": [
+    { "binding": "TRACES", "database_name": "kallo-traces", "database_id": "1cc13d01-7f6d-4fb4-9012-ddc4058f71dd" },
+    // The /email page's campaigns, send log and unsubscribes. Schema: migrations/
+    // (npx wrangler d1 migrations apply kallo-admin-email --remote).
+    { "binding": "EMAIL_DB", "database_name": "kallo-admin-email", "database_id": "31266d3c-0e7a-4533-ada6-78e47e621462", "migrations_dir": "migrations" }
+  ],
+  // Workers AI, for the /email page's "Translate" button.
+  "ai": { "binding": "AI" },
   // Kallo's private feedback screenshots, streamed to founders by /api/admin/feedback/[id]/screenshot.
   "r2_buckets": [{ "binding": "SCREENSHOTS", "bucket_name": "kallo-prod-feedback-screenshots" }],
   "observability": { "enabled": true, "traces": { "enabled": true, "head_sampling_rate": 0.1 } },

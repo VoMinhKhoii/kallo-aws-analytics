@@ -15,9 +15,14 @@
     "test:metrics": "node --import tsx --conditions=react-server --test lib/admin/__tests__/*.test.ts",
     "test:ai-usage": "node --import tsx --test lib/ai-usage/__tests__/*.test.ts",
     "test:traces-ui": "node --import tsx --conditions=react-server --test lib/traces-ui/__tests__/*.test.ts",
-    "test:prompts": "node --import tsx --test lib/prompts/__tests__/*.test.ts"
+    "test:prompts": "node --import tsx --test lib/prompts/__tests__/*.test.ts",
+    "test:email": "node --experimental-sqlite --no-warnings=ExperimentalWarning --import tsx --conditions=react-server --test lib/email/__tests__/*.test.ts"
   },
   "dependencies": {
+    "@codemirror/lang-html": "^6.4.12",
+    "@codemirror/language": "^6.13.1",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/theme-one-dark": "^6.1.3",
     "@opennextjs/cloudflare": "^1.20.13",
     "@phosphor-icons/react": "^2.1.10",
     "@radix-ui/react-scroll-area": "^1.2.18",
@@ -30,6 +35,7 @@
     "@xyflow/react": "12.12.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "codemirror": "^6.0.2",
     "drizzle-orm": "^0.45.3",
     "next": "^16.4.3",
     "postgres": "^3.4.9",
