@@ -157,7 +157,7 @@ test('a dropped connection fails the batch instead of resending it, and an unset
   let calls = 0;
   const dropped = (async () => { calls++; throw new TypeError('network connection lost'); }) as unknown as typeof fetch;
   const result = await deliverBatch(db, campaign, origin, { fetcher: dropped });
-  assert.deepEqual(result, { claimed: 3, throttled: null });
+  assert.deepEqual(result, { claimed: 3, throttled: null, stalled: false });
   campaign = (await getCampaign(db, id))!;
   assert.deepEqual(campaign.counts, { queued: 0, sending: 0, sent: 0, failed: 3, skipped: 0 });
   assert.equal((await deliverBatch(db, campaign, origin, { fetcher: dropped })).claimed, 0);
@@ -218,4 +218,38 @@ test('a missing link secret refuses before claiming, and a Cloudflare suppressio
   const later = await createCampaign(db, draft);
   await startCampaign(db, later, draft, people(1), 'cloudflare', 'x');
   assert.equal((await getCampaign(db, later))!.counts.queued, 1, 'a temporary Cloudflare suppression does not block later campaigns');
+});
+
+test('a batch Resend rejects for one bad address is retried one by one, so only that address fails', async () => {
+  env();
+  const db = d1();
+  const id = await createCampaign(db, draft);
+  await startCampaign(db, id, draft, people(3), 'resend', 'x');
+  const calls: string[] = [];
+  const fetcher = (async (url: string, init: RequestInit) => {
+    calls.push(url);
+    if (url.endsWith('/emails/batch')) return Response.json({ message: 'Invalid `to` field' }, { status: 422 });
+    const to = (JSON.parse(String(init.body)) as { to: string[] }).to[0];
+    return to === 'p1@example.test' ? Response.json({ message: 'Invalid `to` field' }, { status: 422 }) : Response.json({ id: 'one-' + to });
+  }) as unknown as typeof fetch;
+  const result = await deliverBatch(db, (await getCampaign(db, id))!, origin, { fetcher });
+  assert.deepEqual(result, { claimed: 3, throttled: null, stalled: false });
+  assert.equal(calls.filter(u => u.endsWith('/emails')).length, 3);
+  assert.deepEqual((await getCampaign(db, id))!.counts, { queued: 0, sending: 0, sent: 2, failed: 1, skipped: 0 });
+});
+
+test('a batch counts as stalled only when nothing in it went out', async () => {
+  env();
+  const db = d1();
+  const id = await createCampaign(db, draft);
+  await startCampaign(db, id, draft, people(2), 'cloudflare', 'x');
+  const fetcher = (async (_url: string, init: RequestInit) => {
+    const to = (JSON.parse(String(init.body)) as { to: string[] }).to[0];
+    return to === 'p0@example.test' ? Response.json({ success: false, errors: [{ code: 10004, message: 'throttled' }] }, { status: 429 }) : Response.json({ success: true, result: { message_id: 'x' } });
+  }) as unknown as typeof fetch;
+  const partly = await deliverBatch(db, (await getCampaign(db, id))!, origin, { fetcher });
+  assert.equal(partly.stalled, false, 'one email went out, so this is progress');
+  assert.ok(partly.throttled);
+  const all = await deliverBatch(db, (await getCampaign(db, id))!, origin, { fetcher });
+  assert.equal(all.stalled, true, 'only the throttled address was left, and it was throttled again');
 });

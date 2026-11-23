@@ -51,7 +51,7 @@ export default function EmailPage() {
       : <>
         {error && <p role="alert" className="text-sm text-foreground mark-bad">{error}</p>}
         {setup && <p className="text-sm text-foreground mark-warn">{setup}</p>}
-        {openId ? (open && home ? <CampaignEditor key={open.campaign.id} initial={open.campaign} failed={open.failed} providers={home.providers} testAddress={home.testAddress} onBack={() => setOpenId('')} onChanged={() => void load()} onDuplicate={c => void create({ name: `Copy of ${c.name}`, content: c.content, audience: c.audience })} /> : <PageSkeleton title="Campaign" cells={0} charts={1} rows />)
+        {openId ? (open && home ? <CampaignEditor key={open.campaign.id} initial={open.campaign} failed={open.failed} providers={home.providers} testAddress={home.testAddress} onBack={() => setOpenId('')} onChanged={() => void load()} onDuplicate={c => void create({ name: `Copy of ${c.name}`.slice(0, 120), content: c.content, audience: c.audience })} /> : <PageSkeleton title="Campaign" cells={0} charts={1} rows />)
           : <UrlTabs value={tab} onChange={setTab} items={[{ value: 'campaigns', label: 'Campaigns' }, { value: 'unsubscribed', label: 'Unsubscribed' }]}>
             {tab === 'campaigns' && <Campaigns home={home} loading={loading} onNew={fresh} onOpen={setOpenId} />}
             {tab === 'unsubscribed' && <Unsubscribed />}

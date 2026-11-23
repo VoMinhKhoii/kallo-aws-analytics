@@ -43,24 +43,45 @@ export async function sendAll(id: ProviderId, messages: Outgoing[], fetcher: typ
   return id === 'resend' ? resendBatch(messages, fetcher) : cloudflareEach(messages, fetcher);
 }
 
+/** Run `one` over every message, a few at a time. Results keep input order. */
+async function pool(messages: Outgoing[], width: number, one: (m: Outgoing) => Promise<Result>): Promise<Result[]> {
+  const results: Result[] = new Array(messages.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(width, messages.length) }, async () => {
+    while (next < messages.length) { const i = next++; results[i] = await one(messages[i]); }
+  }));
+  return results;
+}
+
 async function resendBatch(messages: Outgoing[], fetcher: typeof fetch): Promise<Result[]> {
   const key = process.env.RESEND_API_KEY?.trim();
   if (!key) throw new EmailError('Resend is not set up.');
   const from = fromFor('resend');
+  const payload = (m: Outgoing) => ({ from, to: [m.to], reply_to: replyTo(), subject: m.subject, html: m.html, text: m.text, headers: listHeaders(m.unsubscribeUrl) });
+  const post = (path: string, body: unknown) => fetcher(`https://api.resend.com${path}`, { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   // One call carries up to 100 different emails.
   let response: Response;
   try {
-    response = await fetcher('https://api.resend.com/emails/batch', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(messages.map(m => ({ from, to: [m.to], reply_to: replyTo(), subject: m.subject, html: m.html, text: m.text, headers: listHeaders(m.unsubscribeUrl) }))),
-    });
+    response = await post('/emails/batch', messages.map(payload));
   } catch (e) {
     // Resend may have accepted the batch before the connection dropped.
     const error = `Could not reach Resend: ${e instanceof Error ? e.message : String(e)}`;
     return messages.map((): Result => ({ status: 'failed', error }));
   }
   const body = await response.json().catch(() => null) as { data?: { id?: string }[]; message?: string } | null;
+  // A batch is validated as a whole: one bad address rejects all of it and
+  // nothing is sent. Retry one by one so only that address fails.
+  if (response.status === 422 && messages.length > 1) {
+    return pool(messages, 5, async (m): Promise<Result> => {
+      try {
+        const r = await post('/emails', payload(m));
+        const b = await r.json().catch(() => null) as { id?: string; message?: string } | null;
+        return r.ok ? { status: 'sent', messageId: b?.id ?? null } : unsent(r.status, `Resend ${r.status}: ${b?.message ?? 'no error body'}`);
+      } catch (e) {
+        return { status: 'failed', error: `Could not reach Resend: ${e instanceof Error ? e.message : String(e)}` };
+      }
+    });
+  }
   if (!response.ok) {
     const result = unsent(response.status, `Resend ${response.status}: ${body?.message ?? 'no error body'}`);
     return messages.map(() => result);
@@ -92,10 +113,5 @@ async function cloudflareEach(messages: Outgoing[], fetcher: typeof fetch): Prom
     }
   };
   // Cloudflare answers only after trying the recipient's server (1-3 s), so a few at a time.
-  const results: Result[] = new Array(messages.length);
-  let next = 0;
-  await Promise.all(Array.from({ length: Math.min(5, messages.length) }, async () => {
-    while (next < messages.length) { const i = next++; results[i] = await one(messages[i]); }
-  }));
-  return results;
+  return pool(messages, 5, one);
 }

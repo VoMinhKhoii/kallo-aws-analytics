@@ -9,7 +9,7 @@ import { providerInfo, providers } from '@/lib/email/providers';
 import { linkSecretConfigured } from '@/lib/email/link-token';
 import { deliverBatch, sendTest } from '@/lib/email/deliver';
 import { translateContent } from '@/lib/email/translate';
-import { cancelCampaign, createCampaign, deleteDraft, emailStore, getCampaign, listCampaigns, listSends, listSuppressions, saveDraft, startCampaign, suppress, suppressedSet, sweepStale, unsuppress, type EmailDb } from '@/lib/email/store';
+import { cancelCampaign, createCampaign, deleteDraft, emailStore, finishIfDone, getCampaign, listCampaigns, listSends, listSuppressions, saveDraft, startCampaign, suppress, suppressedSet, sweepStale, unsuppress, type EmailDb } from '@/lib/email/store';
 
 export const dynamic = 'force-dynamic';
 const json = (value: unknown, status = 200) => Response.json(value, { status, headers: { 'Cache-Control': 'private, no-store' } });
@@ -63,6 +63,7 @@ export async function GET(request: Request) {
       const s = await store();
       const campaignId = id.parse(campaign);
       await sweepStale(s, campaignId);
+      await finishIfDone(s, campaignId);
       const row = await getCampaign(s, campaignId);
       if (!row) return json({ error: 'That campaign no longer exists.' }, 404);
       const problems = row.status === 'draft' ? [] : await listSends(s, row.id, 'failed');
@@ -112,7 +113,8 @@ export async function POST(request: Request) {
         if (!linkSecretConfigured()) throw new EmailError('EMAIL_LINK_SECRET is not set, so unsubscribe links cannot be made. Set it before sending.');
         await saveDraft(db, input.id, input.draft);
         const recipients = await audienceRecipients(input.draft.audience);
-        if (!recipients.length) throw new EmailError('Nobody matches that audience.');
+        const suppressed = await suppressedSet(db);
+        if (!recipients.some(r => !suppressed.has(r.email.toLowerCase()))) throw new EmailError(recipients.length ? 'Everyone in that audience has unsubscribed or bounced.' : 'Nobody matches that audience.');
         if (!await startCampaign(db, input.id, input.draft, recipients, input.provider, info.from)) throw new EmailError('That campaign has already started.');
         return json({ campaign: await getCampaign(db, input.id) });
       }

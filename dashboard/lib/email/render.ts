@@ -50,8 +50,9 @@ export function unknownTags(content: CampaignContent): string[] {
 // the per-language default ("there" / "bạn").
 function merge(template: string, values: Record<string, string>, defaults: Record<string, string>, html: boolean): string {
   return template.replace(TAG, (whole, key: string, fallback?: string) => {
-    if (!(key in values)) return whole;
-    const value = values[key] || fallback || defaults[key] || '';
+    // Own keys only: {{constructor}} must not reach Object.prototype.
+    if (!Object.hasOwn(values, key)) return whole;
+    const value = values[key] || fallback || (Object.hasOwn(defaults, key) ? defaults[key] : '') || '';
     return html ? escapeHtml(value) : value;
   });
 }
@@ -148,7 +149,8 @@ export function htmlToText(html: string): string {
     .replace(/<[^>]+>/g, '')
     .replace(/&(#\d+|#x[\da-f]+|[a-z\d]+);/gi, (whole, name: string) => {
       if (name[0] === '#') { const code = name[1].toLowerCase() === 'x' ? parseInt(name.slice(2), 16) : parseInt(name.slice(1), 10); return code === 847 ? '' : code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : whole; }
-      return ENTITIES[name.toLowerCase()] ?? whole;
+      const lower = name.toLowerCase();
+      return Object.hasOwn(ENTITIES, lower) ? ENTITIES[lower] : whole;
     })
     .replace(/[ \t ]+/g, ' ')
     .replace(/ *\n */g, '\n')

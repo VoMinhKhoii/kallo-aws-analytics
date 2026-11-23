@@ -90,3 +90,22 @@ test('unsubscribe tokens round-trip and reject tampering or a missing secret', (
 test('an entity past the last Unicode code point is left as written instead of crashing', () => {
   assert.equal(htmlToText('<p>A &#99999999; B &#x110000; C &#8217;</p>'), 'A &#99999999; B &#x110000; C ’');
 });
+
+test('tag and entity names that match Object.prototype are left alone instead of crashing', () => {
+  const out = renderEmail(content({ subject: 'x {{constructor}}', html: '<p>{{toString}} &constructor;</p>' }), { email: 'a@b.test', name: 'Mai', locale: 'en' }, url, '');
+  assert.equal(out.subject, 'x {{constructor}}');
+  assert.match(out.html, /\{\{toString\}\} &constructor;/);
+  assert.match(out.text, /\{\{toString\}\} &constructor;/);
+  assert.deepEqual(unknownTags(content({ html: '{{constructor}}' })), ['{{constructor}}']);
+});
+
+test('translation refuses an empty or cut-off answer instead of returning partial HTML', async () => {
+  const { translateContent } = await import('../translate');
+  const source = { subject: 'Hi', preheader: '', html: '<p>Hello</p>' };
+  const empty = { run: async () => ({ response: '' }) } as unknown as Parameters<typeof translateContent>[3];
+  await assert.rejects(translateContent(source, 'en', 'vi', empty), /came back empty/);
+  const cut = { run: async (_m: string, input: { max_tokens: number }) => ({ response: '<p>Xin', usage: { completion_tokens: input.max_tokens } }) } as unknown as Parameters<typeof translateContent>[3];
+  await assert.rejects(translateContent(source, 'en', 'vi', cut), /cut off/);
+  const ok = { run: async () => ({ response: '<p>Xin chào</p>', usage: { completion_tokens: 5 } }) } as unknown as Parameters<typeof translateContent>[3];
+  assert.equal((await translateContent(source, 'en', 'vi', ok)).html, '<p>Xin chào</p>');
+});

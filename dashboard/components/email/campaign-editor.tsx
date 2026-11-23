@@ -63,6 +63,9 @@ export function CampaignEditor({ initial, failed, providers, testAddress, onBack
     const warn = (e: BeforeUnloadEvent) => e.preventDefault();
     window.addEventListener('beforeunload', warn); return () => window.removeEventListener('beforeunload', warn);
   }, [dirty]);
+  // The confirmation is for what was reviewed: any change to the email, the
+  // audience or the sender disarms it.
+  useEffect(() => { setConfirming(false); setTyped(''); }, [content, audience, provider]);
   // A send left running in another visit resumes when the campaign is opened.
   useEffect(() => { if (initial.status === 'sending') void drain(); return () => { draining.current = false; }; }, []);
 
@@ -71,13 +74,14 @@ export function CampaignEditor({ initial, failed, providers, testAddress, onBack
     try { return await fn(); } catch (e) { setError((e as Error).message); } finally { setBusy(''); }
   }
   async function save() {
-    // One save at a time (button and Cmd/Ctrl+S alike), so an older draft never lands last.
-    if (locked || saving.current) return;
+    // One save at a time (button and Cmd/Ctrl+S alike), so an older draft never
+    // lands last, and never while another action holds the editor.
+    if (locked || saving.current || busy) return;
     saving.current = true;
     const started = revision.current;
     try {
       const ok = await run('save', () => emailApi('', { action: 'save', id: campaign.id, draft }));
-      if (ok) { if (revision.current === started) setDirty(false); setNotice('Saved.'); onChanged(); }
+      if (ok) { const current = revision.current === started; if (current) setDirty(false); setNotice(current ? 'Saved.' : 'Saved, but newer edits are not saved yet.'); onChanged(); }
     } finally { saving.current = false; }
   }
   async function translate() {
@@ -116,11 +120,11 @@ export function CampaignEditor({ initial, failed, providers, testAddress, onBack
     try {
       let throttles = 0;
       while (draining.current) {
-        const r = await emailApi<{ claimed: number; throttled: string | null; campaign: Campaign }>('', { action: 'deliver', id: campaign.id });
+        const r = await emailApi<{ claimed: number; throttled: string | null; stalled: boolean; campaign: Campaign }>('', { action: 'deliver', id: campaign.id });
         setCampaign(r.campaign);
         if (r.campaign.status !== 'sending') break;
         // About a minute of throttling in a row is a quota, not a burst: stop and say so.
-        throttles = r.throttled ? throttles + 1 : 0;
+        throttles = r.stalled ? throttles + 1 : 0;
         if (throttles >= MAX_THROTTLES) { setError(`Sending paused: ${r.throttled}. The sender is refusing more email for now; resume later.`); break; }
         // Throttled, or the last emails are still in flight from another tab.
         if (r.throttled || !r.claimed) await sleep(r.throttled ? 5000 : 3000);
@@ -150,7 +154,7 @@ export function CampaignEditor({ initial, failed, providers, testAddress, onBack
   return <div className="grid gap-6" onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); void save(); } }}>
     <div className="flex flex-wrap items-center gap-4">
       <button type="button" className={secondary} onClick={() => { if (!dirty || window.confirm('Leave without saving?')) onBack(); }}><ArrowLeft className="size-3.5" aria-hidden />Campaigns</button>
-      <input aria-label="Campaign name" className={field + ' max-w-md flex-1 font-medium'} value={name} disabled={locked} onChange={e => edit(setName)(e.target.value)} placeholder="Campaign name" />
+      <input aria-label="Campaign name" maxLength={120} className={field + ' max-w-md flex-1 font-medium'} value={name} disabled={locked} onChange={e => edit(setName)(e.target.value)} placeholder="Campaign name" />
       <span className={'text-sm ' + STATUS_MARK[campaign.status]}>{STATUS_LABEL[campaign.status]}</span>
       <div className="ml-auto flex flex-wrap items-center gap-2">
         {!locked && <span className="self-center text-xs text-[var(--console-faint)]">{dirty ? 'Unsaved changes' : 'All changes saved'}</span>}
@@ -175,7 +179,7 @@ export function CampaignEditor({ initial, failed, providers, testAddress, onBack
         {!live && <button type="button" className={button} onClick={() => void drain()}>Resume sending</button>}
         <button type="button" className={secondary} onClick={() => void cancel()}>Stop sending</button>
       </div>}
-      {failures.length > 0 && <details className="text-sm"><summary className="cursor-pointer">{int(failures.length)} failed {failures.length === 1 ? 'address' : 'addresses'}</summary>
+      {failures.length > 0 && <details className="text-sm"><summary className="cursor-pointer">{int(c.failed)} failed {c.failed === 1 ? 'address' : 'addresses'}{c.failed > failures.length && `, first ${int(failures.length)} shown`}</summary>
         <ul className="mt-2 divide-y divide-border border-y border-border text-xs text-muted-foreground">{failures.map(f => <li key={f.email} className="py-2"><span className="text-foreground">{f.email}</span> · {f.error}</li>)}</ul></details>}
     </section>}
 
@@ -242,7 +246,7 @@ export function CampaignEditor({ initial, failed, providers, testAddress, onBack
             {!info.bulkAllowed && <li className="text-[var(--console-amber)]">This goes through Cloudflare Email, which is meant for one-to-one mail.</li>}
           </ul>
           <label className="grid max-w-xs gap-2 text-sm">Type SEND to confirm<input className={field} value={typed} onChange={e => setTyped(e.target.value)} autoComplete="off" /></label>
-          <div className="flex flex-wrap gap-4"><button type="button" className={button} disabled={typed !== 'SEND' || !!busy} onClick={() => void start()}>{busy === 'start' ? 'Starting…' : 'Send now'}</button><button type="button" className={secondary + ' h-9'} disabled={!!busy} onClick={() => { setConfirming(false); setTyped(''); }}>Cancel</button></div>
+          <div className="flex flex-wrap gap-4"><button type="button" className={button} disabled={!canSend || typed !== 'SEND' || !!busy} onClick={() => void start()}>{busy === 'start' ? 'Starting…' : 'Send now'}</button><button type="button" className={secondary + ' h-9'} disabled={!!busy} onClick={() => { setConfirming(false); setTyped(''); }}>Cancel</button></div>
         </div>}
     </section>}
   </div>;

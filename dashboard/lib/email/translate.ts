@@ -32,12 +32,18 @@ export async function translateContent(source: LocaleContent, from: Locale, to: 
   const model = binding ?? await ai();
   const one = async (text: string, kind: string) => {
     if (!text.trim()) return '';
+    // Vietnamese runs longer than English and tokenizes densely, so allow about
+    // a token per input character (the model's window is 24k tokens).
+    const budget = Math.min(16000, Math.ceil(text.length * 1.2) + 512);
     const result = await model.run(TRANSLATE_MODEL, {
       messages: [{ role: 'system', content: RULES }, { role: 'user', content: `Translate this email ${kind} from ${LOCALE_NAMES[from]} to ${LOCALE_NAMES[to]}:\n\n${text}` }],
-      max_tokens: Math.min(8000, Math.ceil(text.length / 2) + 256),
+      max_tokens: budget,
       temperature: 0.2,
-    });
-    return clean(result.response);
+    }) as { response?: unknown; usage?: { completion_tokens?: number } };
+    const out = clean(result.response);
+    if (!out) throw new EmailError(`The translation of the ${kind} came back empty. Try again.`);
+    if ((result.usage?.completion_tokens ?? 0) >= budget) throw new EmailError(`The ${kind} is too long to translate in one go, so the translation was cut off. Translate it in parts.`);
+    return out;
   };
   const [subject, preheader, html] = await Promise.all([one(source.subject, 'subject line'), one(source.preheader, 'preview text'), one(source.html, 'HTML body')]);
   return { subject, preheader, html };

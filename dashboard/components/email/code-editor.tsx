@@ -27,6 +27,9 @@ export const CodeEditor = forwardRef<CodeEditorHandle, { value: string; onChange
     const view = useRef<EditorView | null>(null);
     const latest = useRef(onChange);
     latest.current = onChange;
+    // Set while a new `value` from outside is written in, so that write is not
+    // reported back as the founder's edit.
+    const syncing = useRef(false);
 
     useEffect(() => {
       const theme = new Compartment();
@@ -37,7 +40,7 @@ export const CodeEditor = forwardRef<CodeEditorHandle, { value: string; onChange
           basicSetup, html(), theme.of(isDark() ? darkSyntax : []), frame, EditorView.lineWrapping,
           EditorView.editable.of(!readOnly),
           EditorView.contentAttributes.of({ 'aria-label': label }),
-          EditorView.updateListener.of(u => { if (u.docChanged) latest.current(u.state.doc.toString()); }),
+          EditorView.updateListener.of(u => { if (u.docChanged && !syncing.current) latest.current(u.state.doc.toString()); }),
         ],
       });
       view.current = v;
@@ -51,7 +54,10 @@ export const CodeEditor = forwardRef<CodeEditorHandle, { value: string; onChange
     // A new value from outside (template, translation, language switch).
     useEffect(() => {
       const v = view.current;
-      if (v && v.state.doc.toString() !== value) v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: value } });
+      if (v && v.state.doc.toString() !== value) {
+        syncing.current = true;
+        try { v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: value } }); } finally { syncing.current = false; }
+      }
     }, [value]);
 
     useImperativeHandle(ref, () => ({

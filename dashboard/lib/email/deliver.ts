@@ -10,19 +10,23 @@ import { EmailError, type ProviderId } from './input';
 // no queue service and survives a closed tab: reopen the page to resume.
 export const BATCH_SIZE: Record<ProviderId, number> = { resend: 50, cloudflare: 20 };
 
-/** `throttled` carries the provider's message, so the page can say why it is waiting. */
-export interface BatchResult { claimed: number; throttled: string | null }
+/**
+ * `throttled` carries the provider's message, so the page can say why it is
+ * waiting; `stalled` means nothing in the batch went out or failed, which is what
+ * the page counts toward pausing.
+ */
+export interface BatchResult { claimed: number; throttled: string | null; stalled: boolean }
 
 export async function deliverBatch(db: EmailDb, campaign: Campaign, origin: string, deps: { fetcher?: typeof fetch; now?: () => Date } = {}): Promise<BatchResult> {
   const provider = campaign.provider;
-  if (campaign.status !== 'sending' || !provider) return { claimed: 0, throttled: null };
+  if (campaign.status !== 'sending' || !provider) return { claimed: 0, throttled: null, stalled: false };
   const now = deps.now ?? (() => new Date());
   // Checked before claiming: once rows are claimed, nothing puts them back.
   const sender = providerInfo(provider);
   if (!sender.configured) throw new EmailError(`${sender.label} is not set up. ${sender.setup}`);
   if (!linkSecretConfigured()) throw new EmailError('EMAIL_LINK_SECRET is not set, so unsubscribe links cannot be made. Set it, then resume.');
   const claimed = await claimBatch(db, campaign.id, BATCH_SIZE[provider], now());
-  if (!claimed.length) { await finishIfDone(db, campaign.id, now()); return { claimed: 0, throttled: null }; }
+  if (!claimed.length) { await finishIfDone(db, campaign.id, now()); return { claimed: 0, throttled: null, stalled: false }; }
   const messages = claimed.map(r => {
     const url = unsubscribeUrl(origin, { email: r.email, locale: r.locale, campaignId: campaign.id });
     return { to: r.email, unsubscribeUrl: url, ...renderEmail(campaign.content, r, url, origin) };
@@ -47,7 +51,7 @@ export async function deliverBatch(db: EmailDb, campaign: Campaign, origin: stri
   if (blocked) throw new EmailError(`${blocked}. The refused emails are back in the queue; fix the sender, then resume.`);
   await finishIfDone(db, campaign.id, now());
   const retry = outcomes.find(o => o.status === 'retry');
-  return { claimed: claimed.length, throttled: retry ? (retry.error ?? 'Throttled') : null };
+  return { claimed: claimed.length, throttled: retry ? (retry.error ?? 'Throttled') : null, stalled: outcomes.every(o => o.status === 'retry') };
 }
 
 /** Test sends: marked [Test], to any address, never logged or counted. */

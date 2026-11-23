@@ -44,7 +44,8 @@ function page(locale: Locale, heading: string, body: string, form = '', status =
   return new Response(html, { status, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex', 'Referrer-Policy': 'no-referrer' } });
 }
 
-const fill = (text: string, email: string) => escapeHtml(text).replace('{email}', `<strong style="color:${C.ink}">${escapeHtml(email)}</strong>`);
+// A replacer function, so a `$` in the address is not read as a replacement pattern.
+const fill = (text: string, email: string) => escapeHtml(text).replace('{email}', () => `<strong style="color:${C.ink}">${escapeHtml(email)}</strong>`);
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -58,6 +59,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const url = new URL(request.url);
+  // One-click unsubscribe on a test email: nothing to do, same as GET.
+  if (url.searchParams.has('test')) return page('en', COPY.en.title, escapeHtml(COPY.en.test));
   const claims = verifyLinkToken(url.searchParams.get('t'));
   if (!claims) return page('en', COPY.en.title, escapeHtml(COPY.en.invalid), '', 400);
   const copy = COPY[claims.locale];
