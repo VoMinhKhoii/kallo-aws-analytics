@@ -1,39 +1,51 @@
 import 'server-only';
 import type { Locale } from './brand';
 import { renderEmail, type CampaignContent } from './render';
-import { sendAll } from './providers';
+import { providerInfo, sendAll } from './providers';
 import { unsubscribeUrl } from './link-token';
 import { claimBatch, finishIfDone, recordOutcomes, type Campaign, type EmailDb, type Outcome } from './store';
-import type { ProviderId } from './input';
+import { EmailError, type ProviderId } from './input';
 
 // The page drains a started campaign one batch per request, so a send needs
 // no queue service and survives a closed tab: reopen the page to resume.
 export const BATCH_SIZE: Record<ProviderId, number> = { resend: 50, cloudflare: 20 };
 
-export interface BatchResult { claimed: number; throttled: boolean }
+/** `throttled` carries the provider's message, so the page can say why it is waiting. */
+export interface BatchResult { claimed: number; throttled: string | null }
 
 export async function deliverBatch(db: EmailDb, campaign: Campaign, origin: string, deps: { fetcher?: typeof fetch; now?: () => Date } = {}): Promise<BatchResult> {
   const provider = campaign.provider;
-  if (campaign.status !== 'sending' || !provider) return { claimed: 0, throttled: false };
+  if (campaign.status !== 'sending' || !provider) return { claimed: 0, throttled: null };
   const now = deps.now ?? (() => new Date());
+  // Checked before claiming: once rows are claimed, nothing puts them back.
+  const sender = providerInfo(provider);
+  if (!sender.configured) throw new EmailError(`${sender.label} is not set up. ${sender.setup}`);
   const claimed = await claimBatch(db, campaign.id, BATCH_SIZE[provider], now());
-  if (!claimed.length) { await finishIfDone(db, campaign.id, now()); return { claimed: 0, throttled: false }; }
+  if (!claimed.length) { await finishIfDone(db, campaign.id, now()); return { claimed: 0, throttled: null }; }
   const messages = claimed.map(r => {
     const url = unsubscribeUrl(origin, { email: r.email, locale: r.locale, campaignId: campaign.id });
     return { to: r.email, unsubscribeUrl: url, ...renderEmail(campaign.content, r, url, origin) };
   });
   let outcomes: Outcome[];
+  let blocked: string | null = null;
   try {
-    const results = await sendAll(provider, messages, deps.fetcher);
-    outcomes = results.map((r, i) => r.ok ? { email: claimed[i].email, status: 'sent', messageId: r.id } : r.retry ? { email: claimed[i].email, status: 'retry' } : { email: claimed[i].email, status: 'failed', error: r.error, bounced: r.bounced });
+    outcomes = (await sendAll(provider, messages, deps.fetcher)).map((r, i): Outcome => {
+      if (r.status !== 'blocked') return { email: claimed[i].email, ...r };
+      blocked = r.error;
+      return { email: claimed[i].email, status: 'retry', error: r.error };
+    });
   } catch (e) {
-    // Nothing went out (the provider is not set up): put the batch back.
-    await recordOutcomes(db, campaign.id, claimed.map(r => ({ email: r.email, status: 'retry' })), now());
-    throw e;
+    // Unexpected, and some of the batch may have gone out: fail it, never resend.
+    const error = `Send stopped: ${e instanceof Error ? e.message : String(e)}`;
+    outcomes = claimed.map(r => ({ email: r.email, status: 'failed', error }));
   }
   await recordOutcomes(db, campaign.id, outcomes, now());
+  // The provider refused the key or domain: nothing went out, so stop here
+  // rather than walk the rest of the audience into the same refusal.
+  if (blocked) throw new EmailError(`${blocked}. Nothing was sent; fix the sender, then resume.`);
   await finishIfDone(db, campaign.id, now());
-  return { claimed: claimed.length, throttled: outcomes.some(o => o.status === 'retry') };
+  const retry = outcomes.find(o => o.status === 'retry');
+  return { claimed: claimed.length, throttled: retry ? (retry.error ?? 'Throttled') : null };
 }
 
 /** Test sends: marked [Test], to any address, never logged or counted. */
@@ -42,5 +54,5 @@ export async function sendTest(provider: ProviderId, content: CampaignContent, t
   const jobs = to.flatMap(email => locales.map(locale => ({ email, locale })));
   const messages = jobs.map(j => { const m = renderEmail(content, { email: j.email, name, locale: j.locale }, url, origin); return { ...m, to: j.email, subject: `[Test${locales.length > 1 ? ` ${j.locale.toUpperCase()}` : ''}] ${m.subject}`, unsubscribeUrl: url }; });
   const results = await sendAll(provider, messages, fetcher);
-  return results.map((r, i) => ({ to: jobs[i].email, locale: jobs[i].locale, ok: r.ok, ...(r.ok ? {} : { error: r.error }) }));
+  return results.map((r, i) => ({ to: jobs[i].email, locale: jobs[i].locale, ok: r.status === 'sent', ...(r.status === 'sent' ? {} : { error: r.error }) }));
 }

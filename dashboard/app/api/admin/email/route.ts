@@ -3,13 +3,13 @@ import { authorizeRequest } from '@/lib/auth';
 import { connectAdminDb } from '@/lib/admin/db/client';
 import { LOCALES } from '@/lib/email/brand';
 import { EmailError, audienceSchema, contentSchema, draftSchema, providerSchema } from '@/lib/email/input';
-import { unknownTags, type CampaignContent } from '@/lib/email/render';
+import { contentProblem, type CampaignContent } from '@/lib/email/render';
 import { resolveAudience, summarize } from '@/lib/email/audience';
 import { providerInfo, providers } from '@/lib/email/providers';
 import { linkSecretConfigured } from '@/lib/email/link-token';
 import { deliverBatch, sendTest } from '@/lib/email/deliver';
 import { translateContent } from '@/lib/email/translate';
-import { cancelCampaign, createCampaign, deleteDraft, emailStore, getCampaign, listCampaigns, listSends, listSuppressions, saveDraft, startCampaign, suppress, suppressedSet, unsuppress, type EmailDb } from '@/lib/email/store';
+import { cancelCampaign, createCampaign, deleteDraft, emailStore, getCampaign, listCampaigns, listSends, listSuppressions, saveDraft, startCampaign, suppress, suppressedSet, sweepStale, unsuppress, type EmailDb } from '@/lib/email/store';
 
 export const dynamic = 'force-dynamic';
 const json = (value: unknown, status = 200) => Response.json(value, { status, headers: { 'Cache-Control': 'private, no-store' } });
@@ -37,9 +37,8 @@ async function store(): Promise<EmailDb> {
 }
 
 function checkSendable(content: CampaignContent) {
-  if (!content.en.subject.trim() || !content.en.html.trim()) throw new EmailError('The English version needs a subject and a body. Other languages fall back to it.');
-  const unknown = unknownTags(content);
-  if (unknown.length) throw new EmailError(`Unknown merge tag${unknown.length > 1 ? 's' : ''}: ${unknown.join(', ')}. Use {{name}}, {{email}} or {{unsubscribe_url}}.`);
+  const problem = contentProblem(content);
+  if (problem) throw new EmailError(problem);
 }
 
 function ready(provider: z.output<typeof providerSchema>) {
@@ -62,7 +61,9 @@ export async function GET(request: Request) {
     const campaign = url.searchParams.get('campaign');
     if (campaign) {
       const s = await store();
-      const row = await getCampaign(s, id.parse(campaign));
+      const campaignId = id.parse(campaign);
+      await sweepStale(s, campaignId);
+      const row = await getCampaign(s, campaignId);
       if (!row) return json({ error: 'That campaign no longer exists.' }, 404);
       const problems = row.status === 'draft' ? [] : await listSends(s, row.id, 'failed');
       return json({ campaign: row, failed: problems });
@@ -70,7 +71,7 @@ export async function GET(request: Request) {
     if (url.searchParams.has('suppressions')) return json(await listSuppressions(await store()));
     return json({
       campaigns: db ? await listCampaigns(db) : [],
-      providers: providers().map(({ id, label, from, configured, bulkAllowed, setup }) => ({ id, label, from, configured, bulkAllowed, setup })),
+      providers: providers(),
       setup: { store: Boolean(db), linkSecret: linkSecretConfigured() },
       testAddress: process.env.DASHBOARD_ADMIN_EMAIL?.trim() || process.env.ADMIN_EMAILS?.split(',')[0]?.trim() || '',
     });

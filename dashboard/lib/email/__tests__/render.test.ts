@@ -85,3 +85,7 @@ test('unsubscribe tokens round-trip and reject tampering or a missing secret', (
     assert.throws(() => createLinkToken({ email: 'a@b.test', locale: 'en', campaignId: null }), /EMAIL_LINK_SECRET/);
   } finally { if (saved === undefined) delete process.env.EMAIL_LINK_SECRET; else process.env.EMAIL_LINK_SECRET = saved; }
 });
+
+test('an entity past the last Unicode code point is left as written instead of crashing', () => {
+  assert.equal(htmlToText('<p>A &#99999999; B &#x110000; C &#8217;</p>'), 'A &#99999999; B &#x110000; C ’');
+});

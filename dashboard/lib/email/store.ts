@@ -92,26 +92,35 @@ export async function startCampaign(db: EmailDb, id: string, draft: Draft, recip
  * answered for are failed, never re-sent.
  */
 export async function claimBatch(db: EmailDb, id: string, limit: number, now = new Date()): Promise<QueuedRecipient[]> {
-  const at = now.toISOString(); const stale = new Date(now.getTime() - STALE_CLAIM_MS).toISOString();
+  const at = now.toISOString();
   const [, , claimed] = await db.batch([
     db.prepare(`UPDATE email_sends SET status = 'skipped', error = 'Unsubscribed before their turn' WHERE campaign_id = ? AND status = 'queued' AND email IN (SELECT email FROM email_suppressions)`).bind(id),
-    db.prepare(`UPDATE email_sends SET status = 'failed', error = 'The send was interrupted; it may or may not have been delivered' WHERE campaign_id = ? AND status = 'sending' AND claimed_at < ?`).bind(id, stale),
+    staleSweep(db, id, now),
     db.prepare(`UPDATE email_sends SET status = 'sending', claimed_at = ?3 WHERE rowid IN (SELECT rowid FROM email_sends WHERE campaign_id = ?1 AND status = 'queued' ORDER BY rowid LIMIT ?2) AND (SELECT status FROM email_campaigns WHERE id = ?1) = 'sending' RETURNING email, user_id, name, locale`).bind(id, limit, at),
   ]);
   return ((claimed.results ?? []) as { email: string; user_id: string | null; name: string | null; locale: Locale }[]).map(r => ({ email: r.email, userId: r.user_id, name: r.name, locale: r.locale }));
 }
 
-export type Outcome = { email: string } & ({ status: 'sent'; messageId: string | null } | { status: 'failed'; error: string; bounced?: boolean } | { status: 'retry' });
+export type Outcome = { email: string } & ({ status: 'sent'; messageId: string | null } | { status: 'failed'; error: string; bounced?: boolean } | { status: 'retry'; error?: string });
 
 export async function recordOutcomes(db: EmailDb, id: string, outcomes: Outcome[], now = new Date()): Promise<void> {
   if (!outcomes.length) return;
   const at = now.toISOString();
   await db.batch(outcomes.flatMap(o => {
-    if (o.status === 'retry') return [db.prepare(`UPDATE email_sends SET status = 'queued', claimed_at = NULL WHERE campaign_id = ? AND email = ? AND status = 'sending'`).bind(id, o.email)];
+    // Back in the queue only while the campaign still sends; after Stop it is skipped.
+    if (o.status === 'retry') return [db.prepare(`UPDATE email_sends SET status = CASE WHEN (SELECT status FROM email_campaigns WHERE id = ?1) = 'sending' THEN 'queued' ELSE 'skipped' END, error = CASE WHEN (SELECT status FROM email_campaigns WHERE id = ?1) = 'sending' THEN NULL ELSE 'Campaign canceled' END, claimed_at = NULL WHERE campaign_id = ?1 AND email = ?2 AND status = 'sending'`).bind(id, o.email)];
     if (o.status === 'sent') return [db.prepare(`UPDATE email_sends SET status = 'sent', message_id = ?, sent_at = ? WHERE campaign_id = ? AND email = ?`).bind(o.messageId, at, id, o.email)];
     const fail = db.prepare(`UPDATE email_sends SET status = 'failed', error = ? WHERE campaign_id = ? AND email = ?`).bind(o.error.slice(0, 500), id, o.email);
     return o.bounced ? [fail, db.prepare(`INSERT OR IGNORE INTO email_suppressions (email, reason, campaign_id, created_at) VALUES (?, 'bounced', ?, ?)`).bind(o.email, id, at)] : [fail];
   }));
+}
+
+// Rows claimed by a call that never answered (a closed tab) are failed, never resent.
+const staleSweep = (db: EmailDb, id: string, now: Date) => db.prepare(`UPDATE email_sends SET status = 'failed', error = 'The send was interrupted; it may or may not have been delivered' WHERE campaign_id = ? AND status = 'sending' AND claimed_at < ?`).bind(id, new Date(now.getTime() - STALE_CLAIM_MS).toISOString());
+
+/** Settle stale claims on a campaign nobody is draining any more (stopped, or sent). */
+export async function sweepStale(db: EmailDb, id: string, now = new Date()): Promise<void> {
+  await staleSweep(db, id, now).run();
 }
 
 /** Mark the campaign sent once nothing is left queued or in flight. */
@@ -128,7 +137,9 @@ export async function cancelCampaign(db: EmailDb, id: string, now = new Date()):
   ]);
 }
 
-export async function listSends(db: EmailDb, id: string, status: SendStatus | null, limit = 200): Promise<{ email: string; locale: Locale; status: SendStatus; error: string | null; sentAt: string | null }[]> {
+export interface SendRow { email: string; locale: Locale; status: SendStatus; error: string | null; sentAt: string | null }
+
+export async function listSends(db: EmailDb, id: string, status: SendStatus | null, limit = 200): Promise<SendRow[]> {
   const { results } = await (status
     ? db.prepare(`SELECT email, locale, status, error, sent_at FROM email_sends WHERE campaign_id = ? AND status = ? ORDER BY rowid LIMIT ?`).bind(id, status, limit)
     : db.prepare(`SELECT email, locale, status, error, sent_at FROM email_sends WHERE campaign_id = ? ORDER BY rowid LIMIT ?`).bind(id, limit)

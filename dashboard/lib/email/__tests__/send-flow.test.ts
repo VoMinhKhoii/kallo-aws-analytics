@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
-import { cancelCampaign, claimBatch, createCampaign, getCampaign, saveDraft, startCampaign, suppress, STALE_CLAIM_MS, type EmailDb, type QueuedRecipient } from '../store';
+import { cancelCampaign, claimBatch, createCampaign, getCampaign, recordOutcomes, saveDraft, startCampaign, suppress, sweepStale, STALE_CLAIM_MS, type EmailDb, type QueuedRecipient } from '../store';
 import { deliverBatch } from '../deliver';
 import { verifyLinkToken } from '../link-token';
 import type { Draft } from '../input';
@@ -112,7 +112,7 @@ test('throttling puts a batch back, other failures are logged once, and bounces 
   }) as unknown as typeof fetch;
 
   let result = await deliverBatch(db, (await getCampaign(db, id))!, origin, { fetcher });
-  assert.equal(result.throttled, true);
+  assert.equal(result.throttled, 'Cloudflare 429: 10004 throttled', 'the provider message comes back so the page can show it');
   assert.equal((await getCampaign(db, id))!.counts.queued, 3);
 
   mode = 'normal';
@@ -144,4 +144,57 @@ test('an unanswered claim is failed, not re-sent; unsubscribing mid-send and can
   assert.equal(counts.queued, 0);
   assert.equal(counts.skipped, 3);
   assert.equal((await claimBatch(db, id, 10)).length, 0, 'a canceled campaign hands out nothing');
+});
+
+test('a dropped connection fails the batch instead of resending it, and an unset sender is refused before anything is claimed', async () => {
+  env();
+  const db = d1();
+  const id = await createCampaign(db, draft);
+  await startCampaign(db, id, draft, people(3), 'resend', 'Kallo <hello@news.kallo.fit>');
+  let campaign = (await getCampaign(db, id))!;
+
+  // Resend may have accepted the batch before the connection dropped.
+  let calls = 0;
+  const dropped = (async () => { calls++; throw new TypeError('network connection lost'); }) as unknown as typeof fetch;
+  const result = await deliverBatch(db, campaign, origin, { fetcher: dropped });
+  assert.deepEqual(result, { claimed: 3, throttled: null });
+  campaign = (await getCampaign(db, id))!;
+  assert.deepEqual(campaign.counts, { queued: 0, sending: 0, sent: 0, failed: 3, skipped: 0 });
+  assert.equal((await deliverBatch(db, campaign, origin, { fetcher: dropped })).claimed, 0);
+  assert.equal(calls, 1, 'the batch is never sent a second time');
+
+  const id2 = await createCampaign(db, draft);
+  await startCampaign(db, id2, draft, people(2), 'resend', 'x');
+  delete process.env.RESEND_API_KEY;
+  await assert.rejects(deliverBatch(db, (await getCampaign(db, id2))!, origin, { fetcher: dropped }), /Resend is not set up/);
+  assert.deepEqual((await getCampaign(db, id2))!.counts, { queued: 2, sending: 0, sent: 0, failed: 0, skipped: 0 }, 'nothing was claimed');
+  env();
+});
+
+test('a refused key pauses the send with nothing lost, and Stop during a throttled batch skips those rows instead of re-queueing them', async () => {
+  env();
+  const db = d1();
+  const id = await createCampaign(db, draft);
+  await startCampaign(db, id, draft, people(4), 'resend', 'x');
+  const refused = fakeResend(() => Response.json({ message: 'API key is invalid' }, { status: 401 }));
+  await assert.rejects(deliverBatch(db, (await getCampaign(db, id))!, origin, { fetcher: refused.fetcher }), /API key is invalid.*Nothing was sent/);
+  assert.deepEqual((await getCampaign(db, id))!.counts, { queued: 4, sending: 0, sent: 0, failed: 0, skipped: 0 }, 'the batch went back, untouched');
+
+  // Stop lands while a batch is out; the provider then throttles it.
+  const claimed = await claimBatch(db, id, 4);
+  await cancelCampaign(db, id);
+  await recordOutcomes(db, id, claimed.map(r => ({ email: r.email, status: 'retry' as const })));
+  assert.deepEqual((await getCampaign(db, id))!.counts, { queued: 0, sending: 0, sent: 0, failed: 0, skipped: 4 });
+});
+
+test('opening a stopped campaign settles claims from a tab that closed mid-batch', async () => {
+  env();
+  const db = d1();
+  const id = await createCampaign(db, draft);
+  await startCampaign(db, id, draft, people(2), 'resend', 'x');
+  const t0 = new Date('2026-11-23T00:00:00Z');
+  await claimBatch(db, id, 2, t0);
+  await cancelCampaign(db, id, t0);
+  await sweepStale(db, id, new Date(t0.getTime() + STALE_CLAIM_MS + 1));
+  assert.deepEqual((await getCampaign(db, id))!.counts, { queued: 0, sending: 0, sent: 0, failed: 2, skipped: 0 });
 });

@@ -5,7 +5,7 @@ import { ArrowLeft, Translate } from '@phosphor-icons/react/ssr';
 import { int } from '@/lib/ai-usage/format';
 import { field, button, secondary } from '@/components/admin/premium/shared';
 import { COLOR_NAMES, EMAIL_COLORS, LOCALES, LOCALE_NAMES, type Locale } from '@/lib/email/brand';
-import { unknownTags, type CampaignContent } from '@/lib/email/render';
+import { contentProblem, hasVersion, unknownTagMessage, unknownTags, type CampaignContent } from '@/lib/email/render';
 import { SNIPPETS, TAG_SNIPPETS, TEMPLATES } from '@/lib/email/snippets';
 import { describeAudience, type AudienceInput, type ProviderId } from '@/lib/email/input';
 import type { CodeEditorHandle } from './code-editor';
@@ -15,6 +15,7 @@ import { emailApi, when, STATUS_LABEL, STATUS_MARK, type AudienceCount, type Cam
 
 const CodeEditor = dynamic(() => import('./code-editor').then(m => m.CodeEditor), { ssr: false, loading: () => <div className="h-full animate-pulse bg-[var(--console-surface)]" /> });
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+const MAX_THROTTLES = 12;
 const section = 'grid gap-4 border-t border-border pt-5';
 const h2 = 'text-base font-medium';
 const tool = 'h-8 w-32 rounded-[5px] border border-input bg-transparent px-2 text-xs text-foreground outline-none focus:border-[var(--console-accent)]';
@@ -97,10 +98,14 @@ export function CampaignEditor({ initial, failed, providers, testAddress, onBack
     if (draining.current) return;
     draining.current = true; setLive(true); setError('');
     try {
+      let throttles = 0;
       while (draining.current) {
-        const r = await emailApi<{ claimed: number; throttled: boolean; campaign: Campaign }>('', { action: 'deliver', id: campaign.id });
+        const r = await emailApi<{ claimed: number; throttled: string | null; campaign: Campaign }>('', { action: 'deliver', id: campaign.id });
         setCampaign(r.campaign);
         if (r.campaign.status !== 'sending') break;
+        // About a minute of throttling in a row is a quota, not a burst: stop and say so.
+        throttles = r.throttled ? throttles + 1 : 0;
+        if (throttles >= MAX_THROTTLES) { setError(`Sending paused: ${r.throttled}. The sender is refusing more email for now; resume later.`); break; }
         // Throttled, or the last emails are still in flight from another tab.
         if (r.throttled || !r.claimed) await sleep(r.throttled ? 5000 : 3000);
       }
@@ -123,7 +128,8 @@ export function CampaignEditor({ initial, failed, providers, testAddress, onBack
   const c = campaign.counts;
   const done = c.sent + c.failed + c.skipped;
   const sending = campaign.status === 'sending';
-  const canSend = !locked && !tags.length && content.en.subject.trim() && content.en.html.trim() && info.configured && (count?.reachable ?? 0) > 0;
+  const problem = contentProblem(content);
+  const canSend = !locked && !problem && info.configured && (count?.reachable ?? 0) > 0;
 
   return <div className="grid gap-6" onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); void save(); } }}>
     <div className="flex flex-wrap items-center gap-4">
@@ -161,7 +167,7 @@ export function CampaignEditor({ initial, failed, providers, testAddress, onBack
       <div className="flex flex-wrap items-end justify-between gap-x-4 border-b border-border">
         <div role="tablist" aria-label="Language" className="flex gap-6">
           {LOCALES.map(l => <button key={l} role="tab" type="button" aria-selected={lang === l} onClick={() => setLang(l)} className="-mb-px border-b-2 border-transparent py-3 text-[13px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-[var(--console-accent)] aria-selected:border-[var(--console-accent)] aria-selected:text-foreground">
-            {LOCALE_NAMES[l]}{l !== 'en' && !(content[l].subject.trim() && content[l].html.trim()) && <span className="ml-2 text-xs text-[var(--console-amber)]">uses English</span>}
+            {LOCALE_NAMES[l]}{l !== 'en' && !hasVersion(content, l) && <span className="ml-2 text-xs text-[var(--console-amber)]">uses English</span>}
           </button>)}
         </div>
         {lang !== 'en' && !locked && <button type="button" className={secondary + ' mb-2'} disabled={!!busy || !content.en.html.trim()} onClick={() => void translate()}><Translate className="size-3.5" aria-hidden />{busy === 'translate' ? 'Translating…' : 'Translate from English'}</button>}
@@ -189,7 +195,7 @@ export function CampaignEditor({ initial, failed, providers, testAddress, onBack
         <label className="grid gap-2 text-sm">Preview with the name<input className={field + ' w-48'} value={sample} onChange={e => setSample(e.target.value)} placeholder="Empty shows the fallback" /></label>
         <p className="pb-2 text-xs text-[var(--console-faint)]">The Kallo logo, footer and unsubscribe link are added to every email. Write only the part inside the card.</p>
       </div>
-      {tags.length > 0 && <p role="alert" className="text-sm text-foreground mark-bad">Unknown merge tag{tags.length > 1 ? 's' : ''} {tags.join(', ')}. Use {'{{name}}'}, {'{{email}}'} or {'{{unsubscribe_url}}'}.</p>}
+      {tags.length > 0 && <p role="alert" className="text-sm text-foreground mark-bad">{unknownTagMessage(tags)}</p>}
     </section>
 
     <section className={section + ' max-w-3xl'}>
@@ -211,11 +217,11 @@ export function CampaignEditor({ initial, failed, providers, testAddress, onBack
       </div>
       {!confirming
         ? <div><button type="button" className={button} disabled={!canSend || !!busy} onClick={() => setConfirming(true)}>Review and send…</button>
-          {!canSend && <p className="mt-2 text-xs text-[var(--console-faint)]">{!content.en.subject.trim() || !content.en.html.trim() ? 'The English version needs a subject and a body.' : !info.configured ? 'Set up a sender first.' : !count ? 'Waiting for the audience count.' : count.reachable === 0 ? 'Nobody matches this audience.' : tags.length ? 'Fix the merge tags first.' : ''}</p>}</div>
+          {!canSend && <p className="mt-2 text-xs text-[var(--console-faint)]">{problem ?? (!info.configured ? 'Set up a sender first.' : !count ? 'Waiting for the audience count.' : count.reachable === 0 ? 'Nobody matches this audience.' : '')}</p>}</div>
         : <div className="grid gap-4 border-t border-border pt-5">
           <p className="text-sm font-medium">Send “{draft.name}” to {int(count?.reachable ?? 0)} {count?.reachable === 1 ? 'person' : 'people'} with {info.label}, from {info.from}?</p>
           <ul className="grid gap-1 text-xs text-muted-foreground">
-            <li>Audience: {describeAudience(audience)} · {int(count?.byLocale.en ?? 0)} get English, {int(count?.byLocale.vi ?? 0)} get Vietnamese{!(content.vi.subject.trim() && content.vi.html.trim()) && ' (falls back to English)'}.</li>
+            <li>Audience: {describeAudience(audience)} · {int(count?.byLocale.en ?? 0)} get English, {int(count?.byLocale.vi ?? 0)} get Vietnamese{!hasVersion(content, 'vi') && ' (falls back to English)'}.</li>
             <li>The email is locked once sending starts. Sending can be stopped, but sent emails can’t be recalled.</li>
             {!info.bulkAllowed && <li className="text-[var(--console-amber)]">This goes through Cloudflare Email, which is meant for one-to-one mail.</li>}
           </ul>

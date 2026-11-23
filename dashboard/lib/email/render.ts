@@ -15,10 +15,26 @@ export function escapeHtml(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-/** A language with no subject or body falls back to English. */
+/** A language has a version once it has both a subject and a body. */
+export function hasVersion(content: CampaignContent, locale: Locale): boolean {
+  return Boolean(content[locale].subject.trim() && content[locale].html.trim());
+}
+
+/** A language with no version falls back to English. */
 export function pickLocale(content: CampaignContent, wanted: Locale): Locale {
-  const c = content[wanted];
-  return c.subject.trim() && c.html.trim() ? wanted : 'en';
+  return hasVersion(content, wanted) ? wanted : 'en';
+}
+
+export function unknownTagMessage(tags: string[]): string {
+  const known = MERGE_TAGS.map(t => `{{${t}}}`);
+  return `Unknown merge tag${tags.length > 1 ? 's' : ''}: ${tags.join(', ')}. Use ${known.slice(0, -1).join(', ')} or ${known.at(-1)}.`;
+}
+
+/** Why this content cannot be sent yet, or null. The server and the editor both use it. */
+export function contentProblem(content: CampaignContent): string | null {
+  if (!hasVersion(content, 'en')) return 'The English version needs a subject and a body. Other languages fall back to it.';
+  const tags = unknownTags(content);
+  return tags.length ? unknownTagMessage(tags) : null;
 }
 
 /** Merge tags the renderer does not know, e.g. a typo like {{nmae}}. */
@@ -131,7 +147,7 @@ export function htmlToText(html: string): string {
     .replace(/<hr\b[^>]*>/gi, '\n———\n')
     .replace(/<[^>]+>/g, '')
     .replace(/&(#\d+|#x[\da-f]+|[a-z\d]+);/gi, (whole, name: string) => {
-      if (name[0] === '#') { const code = name[1].toLowerCase() === 'x' ? parseInt(name.slice(2), 16) : parseInt(name.slice(1), 10); return code === 847 ? '' : String.fromCodePoint(code); }
+      if (name[0] === '#') { const code = name[1].toLowerCase() === 'x' ? parseInt(name.slice(2), 16) : parseInt(name.slice(1), 10); return code === 847 ? '' : code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : whole; }
       return ENTITIES[name.toLowerCase()] ?? whole;
     })
     .replace(/[ \t ]+/g, ' ')
