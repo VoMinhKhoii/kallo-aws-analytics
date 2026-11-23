@@ -106,6 +106,8 @@ test('translation refuses an empty or cut-off answer instead of returning partia
   await assert.rejects(translateContent(source, 'en', 'vi', empty), /came back empty/);
   const cut = { run: async (_m: string, input: { max_tokens: number }) => ({ response: '<p>Xin', usage: { completion_tokens: input.max_tokens } }) } as unknown as Parameters<typeof translateContent>[3];
   await assert.rejects(translateContent(source, 'en', 'vi', cut), /cut off/);
+  const huge = { ...source, html: '<p>' + 'word '.repeat(12000) + '</p>' };
+  await assert.rejects(translateContent(huge, 'en', 'vi', empty), /too long to translate/, 'refused before calling the model');
   const ok = { run: async () => ({ response: '<p>Xin chào</p>', usage: { completion_tokens: 5 } }) } as unknown as Parameters<typeof translateContent>[3];
   assert.equal((await translateContent(source, 'en', 'vi', ok)).html, '<p>Xin chào</p>');
 });

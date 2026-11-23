@@ -53,6 +53,35 @@ async function pool(messages: Outgoing[], width: number, one: (m: Outgoing) => P
   return results;
 }
 
+// After a 422 nothing in the batch was sent. Split it in halves and send each
+// half as its own batch, one call at a time under Resend's rate limit, until
+// the rejected addresses stand alone. A 429 or the call cap puts whatever is
+// left back in the queue for the next round; a 401/403 refuses the rest.
+const ISOLATE_CALLS = 20;      // with the first call, well under the 50 subrequests a Worker may make
+const ISOLATE_GAP_MS = 600;    // Resend allows about 2 requests a second
+async function isolate(indexes: number[], messages: Outgoing[], sendBatch: (m: Outgoing[]) => Promise<Response>, wait = (ms: number) => new Promise(r => setTimeout(r, ms))): Promise<Result[]> {
+  const results: Result[] = new Array(messages.length);
+  const groups = [indexes.slice(0, Math.ceil(indexes.length / 2)), indexes.slice(Math.ceil(indexes.length / 2))];
+  let calls = 0;
+  let stop: Result | null = null;
+  while (groups.length) {
+    const group = groups.shift()!;
+    if (stop || calls >= ISOLATE_CALLS) { for (const i of group) results[i] = stop ?? { status: 'retry', error: 'Resend rejected part of this batch; the rest is checked next round' }; continue; }
+    await wait(ISOLATE_GAP_MS);
+    calls++;
+    let r: Response;
+    try { r = await sendBatch(group.map(i => messages[i])); }
+    catch (e) { const error = `Could not reach Resend: ${e instanceof Error ? e.message : String(e)}`; for (const i of group) results[i] = { status: 'failed', error }; continue; }
+    const b = await r.json().catch(() => null) as { data?: { id?: string }[]; message?: string } | null;
+    if (r.ok) { group.forEach((i, k) => { results[i] = { status: 'sent', messageId: b?.data?.[k]?.id ?? null }; }); continue; }
+    const result = unsent(r.status, `Resend ${r.status}: ${b?.message ?? 'no error body'}`);
+    if (r.status === 422 && group.length > 1) { const half = Math.ceil(group.length / 2); groups.unshift(group.slice(0, half), group.slice(half)); continue; }
+    if (result.status === 'retry' || result.status === 'blocked') stop = result;
+    for (const i of group) results[i] = result;
+  }
+  return results;
+}
+
 async function resendBatch(messages: Outgoing[], fetcher: typeof fetch): Promise<Result[]> {
   const key = process.env.RESEND_API_KEY?.trim();
   if (!key) throw new EmailError('Resend is not set up.');
@@ -69,19 +98,7 @@ async function resendBatch(messages: Outgoing[], fetcher: typeof fetch): Promise
     return messages.map((): Result => ({ status: 'failed', error }));
   }
   const body = await response.json().catch(() => null) as { data?: { id?: string }[]; message?: string } | null;
-  // A batch is validated as a whole: one bad address rejects all of it and
-  // nothing is sent. Retry one by one so only that address fails.
-  if (response.status === 422 && messages.length > 1) {
-    return pool(messages, 5, async (m): Promise<Result> => {
-      try {
-        const r = await post('/emails', payload(m));
-        const b = await r.json().catch(() => null) as { id?: string; message?: string } | null;
-        return r.ok ? { status: 'sent', messageId: b?.id ?? null } : unsent(r.status, `Resend ${r.status}: ${b?.message ?? 'no error body'}`);
-      } catch (e) {
-        return { status: 'failed', error: `Could not reach Resend: ${e instanceof Error ? e.message : String(e)}` };
-      }
-    });
-  }
+  if (response.status === 422 && messages.length > 1) return isolate(messages.map((m, i) => i), messages, m => post('/emails/batch', m.map(payload)));
   if (!response.ok) {
     const result = unsent(response.status, `Resend ${response.status}: ${body?.message ?? 'no error body'}`);
     return messages.map(() => result);

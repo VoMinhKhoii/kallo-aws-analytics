@@ -220,22 +220,22 @@ test('a missing link secret refuses before claiming, and a Cloudflare suppressio
   assert.equal((await getCampaign(db, later))!.counts.queued, 1, 'a temporary Cloudflare suppression does not block later campaigns');
 });
 
-test('a batch Resend rejects for one bad address is retried one by one, so only that address fails', async () => {
+test('a batch Resend rejects for one bad address is split until that address stands alone, so only it fails', async () => {
   env();
   const db = d1();
   const id = await createCampaign(db, draft);
-  await startCampaign(db, id, draft, people(3), 'resend', 'x');
-  const calls: string[] = [];
+  await startCampaign(db, id, draft, people(5), 'resend', 'x');
+  const batches: number[] = [];
   const fetcher = (async (url: string, init: RequestInit) => {
-    calls.push(url);
-    if (url.endsWith('/emails/batch')) return Response.json({ message: 'Invalid `to` field' }, { status: 422 });
-    const to = (JSON.parse(String(init.body)) as { to: string[] }).to[0];
-    return to === 'p1@example.test' ? Response.json({ message: 'Invalid `to` field' }, { status: 422 }) : Response.json({ id: 'one-' + to });
+    assert.ok(url.endsWith('/emails/batch'), 'never one call per email');
+    const body = JSON.parse(String(init.body)) as { to: string[] }[];
+    batches.push(body.length);
+    return body.some(m => m.to[0] === 'p3@example.test') ? Response.json({ message: 'Invalid `to` field' }, { status: 422 }) : Response.json({ data: body.map((_, k) => ({ id: 'm' + k })) });
   }) as unknown as typeof fetch;
   const result = await deliverBatch(db, (await getCampaign(db, id))!, origin, { fetcher });
-  assert.deepEqual(result, { claimed: 3, throttled: null, stalled: false });
-  assert.equal(calls.filter(u => u.endsWith('/emails')).length, 3);
-  assert.deepEqual((await getCampaign(db, id))!.counts, { queued: 0, sending: 0, sent: 2, failed: 1, skipped: 0 });
+  assert.deepEqual(result, { claimed: 5, throttled: null, stalled: false });
+  assert.ok(batches.length <= 1 + Math.ceil(Math.log2(5)) * 2, `few calls (${batches.join(',')})`);
+  assert.deepEqual((await getCampaign(db, id))!.counts, { queued: 0, sending: 0, sent: 4, failed: 1, skipped: 0 });
 });
 
 test('a batch counts as stalled only when nothing in it went out', async () => {
