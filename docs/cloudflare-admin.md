@@ -122,15 +122,18 @@ a sender.
   `List-Unsubscribe-Post` headers pointing at the public
   `/api/email/unsubscribe` route, signed with `EMAIL_LINK_SECRET`. Unsubscribes
   and permanent bounces join the suppression list, which every later send skips.
-- **Senders.** Resend (`RESEND_API_KEY`) is meant for campaigns, from
-  `Kallo <hello@news.kallo.fit>` by default. Cloudflare Email Sending
-  (`CLOUDFLARE_EMAIL_API_TOKEN`, from `mail.kallo.fit`) works too, but Cloudflare
-  allows transactional mail only, and Kallo's sign-in emails share that sender. The
-  page warns before a campaign goes out through it.
+- **Senders.** Resend (`RESEND_API_KEY`) is meant for campaigns. Both senders
+  use Kallo's address, `Kallo <notifications@mail.kallo.fit>`, by default
+  (`RESEND_FROM` / `CLOUDFLARE_EMAIL_FROM` override it). Cloudflare Email Sending
+  (`CLOUDFLARE_EMAIL_API_TOKEN`) works too, but Cloudflare allows transactional
+  mail only, and Kallo's sign-in emails share that sender. The page warns before a
+  campaign goes out through it.
 
-Before the first real campaign: verify `news.kallo.fit` in Resend (its DNS records
-go on the `kallo.fit` zone), set `RESEND_API_KEY` and `EMAIL_LINK_SECRET`, and
-apply the D1 migration.
+`mail.kallo.fit` is already verified in Kallo's Resend account. The Worker's
+`RESEND_API_KEY` and `CLOUDFLARE_EMAIL_API_TOKEN` are copies of Kallo's
+`kallo-prod-resend-api-key` and `kallo-prod-cloudflare-email-api-token` in Google
+Secret Manager. `EMAIL_LINK_SECRET` exists only in the Worker; changing it breaks
+the unsubscribe links in every email already sent.
 
 ## Secrets
 

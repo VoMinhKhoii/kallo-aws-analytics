@@ -20,7 +20,7 @@ export interface ProviderInfo { id: ProviderId; label: string; from: string; con
 const CLOUDFLARE_ACCOUNT = '26f3d8cb79c027fa0cd34d6c9f152ab3';
 const replyTo = () => process.env.EMAIL_REPLY_TO?.trim() || 'support@kallo.fit';
 const fromFor = (id: ProviderId) => id === 'resend'
-  ? process.env.RESEND_FROM?.trim() || 'Kallo <hello@news.kallo.fit>'
+  ? process.env.RESEND_FROM?.trim() || 'Kallo <notifications@mail.kallo.fit>'
   : process.env.CLOUDFLARE_EMAIL_FROM?.trim() || 'Kallo <notifications@mail.kallo.fit>';
 
 export function providers(): ProviderInfo[] {

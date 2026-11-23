@@ -67,7 +67,7 @@ test('a campaign queues once, skips suppressed addresses, sends in batches with 
   const id = await createCampaign(db, draft);
   await suppress(db, 'P3@example.test', 'unsubscribed', null);
   const list = [...people(60), { email: 'vi@example.test', userId: null, name: null, locale: 'vi' as const }];
-  assert.equal(await startCampaign(db, id, draft, list, 'resend', 'Kallo <hello@news.kallo.fit>'), true);
+  assert.equal(await startCampaign(db, id, draft, list, 'resend', 'Kallo <notifications@mail.kallo.fit>'), true);
   assert.equal(await startCampaign(db, id, draft, list, 'resend', 'x'), false, 'a second start is refused');
   await assert.rejects(saveDraft(db, id, draft), /already been sent/);
 
@@ -150,7 +150,7 @@ test('a dropped connection fails the batch instead of resending it, and an unset
   env();
   const db = d1();
   const id = await createCampaign(db, draft);
-  await startCampaign(db, id, draft, people(3), 'resend', 'Kallo <hello@news.kallo.fit>');
+  await startCampaign(db, id, draft, people(3), 'resend', 'Kallo <notifications@mail.kallo.fit>');
   let campaign = (await getCampaign(db, id))!;
 
   // Resend may have accepted the batch before the connection dropped.
