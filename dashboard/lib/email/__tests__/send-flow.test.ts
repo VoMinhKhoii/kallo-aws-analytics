@@ -177,7 +177,7 @@ test('a refused key pauses the send with nothing lost, and Stop during a throttl
   const id = await createCampaign(db, draft);
   await startCampaign(db, id, draft, people(4), 'resend', 'x');
   const refused = fakeResend(() => Response.json({ message: 'API key is invalid' }, { status: 401 }));
-  await assert.rejects(deliverBatch(db, (await getCampaign(db, id))!, origin, { fetcher: refused.fetcher }), /API key is invalid.*were not sent/);
+  await assert.rejects(deliverBatch(db, (await getCampaign(db, id))!, origin, { fetcher: refused.fetcher }), /API key is invalid.*were not sent; fix the sender, then resume/);
   assert.deepEqual((await getCampaign(db, id))!.counts, { queued: 4, sending: 0, sent: 0, failed: 0, skipped: 0 }, 'the batch went back, untouched');
 
   // Stop lands while a batch is out; the provider then throttles it.
@@ -260,6 +260,6 @@ test('a refusal that lands after Stop says the emails were not sent and leaves t
   const id = await createCampaign(db, draft);
   await startCampaign(db, id, draft, people(2), 'resend', 'x');
   const fetcher = (async () => { await cancelCampaign(db, id); return Response.json({ message: 'API key is invalid' }, { status: 401 }); }) as unknown as typeof fetch;
-  await assert.rejects(deliverBatch(db, (await getCampaign(db, id))!, origin, { fetcher }), /were not sent/);
+  await assert.rejects(deliverBatch(db, (await getCampaign(db, id))!, origin, { fetcher }), (e: Error) => /were not sent\.$/.test(e.message) && !/resume/.test(e.message));
   assert.deepEqual((await getCampaign(db, id))!.counts, { queued: 0, sending: 0, sent: 0, failed: 0, skipped: 2 });
 });

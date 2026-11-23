@@ -3,7 +3,7 @@ import type { Locale } from './brand';
 import { renderEmail, type CampaignContent } from './render';
 import { providerInfo, sendAll } from './providers';
 import { linkSecretConfigured, unsubscribeUrl } from './link-token';
-import { claimBatch, finishIfDone, recordOutcomes, type Campaign, type EmailDb, type Outcome } from './store';
+import { claimBatch, finishIfDone, getCampaign, recordOutcomes, type Campaign, type EmailDb, type Outcome } from './store';
 import { EmailError, type ProviderId } from './input';
 
 // The page drains a started campaign one batch per request, so a send needs
@@ -48,7 +48,11 @@ export async function deliverBatch(db: EmailDb, campaign: Campaign, origin: stri
   // The provider refused the key or domain: stop here rather than walk the rest
   // of the audience into the same refusal. With Cloudflare, other emails in the
   // batch may have gone out before the refusal; those stay recorded as sent.
-  if (blocked) throw new EmailError(`${blocked}. The refused emails were not sent; fix the sender, then resume.`);
+  if (blocked) {
+    // After Stop those rows are skipped and there is nothing to resume.
+    const stillSending = (await getCampaign(db, campaign.id))?.status === 'sending';
+    throw new EmailError(`${blocked}. The refused emails were not sent${stillSending ? '; fix the sender, then resume.' : '.'}`);
+  }
   await finishIfDone(db, campaign.id, now());
   const retry = outcomes.find(o => o.status === 'retry');
   return { claimed: claimed.length, throttled: retry ? (retry.error ?? 'Throttled') : null, stalled: outcomes.every(o => o.status === 'retry') };
