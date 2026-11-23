@@ -21,8 +21,9 @@ export function AudiencePicker({ value, onChange, onCount }: { value: AudienceIn
 
   useEffect(() => {
     setCount(null); onCount?.(null); setError('');
-    if (value.kind === 'users' && !value.userIds.length) return;
+    // Claim the key first, so a count still in flight for the old audience is ignored.
     asked.current = key;
+    if (value.kind === 'users' && !value.userIds.length) { setBusy(false); return; }
     const timer = setTimeout(async () => {
       setBusy(true);
       try { const c = await emailApi<AudienceCount>('', { action: 'count', audience: value }); if (asked.current === key) { setCount(c); onCount?.(c); } }
@@ -34,7 +35,16 @@ export function AudiencePicker({ value, onChange, onCount }: { value: AudienceIn
   }, [key]);
 
   const set = (patch: Partial<Group>) => onChange({ ...group, ...patch });
-  const pick = (next: Account[]) => { setPicked(next); onChange({ kind: 'users', userIds: next.map(a => a.id) }); };
+  // The saved IDs are the selection; `picked` only holds labels for the ones chosen
+  // in this visit, so accounts picked earlier stay in until removed.
+  const ids = value.kind === 'users' ? value.userIds : [];
+  const toggle = (a: Account) => {
+    const has = ids.includes(a.id);
+    setPicked(p => has ? p.filter(x => x.id !== a.id) : [...p.filter(x => x.id !== a.id), a]);
+    onChange({ kind: 'users', userIds: has ? ids.filter(id => id !== a.id) : [...ids, a.id] });
+  };
+  const labelled = picked.filter(a => ids.includes(a.id));
+  const earlier = ids.length - labelled.length;
 
   return <div className="grid gap-4">
     <label className="grid gap-2 text-sm">Send to
@@ -50,9 +60,9 @@ export function AudiencePicker({ value, onChange, onCount }: { value: AudienceIn
       <label className="grid gap-2 text-sm">Joined through<input type="date" className={field} value={group.joinedTo ?? ''} onChange={e => set({ joinedTo: e.target.value || undefined })} /></label>
     </div>}
     {value.kind === 'users' && <>
-      <AccountSearch selected={picked} onSelect={a => pick(picked.some(p => p.id === a.id) ? picked.filter(p => p.id !== a.id) : [...picked, a])} />
-      <div className="flex flex-wrap gap-2">{picked.map(a => <button type="button" key={a.id} className={secondary} onClick={() => pick(picked.filter(p => p.id !== a.id))}>{a.email} ×</button>)}</div>
-      {value.userIds.length > picked.length && <p className="text-xs text-muted-foreground">{value.userIds.length - picked.length} account{value.userIds.length - picked.length === 1 ? '' : 's'} picked earlier.</p>}
+      <AccountSearch selected={labelled} onSelect={toggle} />
+      <div className="flex flex-wrap gap-2">{labelled.map(a => <button type="button" key={a.id} className={secondary} onClick={() => toggle(a)}>{a.email} ×</button>)}</div>
+      {earlier > 0 && <p className="text-xs text-muted-foreground">{earlier} account{earlier === 1 ? '' : 's'} picked earlier, still included.</p>}
     </>}
     <div className="border-t border-border pt-4 text-sm" aria-live="polite">
       {error ? <p className="text-foreground mark-bad">{error}</p>

@@ -82,8 +82,10 @@ async function cloudflareEach(messages: Outgoing[], fetcher: typeof fetch): Prom
       });
       const body = await response.json().catch(() => null) as { success?: boolean; errors?: { code: number; message: string }[]; result?: { message_id?: string | null; permanent_bounces?: string[] | null; suppressed_recipients?: string[] | null } } | null;
       if (!response.ok || !body?.success) return unsent(response.status, `Cloudflare ${response.status}: ${body?.errors?.map(e => `${e.code} ${e.message}`).join('; ') || 'no error body'}`);
-      // Bounces and suppressed recipients come back as HTTP 200.
-      if (body.result?.permanent_bounces?.length || body.result?.suppressed_recipients?.length) return { status: 'failed', error: 'The receiving server refused it, or the address is on Cloudflare’s suppression list', bounced: true };
+      // Both come back as HTTP 200. Only a permanent bounce joins our list;
+      // Cloudflare's own suppressions can be temporary (soft bounces expire).
+      if (body.result?.permanent_bounces?.length) return { status: 'failed', error: 'The receiving server refused this address', bounced: true };
+      if (body.result?.suppressed_recipients?.length) return { status: 'failed', error: 'The address is on Cloudflare’s suppression list for now' };
       return { status: 'sent', messageId: body.result?.message_id ?? null };
     } catch (e) {
       return { status: 'failed', error: `Could not reach Cloudflare: ${e instanceof Error ? e.message : String(e)}` };

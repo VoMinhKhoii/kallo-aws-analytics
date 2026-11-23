@@ -9,7 +9,7 @@ export interface Recipient { email: string; name: string | null; locale: Locale 
 export interface RenderedEmail { locale: Locale; subject: string; preheader: string; html: string; text: string }
 
 export const MERGE_TAGS = ['name', 'email', 'unsubscribe_url'] as const;
-const TAG = /\{\{\s*([a-z_]+)\s*(?:\|\s*([^}]*?)\s*)?\}\}/g;
+const TAG = /\{\{\s*([A-Za-z0-9_]+)\s*(?:\|\s*([^}]*?)\s*)?\}\}/g;
 
 export function escapeHtml(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');

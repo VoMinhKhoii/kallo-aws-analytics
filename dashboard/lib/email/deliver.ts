@@ -2,7 +2,7 @@ import 'server-only';
 import type { Locale } from './brand';
 import { renderEmail, type CampaignContent } from './render';
 import { providerInfo, sendAll } from './providers';
-import { unsubscribeUrl } from './link-token';
+import { linkSecretConfigured, unsubscribeUrl } from './link-token';
 import { claimBatch, finishIfDone, recordOutcomes, type Campaign, type EmailDb, type Outcome } from './store';
 import { EmailError, type ProviderId } from './input';
 
@@ -20,6 +20,7 @@ export async function deliverBatch(db: EmailDb, campaign: Campaign, origin: stri
   // Checked before claiming: once rows are claimed, nothing puts them back.
   const sender = providerInfo(provider);
   if (!sender.configured) throw new EmailError(`${sender.label} is not set up. ${sender.setup}`);
+  if (!linkSecretConfigured()) throw new EmailError('EMAIL_LINK_SECRET is not set, so unsubscribe links cannot be made. Set it, then resume.');
   const claimed = await claimBatch(db, campaign.id, BATCH_SIZE[provider], now());
   if (!claimed.length) { await finishIfDone(db, campaign.id, now()); return { claimed: 0, throttled: null }; }
   const messages = claimed.map(r => {
@@ -40,9 +41,10 @@ export async function deliverBatch(db: EmailDb, campaign: Campaign, origin: stri
     outcomes = claimed.map(r => ({ email: r.email, status: 'failed', error }));
   }
   await recordOutcomes(db, campaign.id, outcomes, now());
-  // The provider refused the key or domain: nothing went out, so stop here
-  // rather than walk the rest of the audience into the same refusal.
-  if (blocked) throw new EmailError(`${blocked}. Nothing was sent; fix the sender, then resume.`);
+  // The provider refused the key or domain: stop here rather than walk the rest
+  // of the audience into the same refusal. With Cloudflare, other emails in the
+  // batch may have gone out before the refusal; those stay recorded as sent.
+  if (blocked) throw new EmailError(`${blocked}. The refused emails are back in the queue; fix the sender, then resume.`);
   await finishIfDone(db, campaign.id, now());
   const retry = outcomes.find(o => o.status === 'retry');
   return { claimed: claimed.length, throttled: retry ? (retry.error ?? 'Throttled') : null };

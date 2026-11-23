@@ -49,7 +49,13 @@ export function CampaignEditor({ initial, failed, providers, testAddress, onBack
   const tags = unknownTags(content);
   const draft = { name: name.trim() || 'Untitled campaign', content, audience };
 
-  const edit = <T,>(set: (v: T) => void) => (v: T) => { set(v); setDirty(true); setNotice(''); };
+  // Every edit bumps the revision, so a save or translation that finishes late can
+  // tell whether the founder kept typing while it was out.
+  const revision = useRef(0);
+  const saving = useRef(false);
+  const latest = useRef(content);
+  latest.current = content;
+  const edit = <T,>(set: (v: T) => void) => (v: T) => { set(v); revision.current++; setDirty(true); setNotice(''); };
   const setLocale = (patch: Partial<CampaignContent[Locale]>) => edit(setContent)({ ...content, [lang]: { ...content[lang], ...patch } });
 
   useEffect(() => {
@@ -65,15 +71,25 @@ export function CampaignEditor({ initial, failed, providers, testAddress, onBack
     try { return await fn(); } catch (e) { setError((e as Error).message); } finally { setBusy(''); }
   }
   async function save() {
-    if (locked) return;
-    const ok = await run('save', () => emailApi('', { action: 'save', id: campaign.id, draft }));
-    if (ok) { setDirty(false); setNotice('Saved.'); onChanged(); }
+    // One save at a time (button and Cmd/Ctrl+S alike), so an older draft never lands last.
+    if (locked || saving.current) return;
+    saving.current = true;
+    const started = revision.current;
+    try {
+      const ok = await run('save', () => emailApi('', { action: 'save', id: campaign.id, draft }));
+      if (ok) { if (revision.current === started) setDirty(false); setNotice('Saved.'); onChanged(); }
+    } finally { saving.current = false; }
   }
   async function translate() {
     const from: Locale = 'en'; const to = lang;
     if (content[to].html.trim() && !window.confirm(`Replace the ${LOCALE_NAMES[to]} version with a fresh translation?`)) return;
+    const before = content[to];
     const result = await run('translate', () => emailApi<{ content: CampaignContent[Locale] }>('', { action: 'translate', source: content[from], from, to }));
-    if (result) { edit(setContent)({ ...content, [to]: result.content }); setNotice(`Machine translation added. Read it through before sending.`); }
+    if (!result) return;
+    // Edits made while it ran stay; if the target itself was edited, keep those instead.
+    if (latest.current[to] !== before) { setError(`The ${LOCALE_NAMES[to]} version changed while translating, so the translation was not applied.`); return; }
+    setContent(c => ({ ...c, [to]: result.content })); revision.current++; setDirty(true);
+    setNotice('Machine translation added. Read it through before sending.');
   }
   function applyTemplate(id: string) {
     const t = TEMPLATES.find(x => x.id === id); if (!t) return;

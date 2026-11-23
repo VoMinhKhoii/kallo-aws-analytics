@@ -53,6 +53,7 @@ test('<!-- section --> splits the body into alternating bands', () => {
 
 test('unknown merge tags are reported, known ones are not', () => {
   assert.deepEqual(unknownTags(content({ html: '{{nmae}} {{name}} {{ unsubscribe_url }} {{email|x}}' })), ['{{nmae}}']);
+  assert.deepEqual(unknownTags(content({ html: '{{Name}} {{firstName}} {{name2}}' })), ['{{Name}}', '{{firstName}}', '{{name2}}'], 'capitals and digits are caught too');
 });
 
 test('the plain-text part keeps links, lists and paragraphs readable', () => {

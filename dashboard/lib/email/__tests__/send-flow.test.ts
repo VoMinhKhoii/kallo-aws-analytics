@@ -177,7 +177,7 @@ test('a refused key pauses the send with nothing lost, and Stop during a throttl
   const id = await createCampaign(db, draft);
   await startCampaign(db, id, draft, people(4), 'resend', 'x');
   const refused = fakeResend(() => Response.json({ message: 'API key is invalid' }, { status: 401 }));
-  await assert.rejects(deliverBatch(db, (await getCampaign(db, id))!, origin, { fetcher: refused.fetcher }), /API key is invalid.*Nothing was sent/);
+  await assert.rejects(deliverBatch(db, (await getCampaign(db, id))!, origin, { fetcher: refused.fetcher }), /API key is invalid.*back in the queue/);
   assert.deepEqual((await getCampaign(db, id))!.counts, { queued: 4, sending: 0, sent: 0, failed: 0, skipped: 0 }, 'the batch went back, untouched');
 
   // Stop lands while a batch is out; the provider then throttles it.
@@ -197,4 +197,25 @@ test('opening a stopped campaign settles claims from a tab that closed mid-batch
   await cancelCampaign(db, id, t0);
   await sweepStale(db, id, new Date(t0.getTime() + STALE_CLAIM_MS + 1));
   assert.deepEqual((await getCampaign(db, id))!.counts, { queued: 0, sending: 0, sent: 0, failed: 2, skipped: 0 });
+});
+
+test('a missing link secret refuses before claiming, and a Cloudflare suppression fails the send without a permanent local bounce', async () => {
+  env();
+  const db = d1();
+  const id = await createCampaign(db, draft);
+  await startCampaign(db, id, draft, people(2), 'cloudflare', 'x');
+  delete process.env.EMAIL_LINK_SECRET;
+  await assert.rejects(deliverBatch(db, (await getCampaign(db, id))!, origin), /EMAIL_LINK_SECRET/);
+  assert.deepEqual((await getCampaign(db, id))!.counts, { queued: 2, sending: 0, sent: 0, failed: 0, skipped: 0 }, 'nothing was claimed');
+  env();
+
+  const fetcher = (async (_url: string, init: RequestInit) => {
+    const to = (JSON.parse(String(init.body)) as { to: string[] }).to[0];
+    return Response.json({ success: true, result: { message_id: null, suppressed_recipients: to === 'p0@example.test' ? [to] : [] } });
+  }) as unknown as typeof fetch;
+  await deliverBatch(db, (await getCampaign(db, id))!, origin, { fetcher });
+  assert.deepEqual((await getCampaign(db, id))!.counts, { queued: 0, sending: 0, sent: 1, failed: 1, skipped: 0 });
+  const later = await createCampaign(db, draft);
+  await startCampaign(db, later, draft, people(1), 'cloudflare', 'x');
+  assert.equal((await getCampaign(db, later))!.counts.queued, 1, 'a temporary Cloudflare suppression does not block later campaigns');
 });
