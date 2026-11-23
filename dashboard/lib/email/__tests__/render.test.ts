@@ -108,7 +108,7 @@ test('translation refuses an empty or cut-off answer instead of returning partia
   await assert.rejects(translateContent(source, 'en', 'vi', cut), /cut off/);
   const huge = { ...source, html: '<p>' + 'word '.repeat(12000) + '</p>' };
   await assert.rejects(translateContent(huge, 'en', 'vi', empty), /too long to translate/, 'refused before calling the model');
-  const windowFull = { run: async () => ({ response: '<p>Xin', usage: { prompt_tokens: 20000, completion_tokens: 3990 } }) } as unknown as Parameters<typeof translateContent>[3];
+  const windowFull = { run: async () => ({ response: '<p>Xin', usage: { prompt_tokens: 23800, completion_tokens: 190 } }) } as unknown as Parameters<typeof translateContent>[3];
   await assert.rejects(translateContent(source, 'en', 'vi', windowFull), /cut off/, 'hitting the 24k window counts as cut off');
   const failing = { run: async () => { throw new Error('5021: context window exceeded'); } } as unknown as Parameters<typeof translateContent>[3];
   await assert.rejects(translateContent(source, 'en', 'vi', failing), /could not translate/);
