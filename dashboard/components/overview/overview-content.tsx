@@ -2,40 +2,72 @@
 import { int, ms, pct, delta } from '@/lib/ai-usage/format';
 import Link from 'next/link';
 import { useState } from 'react';
+import { CaretRight } from '@phosphor-icons/react/ssr';
 import { LatestMeals } from './latest-meals';
 import { PageHeader } from '@/components/shared/page-header';
 import { PageSkeleton } from '@/components/shared/page-skeleton';
-import { KpiStrip } from '@/components/shared/kpi-strip';
 import { Change } from '@/components/shared/kpi-cell';
 import { MetricSection } from '@/components/shared/metric-section';
 import { LazySeriesChart } from '@/components/charts/lazy-series-chart';
+import { cn } from '@/lib/utils';
+import { MetricTabs, type MetricTab } from '@/components/shared/metric-tabs';
 import { useOverview } from './use-overview';
-import { plural } from '@/lib/traces-ui/graph';
+
+type Tab = 'meals' | 'errors' | 'users' | 'latency' | 'signups';
+
 export function Overview({win,setWin}:{win:string;setWin:(v:string)=>void}) {
-  const {data,error,loading,refresh:reloadOverview}=useOverview(win);const [reload,setReload]=useState(0);const refresh=()=>{reloadOverview();setReload(n=>n+1);};
-  if(loading&&!data)return <PageSkeleton title="Overview" charts={2} cells={6} rows/>;
-  const labels={meals:'Meals analysed',errorRate:'Error rate',p95MealLatencyMs:'p95 meal latency',dau:'DAU',newSignups:'New signups',openFeedback:'Open feedback'};
-  const items=data?Object.entries(labels).map(([key,label])=>{
-    const k=key as keyof typeof data.kpis,metric=data.kpis[k],change=delta(metric.comparisonValue,metric.previousValue,k==='errorRate');
-    const goodUp=!(k==='errorRate'||k==='p95MealLatencyMs'||k==='openFeedback');
-    return {label,value:metric.value==null?'—':k==='errorRate'?pct(metric.value):k==='p95MealLatencyMs'?ms(metric.value):int(metric.value),sub:k==='dau'?'Last full UTC day':k==='openFeedback'?'Current snapshot':k==='errorRate'?(win === '24h' ? 'Rolling last 24 hours' : win === '30d' ? 'last 7 d' : 'Selected 7 d'):undefined,title:k==='p95MealLatencyMs'?data.coverage.p95Source:undefined,delta:<Change change={change} goodUp={goodUp} title={win === '24h' ? "vs preceding 24 hours" : "vs prior window of complete days"}/>};
-  }):[];
-  // The line under the title: what needs doing first, then the window in one sentence.
-  const finding=data?(()=>{const a=data.needsAttention,alerts=[a.failedMealsToday&&`${plural(a.failedMealsToday,'meal')} failed today`,a.feedbackOpenOver48h&&`${plural(a.feedbackOpenOver48h,'feedback report')} open over 48 h`,a.grantsEndingWithin3Days&&`${plural(a.grantsEndingWithin3Days,'free Premium grant')} ending within 3 days`].filter(Boolean),meals=data.kpis.meals.value,p95=data.kpis.p95MealLatencyMs.value;
-    const window=`${meals==null?'No meal count':`${int(meals)} meal${meals===1?'':'s'} analysed`} ${win==='24h'?'in the last 24 hours':`in the last ${data.days} days`}${p95==null?'':`, p95 ${ms(p95)}`}.`;
-    return alerts.length?`${alerts.join(', ').replace(/^./,c=>c.toUpperCase())}. ${window}`:`Nothing needs attention. ${window}`;})():undefined;
-  return <div className="mx-auto grid max-w-[1320px] gap-4 py-4"><PageHeader title="Overview" description={finding} window={win} onWindow={setWin} refreshing={loading} onRefresh={refresh}/>{error&&<MetricSection title="Overview unavailable" error={error} retry={refresh}/>} {data&&<>
-    <KpiStrip items={items}/>{!data.kpis.meals.value&&<p className="text-sm text-muted-foreground">No meals were analysed in this window.</p>}
-    <div className="grid gap-4 lg:grid-cols-3">
-      <div className="min-w-0 lg:col-span-2"><LazySeriesChart compact height={236} windowLabel={win} hourly={win === '24h'} seriesSubs={{errors:win==='30d'?'last 7 d':win}} bars title={win === '24h' ? "Meals per hour" : "Meals per day"} rows={data.mealsDaily} series={[{key:'analysed',label:'Analysed',color:'var(--console-data)'},{key:'errors',label:'Errors',color:'var(--console-brick)'}]}/></div>
-      <MetricSection card title="Needs attention" description="Open work, counted now.">
-        <div className="-mx-4 flex flex-1 flex-col divide-y divide-border border-t border-border">{[{href:'/traces?status=error&w=24h',label:'Failed meals today',sub:'Non-meal input is not counted',count:data.needsAttention.failedMealsToday,tone:'mark-bad'},{href:'/feedback',label:'Feedback open over 48 h',sub:'Reports waiting for triage',count:data.needsAttention.feedbackOpenOver48h,tone:'mark-warn'},{href:'/premium',label:'Free Premium ending in 3 days',sub:'Grants about to lapse',count:data.needsAttention.grantsEndingWithin3Days,tone:''}].map(i=><Link key={i.href} href={i.href} className="group flex flex-1 items-center gap-4 px-4 py-4 hover:bg-secondary"><span className={`tabular w-10 text-2xl font-medium leading-none ${i.count?'':'text-muted-foreground'}`}>{int(i.count)}</span><span className="grid min-w-0 flex-1"><span className={`text-sm ${i.count?i.tone:''}`}>{i.label}</span><span className="text-xs text-muted-foreground">{i.sub}</span></span><span className="text-muted-foreground group-hover:text-foreground">→</span></Link>)}</div>
-      </MetricSection>
-    </div>
-    <div className="grid gap-4 lg:grid-cols-3">
-      <div className="min-w-0 lg:col-span-2"><LatestMeals version={reload}/></div>
-      <LazySeriesChart compact height={236} windowLabel={win} seriesSubs={{dau:"today so far",wau:"through today"}} step integer title="Active users" subtitle={win === '24h' ? "last 7 days, UTC days" : "UTC days"} rows={data.activeUsersDaily} series={[{key:'dau',label:'DAU',color:'var(--console-data)'},{key:'wau',label:'WAU',color:'var(--console-quiet)'}]}/>
-    </div>
-    <p className="text-xs text-muted-foreground">DAU counts distinct users per UTC day; WAU covers that day and the six before it. Error history is kept for seven days, and rejected non-meal input is not counted as an error. {win === '24h' ? "Changes compare the preceding 24 hours." : Object.values(data.kpis).some(k=>k.previousValue!=null) ? "Changes compare complete days only." : "No change is shown yet: the prior window has too few complete days of data."}</p>
-  </>}</div>;
+  const {data,error,loading,refresh:reloadOverview}=useOverview(win);
+  const [reload,setReload]=useState(0);
+  const [tab,setTab]=useState<Tab>('meals');
+  const refresh=()=>{reloadOverview();setReload(n=>n+1);};
+  if(loading&&!data)return <PageSkeleton title="Overview" charts={1} cells={3} rows/>;
+
+  const hourly=win==='24h';
+  const vs=hourly?'vs prior 24 h':'vs prior period';
+  const vsTitle=hourly?'vs preceding 24 hours':'vs prior window of complete days';
+  const k=data?.kpis;
+  const change=(m:{comparisonValue:number|null;previousValue:number|null},goodUp:boolean,points=false)=><Change change={delta(m.comparisonValue,m.previousValue,points)} goodUp={goodUp} vs={vs} title={vsTitle}/>;
+
+  const tabs:MetricTab[]=k?[
+    {key:'meals',label:'Meals analysed',value:k.meals.value==null?'—':int(k.meals.value),change:change(k.meals,true)},
+    {key:'errors',label:'Error rate',value:k.errorRate.value==null?'—':pct(k.errorRate.value),change:change(k.errorRate,false,true),title:hourly?undefined:'Last 7 days: error history is kept for seven days'},
+    {key:'users',label:'Daily active users',value:k.dau.value==null?'—':int(k.dau.value),change:change(k.dau,true),title:'Last full UTC day. The chart also draws weekly active users.'},
+    {key:'latency',label:'p95 meal latency',value:k.p95MealLatencyMs.value==null?'—':ms(k.p95MealLatencyMs.value),change:change(k.p95MealLatencyMs,false),title:data!.coverage.p95Source},
+    {key:'signups',label:'New signups',value:k.newSignups.value==null?'—':int(k.newSignups.value),change:change(k.newSignups,true)},
+  ]:[];
+  const attention=data?[
+    {href:'/traces?status=error&w=24h',label:'Failed meals today',count:data.needsAttention.failedMealsToday,tone:'var(--console-brick)'},
+    {href:'/feedback',label:'Feedback open over 48 h',count:data.needsAttention.feedbackOpenOver48h,tone:'var(--console-amber)'},
+    {href:'/premium',label:'Premium ending in 3 d',count:data.needsAttention.grantsEndingWithin3Days,tone:'var(--console-accent)'},
+    {href:'/feedback',label:'Open feedback',count:k?.openFeedback.value??0,tone:'var(--console-data)'},
+  ]:[];
+  const errorRows=data?data.mealsDaily.map(r=>({date:r.date,rate:r.errors==null||!r.analysed?null:r.errors/r.analysed})):[];
+
+  const attentionList=<section aria-label="Needs attention">
+    <h2 className="text-base font-medium">Needs attention</h2>
+    <ul className="mt-2">
+      {attention.map(i=><li key={i.label}><Link href={i.href} className="group flex items-center gap-3 border-b border-border py-3 text-sm focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--console-accent)]">
+        <span className="size-1.5 shrink-0 rounded-full" style={{background:i.count?i.tone:'var(--console-quiet)'}}/>
+        <span className={cn('min-w-0 flex-1',i.count?'':'text-muted-foreground')}>{i.label}</span>
+        <span className={cn('tabular',i.count?'font-medium':'text-[var(--console-faint)]')}>{int(i.count)}</span>
+        <CaretRight aria-hidden="true" className="size-3 shrink-0 text-[var(--console-quiet)] transition-colors group-hover:text-foreground"/>
+      </Link></li>)}
+    </ul>
+  </section>;
+  const chart={bare:true,compact:true,height:340,windowLabel:win} as const;
+  return <div className="grid gap-8">
+    <PageHeader title="Overview" window={win} onWindow={setWin} refreshing={loading} onRefresh={refresh}/>
+    {error&&<MetricSection title="Overview unavailable" error={error} retry={refresh}/>}
+    {data&&k&&<>
+      <MetricTabs tabs={tabs} value={tab} onChange={v=>setTab(v as Tab)} aside={attentionList}>
+        {tab==='meals'&&<LazySeriesChart {...chart} title={hourly?'Meals per hour':'Meals per day'} hourly={hourly} integer rows={data.mealsDaily} series={[{key:'analysed',label:'Analysed',color:'var(--console-data)'},{key:'errors',label:'Errors',color:'var(--console-brick)'}]}/>}
+        {tab==='errors'&&<LazySeriesChart {...chart} title="Error rate" hourly={hourly} format="percent" rows={errorRows} series={[{key:'rate',label:'Error rate',color:'var(--console-brick)'}]}/>}
+        {tab==='users'&&<LazySeriesChart {...chart} title="Active users" step integer rows={data.activeUsersDaily} series={[{key:'dau',label:'DAU',color:'var(--console-data)'},{key:'wau',label:'WAU',color:'var(--console-data-2)'}]}/>}
+        {tab==='latency'&&<LazySeriesChart {...chart} title="p95 meal latency" format="duration" rows={data.dailyExtras} series={[{key:'p95',label:'p95 meal latency',color:'var(--console-data)'}]}/>}
+        {tab==='signups'&&<LazySeriesChart {...chart} title="New signups" integer rows={data.dailyExtras} series={[{key:'signups',label:'New signups',color:'var(--console-data)'}]}/>}
+      </MetricTabs>
+      <LatestMeals version={reload}/>
+      <p className="max-w-[90ch] text-xs leading-5 text-[var(--console-faint)]">DAU counts distinct users per UTC day; WAU covers that day and the six before it. Error history is kept for seven days, and rejected non-meal input is not counted as an error. {hourly ? 'Changes compare the preceding 24 hours.' : Object.values(data.kpis).some(m=>m.previousValue!=null) ? 'Changes compare complete days only.' : 'No change is shown yet: the prior window has too few complete days of data.'}</p>
+    </>}
+  </div>;
 }

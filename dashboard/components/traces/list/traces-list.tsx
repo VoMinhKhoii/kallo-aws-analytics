@@ -8,9 +8,9 @@ import type { TraceList,TraceSummary } from '@/lib/traces/types';
 import { refreshPending, pendingEligible } from '@/lib/traces-ui/pending';
 import { useRefocus } from '@/lib/use-refocus';
 import { PageHeader } from '@/components/shared/page-header';
-import { ms } from '@/lib/ai-usage/format';
 import { TraceFilters } from './trace-filters';
-import { TraceRow } from './trace-row';
+import { TraceHeader, TraceRow } from './trace-row';
+import { MagnifyingGlass } from '@phosphor-icons/react/ssr';
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export default function TracesList() {
   const router=useRouter();const [win,setWin,ready]=useUrlState('w','24h',['24h','7d','30d']);
@@ -58,15 +58,12 @@ export default function TracesList() {
   };window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[active,rows,router,win]);
   useEffect(()=>{if(active>=0)document.querySelector(`[data-trace-id="${rows[active]?.id}"]`)?.scrollIntoView({block:'nearest'});},[active,rows]);
   const set=(key:string,value:string)=>{const setters:Record<string,(v:string)=>void>={status:setStatus,model:setModel,flags:setFlags,user:setUser};setters[key]?.(value);};
-  // The line under the title: what the loaded rows say, so it never claims more than is shown.
-  const timed=rows.map(r=>r.durationMs).filter((v):v is number=>v!=null).sort((x,y)=>x-y);const failed=rows.filter(r=>r.status==='error').length;
-  const summary=rows.length?`${plural(rows.length,'meal')}${next?' loaded':''} ${win==='24h'?'in the last 24 hours':`in the last ${win.replace('d','')} days`}: ${failed?`${failed} failed`:'none failed'}${timed.length?`, median ${ms((timed[Math.floor((timed.length-1)/2)]+timed[Math.ceil((timed.length-1)/2)])/2)}, slowest ${ms(timed.at(-1))}`:''}.`:undefined;
-  return <div className="mx-auto grid w-full min-w-0 max-w-[1320px] grid-cols-[minmax(0,1fr)] gap-4 py-4"><PageHeader title="Traces" description={summary} window={win} onWindow={setWin} refreshing={loading} onRefresh={()=>setVersion(v=>v+1)}/>
-    <form className="relative" onSubmit={e=>{e.preventDefault();if(uuid.test(draft.trim()))router.push(`/traces/${draft.trim()}?w=${win}`);else setQ(draft.trim());}}><input ref={search} aria-label="Search meal text or request UUID" placeholder="Search meal text or request UUID…" maxLength={160} value={draft} onChange={e=>setDraft(e.target.value)} className="h-10 w-full rounded-md border border-input bg-background pl-4 pr-6 text-sm"/><kbd className="pointer-events-none absolute right-3 top-2.5 rounded border border-border px-2 text-xs text-muted-foreground">/</kbd></form>
+  return <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)] gap-6"><PageHeader title="Traces" window={win} onWindow={setWin} refreshing={loading} onRefresh={()=>setVersion(v=>v+1)}/>
+    <form className="relative" onSubmit={e=>{e.preventDefault();if(uuid.test(draft.trim()))router.push(`/traces/${draft.trim()}?w=${win}`);else setQ(draft.trim());}}><input ref={search} aria-label="Search meal text or request UUID" placeholder="Search meals or paste a request ID" maxLength={160} value={draft} onChange={e=>setDraft(e.target.value)} className="h-10 w-full border-b border-input bg-transparent pr-10 pl-7 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-[var(--console-accent)]"/><MagnifyingGlass aria-hidden="true" className="pointer-events-none absolute top-3 left-0 size-4 text-muted-foreground"/><kbd className="pointer-events-none absolute top-2.5 right-0 inline-flex h-5 items-center rounded-[3px] border border-input px-1.5 font-sans text-xs text-[var(--console-faint)]">/</kbd></form>
     <TraceFilters {...{status,model,flags,models,set,user}}/>
     <p aria-live="polite" className="text-xs text-muted-foreground">{loading&&!rows.length?'Loading traces…':rows.length?`${rows.length} shown`:plural(0,'trace')}{next&&<> · <button disabled={more} onClick={loadMore} className="underline">{more?'Loading…':'Load more'}</button></>}{rows.some(r=>pendingEligible(r))&&' · Live'}</p>
     {error&&<p role="alert" className="text-sm text-foreground mark-bad">{error} <button onClick={()=>setVersion(v=>v+1)} className="underline">Retry</button></p>}
-    <div aria-label="Meal traces">{!ready||loading&&!rows.length?Array.from({length:10},(_,i)=><div key={i} className="h-14 animate-pulse border-b border-border bg-secondary/30"/>):rows.map((row,i)=><TraceRow key={row.id} row={row} active={i===active} win={win}/>)}</div>
+    <div role="table" aria-label="Meal traces" className="border-t border-border"><TraceHeader/>{!ready||loading&&!rows.length?Array.from({length:10},(_,i)=><div key={i} className="h-16 animate-pulse border-b border-border"/>):rows.map((row,i)=><TraceRow key={row.id} row={row} active={i===active} win={win}/>)}</div>
     {!loading&&!rows.length&&!error&&<p className="py-6 text-center text-sm text-muted-foreground">No meals match these filters.</p>}
   </div>;
 }

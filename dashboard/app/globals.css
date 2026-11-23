@@ -3,71 +3,120 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Neutral dark, dark only: grey grounds with no tint, blue is the one data hue.
-   Text uses two colours (foreground, muted-foreground); status colour lives in marks. */
+/* Warm neutrals with no cards: regions are split by 1px rules, and colour is
+   kept for data. One bronze accent marks the selected tab and focus. Main
+   series are slate; rust marks errors and bad changes, green good ones.
+   `.dark` on <html> is set before paint from the stored choice or the OS
+   (components/shell/theme-toggle). */
 :root {
-  color-scheme: dark;
-  --radius: 0.75rem;
+  color-scheme: light;
+  --radius: 0.3125rem;
 
-  --console-bg: #0a0a0a;
-  --console-panel: #141414;
-  --console-surface: #1f1f1f;
-  --console-ink: #ededed;
-  --console-muted: #a1a1a1;
-  --console-quiet: #6b6b6b; /* neutral series beside the data hue, never text */
-  --console-rule: #262626;
-  --console-data: #4c8df6; /* the main series only */
-  --console-green: #3fb950;
-  --console-amber: #f0883e; /* warnings: orange, not yellow */
-  --console-brick: #f85149;
-  --console-blue: #4c8df6; /* focus */
+  --console-bg: #ffffff;
+  --console-panel: #ffffff;
+  --console-surface: #f8f6f3;
+  --console-hover: #f1eeea;
+  --console-ink: #20201e;
+  --console-muted: #625d57;
+  --console-faint: #77716c; /* captions and axis ticks */
+  --console-quiet: #b0a9a2; /* neutral series and idle icons, never body text */
+  --console-rule: #e8e4df;
+  --console-rule-strong: #ccc5be;
+  --console-accent: #806047;
+  --console-data: #46505b; /* main series */
+  --console-data-2: #b08a5e; /* second series */
+  --console-green: #2e7d4f;
+  --console-amber: #b7791f;
+  --console-brick: #ae5235;
+  --console-blue: var(--console-accent); /* focus */
 
-  --background: #0a0a0a;
-  --foreground: #ededed;
-  --card: #141414;
-  --card-foreground: #ededed;
-  --popover: #1f1f1f;
-  --popover-foreground: #ededed;
-  --primary: #ededed;
-  --primary-foreground: #0a0a0a;
-  --secondary: #1a1a1a;
-  --secondary-foreground: #ededed;
-  --muted: #1a1a1a;
-  --muted-foreground: #a1a1a1;
-  --accent: #1f1f1f;
-  --accent-foreground: #ededed;
-  --destructive: #f85149;
-  --border: #262626;
-  --input: #333333;
-  --ring: #4c8df6;
+  --shadow-card: none;
+  --shadow-raised: none;
+
+  --background: var(--console-bg);
+  --foreground: var(--console-ink);
+  --card: var(--console-panel);
+  --card-foreground: var(--console-ink);
+  --popover: #ffffff;
+  --popover-foreground: var(--console-ink);
+  --primary: var(--console-ink);
+  --primary-foreground: #ffffff;
+  --secondary: var(--console-hover);
+  --secondary-foreground: var(--console-ink);
+  --muted: var(--console-surface);
+  --muted-foreground: var(--console-muted);
+  --accent: var(--console-hover);
+  --accent-foreground: var(--console-ink);
+  --destructive: var(--console-brick);
+  --border: var(--console-rule);
+  --input: var(--console-rule-strong);
+  --ring: var(--console-accent);
 
   /* Model series. lib/ai-usage/models.ts pins known models to a slot so a
      model keeps its color on every chart. */
-  --model-1: #4c8df6;
-  --model-2: #fb923c;
-  --model-3: #34c493;
-  --model-4: #c792ea;
-  --model-5: #f472b6;
-  --model-6: #22d3ee;
-  --model-7: #a1a1a1;
+  --model-1: #46505b;
+  --model-2: #ae5235;
+  --model-3: #2e7d4f;
+  --model-4: #3d6aa3;
+  --model-5: #b08a5e;
+  --model-6: #8e98a3;
+  --model-7: #7a8f63;
 
-  --chart-1: #4c8df6;
-  --chart-2: #f0883e;
-  --chart-3: #34c493;
-  --chart-4: #c792ea;
-  --chart-5: #6b6b6b;
+  --chart-1: #46505b;
+  --chart-2: #ae5235;
+  --chart-3: #2e7d4f;
+  --chart-4: #3d6aa3;
+  --chart-5: #b0a9a2;
 
-  --sidebar: #0a0a0a;
-  --sidebar-foreground: #ededed;
-  --sidebar-accent: #1a1a1a;
-  --sidebar-accent-foreground: #ededed;
-  --sidebar-border: #262626;
+  --sidebar: var(--console-bg);
+  --sidebar-foreground: var(--console-ink);
+  --sidebar-accent: var(--console-hover);
+  --sidebar-accent-foreground: var(--console-ink);
+  --sidebar-border: var(--console-rule);
+}
+
+.dark {
+  color-scheme: dark;
+
+  --console-bg: #000000;
+  --console-panel: #000000;
+  --console-surface: #0d0b0a;
+  --console-hover: #141210;
+  --console-ink: #ffffff;
+  --console-muted: #c2bbb4;
+  --console-faint: #9a938c;
+  --console-quiet: #4f4944;
+  --console-rule: #1c1a18;
+  --console-rule-strong: #36312d;
+  --console-accent: #c5ac98;
+  --console-data: #aeb6bf;
+  --console-data-2: #cfa77a;
+  --console-green: #62b384;
+  --console-amber: #dcaa55;
+  --console-brick: #d0805f;
+
+  --popover: #0d0b0a;
+  --primary-foreground: #000000;
+
+  --model-1: #aeb6bf;
+  --model-2: #d0805f;
+  --model-3: #62b384;
+  --model-4: #6f9bd6;
+  --model-5: #cfa77a;
+  --model-6: #6c7580;
+  --model-7: #9db584;
+
+  --chart-1: #aeb6bf;
+  --chart-2: #d0805f;
+  --chart-3: #62b384;
+  --chart-4: #6f9bd6;
+  --chart-5: #4f4944;
 }
 
 @theme inline {
-  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
-  /* No second typeface: `font-mono` renders Geist too. */
-  --font-mono: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  /* No second typeface: `font-mono` renders DM Sans too. */
+  --font-mono: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -108,11 +157,13 @@
   }
   body {
     @apply bg-background text-sm text-foreground;
-    font-family: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
-    font-feature-settings: "tnum" 1, "ss01" 1;
+    font-family: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+    font-feature-settings: "tnum" 1;
+    font-synthesis: none;
   }
-  /* Browser bold is 700; the scale stops at 600. */
-  b, strong, th { font-weight: 600; }
+  /* DM Sans is variable: 450 and 550 sit between the usual steps. */
+  b, strong { font-weight: 550; }
+  th { font-weight: 400; }
 }
 
 /* A status shows as a dot before its text, so text keeps its two colours. */
@@ -136,11 +187,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Inspector takes layout width; summary remains above both siblings. */
-.trace-workspace { display: flex; flex-direction: column; height: calc(100dvh - 56px); min-height: 800px; }
-.trace-detail-body { display: flex; min-height: 520px; height: 0; }
-.trace-step-panel { position: relative; z-index: 20; width: var(--drawer-width); max-width: 65%; display: flex; flex-direction: column; box-shadow: -8px 0 24px rgb(0 0 0 / .16); }
-.trace-panel-scroll { min-height: 0; flex: 1; }
-.react-flow { --xy-background-color: var(--console-bg); --xy-controls-button-background-color: var(--console-panel); --xy-controls-button-color: var(--console-ink); --xy-controls-button-border-color: var(--console-rule); }
+/* The trace canvas fills the viewport under the top bar. */
+.trace-workspace { display: flex; flex-direction: column; height: calc(100dvh - 60px); min-height: 800px; }
+.react-flow { --xy-background-color: var(--console-bg); --xy-edge-stroke: var(--console-quiet); --xy-controls-button-background-color: var(--console-panel); --xy-controls-button-background-color-hover: var(--console-surface); --xy-controls-button-color: var(--console-ink); --xy-controls-button-color-hover: var(--console-ink); --xy-controls-button-border-color: var(--console-rule); }
 .react-flow .react-flow__panel { margin: 16px; }
-@media (max-width: 767px) { .trace-workspace:has(.trace-step-panel) .meal-summary-details { display: none; } .trace-workspace:has(.trace-step-panel) .meal-summary { position: sticky; top: 56px; z-index: 21; background: var(--console-bg); } .trace-step-panel { position: fixed; inset: auto 0 0; width: 100%; max-width: 100%; height: 55dvh; max-height: var(--sheet-height, 55dvh); border-left: 0; border-top: 1px solid var(--console-rule); } }

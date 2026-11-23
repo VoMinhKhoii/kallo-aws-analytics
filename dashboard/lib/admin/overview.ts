@@ -8,6 +8,8 @@ export interface Overview {
   kpis:Record<'meals'|'errorRate'|'p95MealLatencyMs'|'dau'|'newSignups'|'openFeedback',OverviewKpi>;
   mealsDaily:{date:string;analysed:number;errors:number|null}[];
   activeUsersDaily:{date:string;dau:number;wau:number}[];
+  /** Per UTC day, same days as activeUsersDaily: new accounts and p95 meal latency. */
+  dailyExtras:{date:string;signups:number;p95:number|null}[];
   needsAttention:{failedMealsToday:number;feedbackOpenOver48h:number;grantsEndingWithin3Days:number};
   coverage:{currentMealDays:number;previousMealDays:number;requiredDays:number;errorRetentionDays:7;p95Source:string;openFeedbackHistory:false};
 }
@@ -41,7 +43,9 @@ export async function loadOverview(db:AppDb, window:number|'24h', now=new Date()
       (SELECT count(*)::int FROM public.analysis_model_budget_events e WHERE ${reservation} AND e.created_at>=d AND e.created_at<d+interval '1 day') AS analysed,
       CASE WHEN d>=${midnight}-interval '6 days' THEN (SELECT count(*)::int FROM public.pipeline_requests WHERE created_at>=d AND created_at<d+interval '1 day' AND status='error' AND to_jsonb(pipeline_requests)->>'error_code' IS DISTINCT FROM 'non_food_input' AND to_jsonb(pipeline_requests)->>'replay_of_request_id' IS NULL) END AS errors,
       (SELECT count(DISTINCT user_hash)::int FROM analytics.v_meals WHERE logged_at>=d AND logged_at<d+interval '1 day' AND user_hash<>'') AS dau,
-      (SELECT count(DISTINCT user_hash)::int FROM analytics.v_meals WHERE logged_at>=d-interval '6 days' AND logged_at<d+interval '1 day' AND user_hash<>'') AS wau
+      (SELECT count(DISTINCT user_hash)::int FROM analytics.v_meals WHERE logged_at>=d-interval '6 days' AND logged_at<d+interval '1 day' AND user_hash<>'') AS wau,
+      (SELECT count(*)::int FROM auth.users WHERE created_at>=d AND created_at<d+interval '1 day') AS signups,
+      (SELECT percentile_cont(0.95) WITHIN GROUP (ORDER BY total_ms) FROM public.pipeline_runs run WHERE created_at>=d AND created_at<d+interval '1 day' AND NOT EXISTS (SELECT 1 FROM public.pipeline_requests r WHERE r.id::text=to_jsonb(run)->>'request_id' AND to_jsonb(r)->>'replay_of_request_id' IS NOT NULL)) AS p95
     FROM dates ORDER BY d`),
     db.execute(sql`SELECT (SELECT count(*)::int FROM public.user_feedback WHERE status='open') AS open_feedback,
       (SELECT count(*)::int FROM public.user_feedback WHERE status='open' AND created_at<${now.toISOString()}::timestamptz-interval '48 hours') AS old_feedback,
@@ -64,6 +68,7 @@ export async function loadOverview(db:AppDb, window:number|'24h', now=new Date()
   return {days,through:today,kpis:{meals:metric('meals'),errorRate:hourly?{value:rate(value),comparisonValue:rate(current),previousValue:rate(prev)}:{value:rate(errors7[0]),comparisonValue:null,previousValue:null},p95MealLatencyMs:metric('p95','run_days'),
     dau:{...metric('dau'),value:Number(yesterday?.dau||0),...(hourly?{comparisonValue:null,previousValue:null}:{})},newSignups:metric('signups'),openFeedback:{value:Number(a.open_feedback),comparisonValue:null,previousValue:null}},
     mealsDaily:(hourly?hours:daily.slice(1)).map(r=>({date:String(r.date),analysed:Number(r.analysed),errors:num(r.errors)})),activeUsersDaily:daily.slice(1).map(r=>({date:String(r.date),dau:Number(r.dau),wau:Number(r.wau)})),
+    dailyExtras:daily.slice(1).map(r=>({date:String(r.date),signups:Number(r.signups),p95:num(r.p95)})),
     needsAttention:{failedMealsToday:Number(a.failed_today),feedbackOpenOver48h:Number(a.old_feedback),grantsEndingWithin3Days:Number(a.ending_soon)},
     coverage:{currentMealDays:Number(current.meal_days),previousMealDays:Number(prev.meal_days),requiredDays:required,errorRetentionDays:7,p95Source:'pipeline_runs.total_ms; known replays excluded while request identity is retained (7 days)',openFeedbackHistory:false}};
 }

@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import { Area, AreaChart, CartesianGrid, ReferenceArea, XAxis, YAxis } from "@/components/charts/recharts";
-import { CalendarDays } from "lucide-react";
+import { CalendarDots } from "@phosphor-icons/react/ssr";
 import { Card, CardHeader, CardTitle, CardDescription, CardAction, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -44,7 +44,7 @@ export function TrendCard({
               <ToggleGroupItem key={k} value={k}>{m.label}</ToggleGroupItem>
             ))}
           </ToggleGroup>
-          <Button variant="outline" size="icon" aria-label="Pick dates"><CalendarDays /></Button>
+          <Button variant="outline" size="icon" aria-label="Pick dates"><CalendarDots /></Button>
         </CardAction>
       </CardHeader>
       <CardContent>

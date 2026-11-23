@@ -98,3 +98,10 @@ export function afterResponseText(calls:TraceCall[],trace:Pick<TraceGraphDetail,
 export function timelineEnd(steps: Step[], duration: number): number {
   return Math.max(duration, ...steps.filter(s => ['stage','attempt','chunk','selector','rescue','after-response','unattributed'].includes(s.kind) && s.timingKnown !== false).map(s => s.start + (s.duration ?? 0)), 1);
 }
+
+/** The model chain a list row shows: call 1 then call 2, or every model when roles are unknown. */
+export function summaryModels(r:{modelCall1:string|null;modelCall2:string|null;models:string[]}) {
+  return [r.modelCall1,r.modelCall2].filter((x,i,a)=>x&&a.indexOf(x)===i).map(m=>modelLabel(m!)).join(' → ')||r.models.map(modelLabel).join(', ');
+}
+/** Day, month and time in UTC, the way the trace tables print it. */
+export const utcWhen=(iso:string)=>new Date(iso).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'UTC'});

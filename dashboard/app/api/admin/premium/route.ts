@@ -4,6 +4,7 @@ import { authorizeRequest } from '@/lib/auth';
 import { connectAdminDb } from '@/lib/admin/db/client';
 import { getOperator } from '@/lib/admin/operator';
 import { getOverview, listEndingSoon } from '@/lib/admin/premium/accounts/overview';
+import { getEndingByDay, getPremiumTrend } from '@/lib/admin/premium/accounts/trend';
 import { searchAccounts } from '@/lib/admin/premium/accounts/search';
 import { getAccount } from '@/lib/admin/premium/accounts/lookup';
 import { getWelcomeOffer, saveWelcomeOffer } from '@/lib/admin/premium/offer/offer';
@@ -47,7 +48,9 @@ export async function GET(request: Request) {
     const offer = await getWelcomeOffer(connection.db);
     const activity = await listActivity(connection.db);
     const ending = await listEndingSoon(connection.db);
-    return json({ overview, offer, activity, ending });
+    const trend = await getPremiumTrend(connection.db);
+    const endingByDay = await getEndingByDay(connection.db);
+    return json({ overview, offer, activity, ending, trend, endingByDay });
   } catch (error) {
     if (error instanceof z.ZodError) return json({ error: error.issues[0].message }, 400);
     console.error('[admin/premium] Read failed');
