@@ -1,0 +1,147 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { DatabaseSync } from 'node:sqlite';
+import { cancelCampaign, claimBatch, createCampaign, getCampaign, saveDraft, startCampaign, suppress, STALE_CLAIM_MS, type EmailDb, type QueuedRecipient } from '../store';
+import { deliverBatch } from '../deliver';
+import { verifyLinkToken } from '../link-token';
+import type { Draft } from '../input';
+
+// The real migration in real SQLite, behind the slice of the D1 API the store
+// uses (batch = one transaction, as in D1).
+function d1(): EmailDb {
+  const db = new DatabaseSync(':memory:');
+  db.exec(readFileSync(new URL('../../../migrations/0001_email_campaigns.sql', import.meta.url), 'utf8'));
+  const returns = (q: string) => /^\s*SELECT|\bRETURNING\b/i.test(q);
+  const make = (q: string, values: unknown[] = []) => {
+    // node:sqlite cannot bind ?1-style numbered parameters positionally; D1 can.
+    const numbered = /\?\d/.test(q);
+    const args = (numbered ? [Object.fromEntries(values.map((v, i) => [`p${i + 1}`, v]))] : values) as never[];
+    const exec = () => {
+      const s = db.prepare(numbered ? q.replace(/\?(\d+)/g, '$p$1') : q);
+      if (returns(q)) { const results = s.all(...args); return { results, meta: { changes: results.length } }; }
+      return { results: [], meta: { changes: Number(s.run(...args).changes) } };
+    };
+    return {
+      bind: (...v: unknown[]) => make(q, v),
+      all: async <T,>() => ({ results: exec().results as T[] }),
+      first: async <T,>() => (exec().results[0] ?? null) as T | null,
+      run: async () => ({ meta: exec().meta }),
+      exec,
+    };
+  };
+  return {
+    prepare: (q: string) => make(q),
+    batch: async (statements: unknown[]) => {
+      db.exec('BEGIN');
+      try { const out = (statements as ReturnType<typeof make>[]).map(s => s.exec()); db.exec('COMMIT'); return out; }
+      catch (e) { db.exec('ROLLBACK'); throw e; }
+    },
+  } as unknown as EmailDb;
+}
+
+const draft: Draft = {
+  name: 'Launch',
+  content: { en: { subject: 'Hi {{name}}', preheader: '', html: '<p>Hello {{name}}</p>' }, vi: { subject: 'Chào {{name}}', preheader: '', html: '<p>Xin chào {{name}}</p>' } },
+  audience: { kind: 'everyone' },
+};
+const people = (n: number, locale: 'en' | 'vi' = 'en'): QueuedRecipient[] => Array.from({ length: n }, (_, i) => ({ email: `p${i}@example.test`, userId: null, name: `P${i}`, locale }));
+const origin = 'https://admin.example';
+
+interface Call { url: string; body: unknown }
+function fakeResend(reply: (call: Call) => Response = call => Response.json({ data: (call.body as unknown[]).map((_, i) => ({ id: 'm' + i })) })) {
+  const calls: Call[] = [];
+  const fetcher = (async (url: string, init: RequestInit) => { const call = { url, body: JSON.parse(String(init.body)) }; calls.push(call); return reply(call); }) as unknown as typeof fetch;
+  return { calls, fetcher };
+}
+
+function env() {
+  process.env.EMAIL_LINK_SECRET = 'z'.repeat(40);
+  process.env.RESEND_API_KEY = 're_test';
+  process.env.CLOUDFLARE_EMAIL_API_TOKEN = 'cf_test';
+}
+
+test('a campaign queues once, skips suppressed addresses, sends in batches with personal unsubscribe links, and finishes', async () => {
+  env();
+  const db = d1();
+  const id = await createCampaign(db, draft);
+  await suppress(db, 'P3@example.test', 'unsubscribed', null);
+  const list = [...people(60), { email: 'vi@example.test', userId: null, name: null, locale: 'vi' as const }];
+  assert.equal(await startCampaign(db, id, draft, list, 'resend', 'Kallo <hello@news.kallo.fit>'), true);
+  assert.equal(await startCampaign(db, id, draft, list, 'resend', 'x'), false, 'a second start is refused');
+  await assert.rejects(saveDraft(db, id, draft), /already been sent/);
+
+  let campaign = (await getCampaign(db, id))!;
+  assert.equal(campaign.total, 61);
+  assert.deepEqual(campaign.counts, { queued: 60, sending: 0, sent: 0, failed: 0, skipped: 1 });
+
+  const { calls, fetcher } = fakeResend();
+  const first = await deliverBatch(db, campaign, origin, { fetcher });
+  assert.equal(first.claimed, 50);
+  const sent = calls[0].body as { to: string[]; subject: string; html: string; text: string; headers: Record<string, string> }[];
+  assert.equal(sent.length, 50);
+  assert.equal(sent[0].subject, 'Hi P0');
+  const link = sent[0].headers['List-Unsubscribe'].slice(1, -1);
+  assert.equal(sent[0].headers['List-Unsubscribe-Post'], 'List-Unsubscribe=One-Click');
+  assert.ok(sent[0].html.includes(link.replace(/&/g, '&amp;')) && sent[0].text.includes(link));
+  assert.deepEqual(verifyLinkToken(new URL(link).searchParams.get('t')), { email: 'p0@example.test', locale: 'en', campaignId: id });
+
+  campaign = (await getCampaign(db, id))!;
+  await deliverBatch(db, campaign, origin, { fetcher });
+  const viMail = (calls[1].body as { to: string[]; subject: string }[]).find(m => m.to[0] === 'vi@example.test')!;
+  assert.equal(viMail.subject, 'Chào bạn');
+  campaign = (await getCampaign(db, id))!;
+  assert.equal(campaign.status, 'sent');
+  assert.deepEqual(campaign.counts, { queued: 0, sending: 0, sent: 60, failed: 0, skipped: 1 });
+  assert.equal((await deliverBatch(db, campaign, origin, { fetcher })).claimed, 0, 'nothing is sent twice');
+  assert.equal(calls.length, 2);
+});
+
+test('throttling puts a batch back, other failures are logged once, and bounces join the suppression list', async () => {
+  env();
+  const db = d1();
+  const id = await createCampaign(db, draft);
+  await startCampaign(db, id, draft, people(3), 'cloudflare', 'Kallo <notifications@mail.kallo.fit>');
+  let mode = 'throttle';
+  const fetcher = (async (_url: string, init: RequestInit) => {
+    const to = JSON.parse(String(init.body)).to[0];
+    if (mode === 'throttle') return Response.json({ success: false, errors: [{ code: 10004, message: 'throttled' }] }, { status: 429 });
+    if (to === 'p1@example.test') return Response.json({ success: true, result: { message_id: null, permanent_bounces: [to] } });
+    if (to === 'p2@example.test') return Response.json({ success: false, errors: [{ code: 1, message: 'boom' }] }, { status: 500 });
+    return Response.json({ success: true, result: { message_id: 'ok' } });
+  }) as unknown as typeof fetch;
+
+  let result = await deliverBatch(db, (await getCampaign(db, id))!, origin, { fetcher });
+  assert.equal(result.throttled, true);
+  assert.equal((await getCampaign(db, id))!.counts.queued, 3);
+
+  mode = 'normal';
+  result = await deliverBatch(db, (await getCampaign(db, id))!, origin, { fetcher });
+  const campaign = (await getCampaign(db, id))!;
+  assert.deepEqual(campaign.counts, { queued: 0, sending: 0, sent: 1, failed: 2, skipped: 0 });
+  assert.equal(campaign.status, 'sent');
+  const later = await createCampaign(db, draft);
+  await startCampaign(db, later, draft, people(3), 'resend', 'x');
+  assert.equal((await getCampaign(db, later))!.counts.skipped, 1, 'the bounced address is skipped next time');
+});
+
+test('an unanswered claim is failed, not re-sent; unsubscribing mid-send and canceling skip the rest', async () => {
+  env();
+  const db = d1();
+  const id = await createCampaign(db, draft);
+  await startCampaign(db, id, draft, people(5), 'resend', 'x');
+  const t0 = new Date('2026-11-22T00:00:00Z');
+  assert.equal((await claimBatch(db, id, 1, t0)).length, 1);
+  await suppress(db, 'p1@example.test', 'unsubscribed', id);
+  const t1 = new Date(t0.getTime() + STALE_CLAIM_MS + 1);
+  assert.deepEqual((await claimBatch(db, id, 1, t1)).map(r => r.email), ['p2@example.test']);
+  let counts = (await getCampaign(db, id))!.counts;
+  assert.deepEqual(counts, { queued: 2, sending: 1, sent: 0, failed: 1, skipped: 1 });
+  await cancelCampaign(db, id);
+  const campaign = (await getCampaign(db, id))!;
+  counts = campaign.counts;
+  assert.equal(campaign.status, 'canceled');
+  assert.equal(counts.queued, 0);
+  assert.equal(counts.skipped, 3);
+  assert.equal((await claimBatch(db, id, 10)).length, 0, 'a canceled campaign hands out nothing');
+});

@@ -8,6 +8,9 @@ const PUBLIC_PATHS = new Set([
   "/api/auth/login",
   "/api/auth/logout",
   "/api/health",
+  // Campaign emails' unsubscribe link: opened by recipients, who have no
+  // dashboard session. The route checks its own signed token.
+  "/api/email/unsubscribe",
 ]);
 
 const READ_ONLY_POST_PATHS = new Set(["/api/analytics"]);
