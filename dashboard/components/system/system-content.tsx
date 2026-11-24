@@ -37,10 +37,12 @@ export function System({win, setWin}: {win: string; setWin: (v: string) => void}
   const avg = mean('instances'), cpu = mean('cpu_p95'), startup = mean('startup_p95_ms');
   const p95 = monitoring.data?.window_p95_ms ?? weightedPercentile(points, 'p95_ms', .95), p99 = monitoring.data?.window_p99_ms ?? weightedPercentile(points, 'p99_ms', .99);
   const pctile = monitoring.data?.window_p95_ms != null ? 'Window percentile' : 'Request-weighted percentile of interval percentiles';
+  const appP95 = monitoring.data?.window_app_p95_ms ?? weightedPercentile(points, 'app_p95_ms', .95), appP99 = monitoring.data?.window_app_p99_ms ?? weightedPercentile(points, 'app_p99_ms', .99);
   const tabs: MetricTab[] = [
     {key: 'requests', label: 'Requests', value: monitoring.data ? compact(requests) : '—', title: int(requests)},
     {key: 'errors', label: '5xx rate', value: requests ? pct(errors / requests) : '—', title: `${int(errors)} of ${int(requests)} requests returned 5xx`},
     {key: 'latency', label: 'p95 latency', value: ms(p95), title: `${pctile}. p99 ${ms(p99)}`},
+    {key: 'app', label: 'App p95', value: ms(appP95), title: `Real visitors only: no meal analysis or label scans, no uptime checks, crawlers or SEO tools. p99 ${ms(appP99)}`},
     {key: 'instances', label: 'Avg instances', value: avg == null ? '—' : decimal(avg, 2)},
     {key: 'cpu', label: 'Avg CPU p95', value: cpu == null ? '—' : pct(cpu, 0)},
     {key: 'startup', label: 'Avg startup p95', value: ms(startup)},
@@ -54,6 +56,7 @@ export function System({win, setWin}: {win: string; setWin: (v: string) => void}
       {tab === 'requests' && <LazySeriesChart {...chart} integer title="Requests and 5xx" rows={chartPoints} series={[{key: 'request_count', label: 'Requests', color: 'var(--console-data)'}, {key: 'error_count', label: '5xx', color: 'var(--console-brick)'}]} />}
       {tab === 'errors' && <LazySeriesChart {...chart} title="5xx rate" format="percent" rows={errorRows} series={[{key: 'rate', label: '5xx rate', color: 'var(--console-brick)'}]} />}
       {tab === 'latency' && <LazySeriesChart {...chart} title="HTTP latency, p95 and p99" format="duration" rows={chartPoints} series={latency} />}
+      {tab === 'app' && <LazySeriesChart {...chart} title="App latency: real visitors, no AI routes" format="duration" rows={chartPoints} series={[{key: 'app_p95_ms', label: 'p95', color: 'var(--console-data)'}, {key: 'app_p99_ms', label: 'p99', color: 'var(--console-data-2)'}, {key: 'app_p50_ms', label: 'p50', color: 'var(--console-data-2)'}]} />}
       {tab === 'instances' && <LazySeriesChart {...chart} integer step title="Instances" rows={chartPoints} series={[{key: 'instances', label: 'Instances', color: 'var(--console-data)'}]} />}
       {tab === 'cpu' && <LazySeriesChart {...chart} title="CPU and memory p95" format="percent" rows={chartPoints} series={[{key: 'cpu_p95', label: 'CPU p95', color: 'var(--console-data)'}, {key: 'memory_p95', label: 'Memory p95', color: 'var(--console-data-2)'}]} />}
       {tab === 'meals' && <PipelinePanel health={health} />}
