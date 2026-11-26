@@ -14,12 +14,12 @@ stdout as a `kallo_trace_v1` line for Cloud Logging, redacted and size-capped
 
 | Table | Rows | Kept |
 | --- | --- | --- |
-| `trace_events` | each line verbatim, keyed by request, event and part | 14 days |
-| `ingredient_decisions` | one row per ingredient verdict, derived once a request's matching and assembly stages are both stored: the port of Kallo's `analytics.v_ingredient_decisions` view | 30 days |
+| `trace_events` | each line verbatim, keyed by request, event and part | Forever |
+| `ingredient_decisions` | one row per ingredient verdict, derived once a request's matching and assembly stages are both stored: the port of Kallo's `analytics.v_ingredient_decisions` view | Forever |
 
 Lines carry no user id. A meal averaged 68 KB of trace on prod in October 2026
-(p99 136 KB), about 64 KB on disk in D1, so 5 GB holds 14 days of about 5,000
-meals a day.
+(p99 136 KB), about 64 KB on disk in D1, so the 5 GB that Workers Paid includes
+holds about 80,000 meals.
 
 ## API
 
@@ -35,7 +35,8 @@ idempotent. `at` is Kallo's emit time; one more than 15 days old or 5 minutes
 ahead is replaced by the receive time. Kallo sends fire-and-forget with a short
 timeout and never retries, so this endpoint must stay fast.
 
-A daily cron (03:41 UTC) applies retention.
+Nothing is deleted on a schedule (owner, 2026-11-27). The 14-day trace and
+30-day decision reaper was removed; it is in git history if it comes back.
 
 ## Deploy
 
