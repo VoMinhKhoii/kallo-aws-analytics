@@ -1,12 +1,12 @@
 "use client";
 
-import dynamic from "next/dynamic";
+import { preloaded } from "@/components/charts/preloaded";
 import { ChartSkeleton } from "@/components/shared/chart-skeleton";
 import { PageSkeleton } from "@/components/shared/page-skeleton";
 import * as React from "react";
-const CostLatency = dynamic(() => import("@/components/ai-usage/cost-latency").then(m => m.CostLatency), {ssr: false, loading: () => <ChartSkeleton height={234} />});
-const AiTrend = dynamic(() => import("@/components/ai-usage/trends").then(m => m.AiTrend), {ssr: false, loading: () => <ChartSkeleton height={340} />});
-const ModelTable = dynamic(() => import("@/components/ai-usage/model-table").then(m => m.ModelTable), {ssr: false, loading: () => <ChartSkeleton height={160} />});
+const CostLatency = preloaded(() => import("@/components/ai-usage/cost-latency").then(m => m.CostLatency), () => <ChartSkeleton height={234} />);
+const AiTrend = preloaded(() => import("@/components/ai-usage/trends").then(m => m.AiTrend), () => <ChartSkeleton height={340} />);
+const ModelTable = preloaded(() => import("@/components/ai-usage/model-table").then(m => m.ModelTable), () => <ChartSkeleton height={160} />);
 import { MetricSection } from "@/components/shared/metric-section";
 import { PageHeader } from "@/components/shared/page-header";
 import type { AiMealsDailyRow, AiMealsRow, AiModelUsageRow, AiUsageDailyRow } from "@/app/lib/types";

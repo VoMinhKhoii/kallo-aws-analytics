@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { CaretRight } from '@phosphor-icons/react/ssr';
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api-fetch';
+import { fetchPrefetched } from '@/lib/prefetch';
 import { int, ms, usd } from '@/lib/ai-usage/format';
 import { modelLabel } from '@/lib/traces-ui/graph';
 import type { TraceList, TraceSummary } from '@/lib/traces/types';
@@ -16,6 +17,8 @@ function ago(iso: string) {
   return min < 1 ? 'just now' : min < 60 ? `${Math.floor(min)} min ago` : `${Math.floor(min / 60)} h ago`;
 }
 
+export const LATEST_MEALS_URL = '/api/traces?w=7d&limit=8';
+
 /** The newest meal analyses as people typed them, each opening its trace. */
 export function LatestMeals({ version }: { version: number }) {
   const [rows, setRows] = useState<TraceSummary[] | null>(null);
@@ -23,13 +26,13 @@ export function LatestMeals({ version }: { version: number }) {
   const [retry, setRetry] = useState(0);
   useEffect(() => {
     let active = true; setError(null);
-    apiFetch(`/api/traces?w=7d&limit=8${version || retry ? '&refresh=1' : ''}`, { cache: 'no-store' })
+    (version || retry ? apiFetch(`${LATEST_MEALS_URL}&refresh=1`, { cache: 'no-store' }) : fetchPrefetched(LATEST_MEALS_URL, { cache: 'no-store' }))
       .then(async r => { const body = await r.json(); if (r.status === 403) throw new Error('Meal traces need founder access.'); if (!r.ok) throw new Error(body.error ?? 'Meal traces could not be loaded.'); return body as TraceList; })
       .then(body => { if (active) setRows(body.rows); })
       .catch(e => { if (active) setError(e instanceof Error ? e.message : 'Meal traces could not be loaded.'); });
     return () => { active = false; };
   }, [version, retry]);
-  return <MetricSection title="Latest meals" action={<Link href="/traces?w=7d" className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground hover:text-foreground">All traces<CaretRight aria-hidden="true" className="size-3" /></Link>} error={error} retry={() => setRetry(n => n + 1)} empty={rows?.length === 0}>
+  return <MetricSection title="Latest meals" action={<Link prefetch={false} href="/traces?w=7d" className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground hover:text-foreground">All traces<CaretRight aria-hidden="true" className="size-3" /></Link>} error={error} retry={() => setRetry(n => n + 1)} empty={rows?.length === 0}>
     {rows == null
       ? <div role="status" aria-label="Loading latest meals">{Array.from({ length: 8 }, (_, i) => <div key={i} className="h-10 animate-pulse border-b border-border" />)}</div>
       : <div role="table" aria-label="Latest meals" className="text-sm">
@@ -43,7 +46,7 @@ export function LatestMeals({ version }: { version: number }) {
         </div>
         {rows.map(r => {
           const model = [r.modelCall1, r.modelCall2].filter((x, i, a) => x && a.indexOf(x) === i).map(m => modelLabel(m!)).join(' → ') || r.models.map(modelLabel).join(', ') || '—';
-          return <Link key={r.id} role="row" href={`/traces/${r.id}?w=7d`} className={`${COLS} h-10 border-b border-border transition-colors hover:bg-secondary focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--console-accent)]`}>
+          return <Link prefetch={false} key={r.id} role="row" href={`/traces/${r.id}?w=7d`} className={`${COLS} h-10 border-b border-border transition-colors hover:bg-secondary focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--console-accent)]`}>
             <span role="cell" className="flex min-w-0 items-center gap-2"><StatusDot status={r.status} /><span title={r.rawInput} className="truncate">{r.rawInput || r.mealName || 'Untitled meal'}</span>{(r.errorCode || r.error) && <span className="shrink-0 text-xs text-[var(--console-brick)]">{r.errorCode ?? r.error}</span>}</span>
             <span role="cell" title={model} className="hidden truncate text-muted-foreground md:block">{model}</span>
             <span role="cell" className="tabular text-right">{ms(r.durationMs)}</span>

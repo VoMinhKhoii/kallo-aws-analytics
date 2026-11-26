@@ -6,6 +6,12 @@
 
 export const SESSION_COOKIE_NAME = "kallo_session";
 export const SESSION_TTL_SECONDS = 8 * 60 * 60;
+/**
+ * `role.exp` of the verified session, readable by the page so it knows the role
+ * without a /api/auth/session round trip. A hint only: every API route still
+ * authorizes the HttpOnly session cookie.
+ */
+export const ROLE_HINT_COOKIE = "kallo_role";
 export const MIN_PASSWORD_CHARS = 12;
 export const MIN_SESSION_SECRET_CHARS = 32;
 

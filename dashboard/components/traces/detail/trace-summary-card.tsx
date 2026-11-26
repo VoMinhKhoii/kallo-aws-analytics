@@ -34,7 +34,7 @@ function RecentTraces({ id, win }: { id: string; win: string }) {
         const on = r.id === id;
         return <tr key={r.id} onClick={() => router.push(`/traces/${r.id}?w=${win}`)} className={`cursor-pointer border-b border-border last:border-b-0 hover:bg-secondary ${on ? 'bg-secondary' : ''}`}>
           <td className="py-2.5 pl-4"><span aria-hidden="true" className={`grid size-3.5 place-items-center rounded-full border ${on ? 'border-[var(--console-accent)]' : 'border-[var(--console-rule-strong)]'}`}>{on && <span className="size-1.5 rounded-full bg-[var(--console-accent)]" />}</span></td>
-          <td className="max-w-[280px] py-2.5 pr-4"><Link href={`/traces/${r.id}?w=${win}`} aria-current={on ? 'page' : undefined} className="block truncate" title={r.rawInput}>{r.rawInput || r.mealName || 'Untitled meal'}</Link><span className="block text-xs text-[var(--console-faint)]">{r.id.slice(0, 8)}</span></td>
+          <td className="max-w-[280px] py-2.5 pr-4"><Link prefetch={false} href={`/traces/${r.id}?w=${win}`} aria-current={on ? 'page' : undefined} className="block truncate" title={r.rawInput}>{r.rawInput || r.mealName || 'Untitled meal'}</Link><span className="block text-xs text-[var(--console-faint)]">{r.id.slice(0, 8)}</span></td>
           <td className="max-w-[200px] truncate py-2.5 pr-4 text-muted-foreground">{summaryModels(r) || '—'}</td>
           <td className="py-2.5 pr-4"><StatusBadge status={r.status} /></td>
           <td className="tabular py-2.5 pr-4 text-right">{int(r.calls)}</td>
@@ -73,8 +73,8 @@ export function TraceSummaryCard({ trace: t, win, openItem }: { trace: TraceGrap
         </div>
         <p className="flex flex-wrap gap-x-2 text-xs text-muted-foreground">
           <span>{ms(t.durationMs)}</span><span>· {[...new Set(t.calls.map(c => modelLabel(c.model)))].join(' → ') || 'No calls'}</span><span>· {usd(cost)}</span><span>· {compact(tokens)} tokens</span><span>· {plural(t.calls.length, 'attempt')}</span>
-          {t.userId && <Link className="hover:text-foreground hover:underline" href={`/traces?w=${win}&user=${t.userId}`} title={`All traces from user ${t.userId}`}>· user {t.userId.slice(0, 8)}</Link>}
-          {t.promptVersions && <span title={Object.entries(t.promptVersions).map(([n, v]) => `${n}: ${v}`).join('\n')}>· prompts {Object.entries(t.promptVersions).map(([n, v]) => <Link key={n} className="hover:text-foreground hover:underline" href={`/prompts?prompt=${encodeURIComponent(n)}`}>{n}@{v.slice(0, 8)} </Link>)}</span>}
+          {t.userId && <Link prefetch={false} className="hover:text-foreground hover:underline" href={`/traces?w=${win}&user=${t.userId}`} title={`All traces from user ${t.userId}`}>· user {t.userId.slice(0, 8)}</Link>}
+          {t.promptVersions && <span title={Object.entries(t.promptVersions).map(([n, v]) => `${n}: ${v}`).join('\n')}>· prompts {Object.entries(t.promptVersions).map(([n, v]) => <Link prefetch={false} key={n} className="hover:text-foreground hover:underline" href={`/prompts?prompt=${encodeURIComponent(n)}`}>{n}@{v.slice(0, 8)} </Link>)}</span>}
         </p>
         {(partial || after.length > 0) && <p className="text-xs text-muted-foreground mark-warn">{!terminal(t.status) && 'Live · updates every 5 s · '}{partial && `${t.completeness.stagesFound} of ${t.completeness.stagesExpected} stages recorded${t.completeness.truncated ? ' · partial capture' : ''}`}{after.length > 0 && `${partial ? ' · ' : ''}Dropped after response · ${afterResponseText(after, t)}`}</p>}
       </div>

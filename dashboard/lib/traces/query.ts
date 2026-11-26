@@ -88,7 +88,7 @@ export function listQuery(f: TraceFilters, columns: Set<string>, after?: { at: s
   SELECT r.id::text,to_char(r.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at,
     r.status,r.duration_ms,left(r.raw_input,384) AS raw_input,
     coalesce(r.meal_name,left(r.raw_input,160)) AS meal_name,r.model_profile,
-    coalesce(r.models,r.attempt_models,ARRAY[]::text[]) AS models,
+    to_json(coalesce(r.models,r.attempt_models,ARRAY[]::text[])) AS models,
     coalesce(r.calories_kcal,(a.result #>> '{boundedNutrition,caloriesKcal,mid}')::numeric,(a.result #>> '{boundedNutrition,kcal,mid}')::numeric,(a.result #>> '{displayedNutrition,caloriesKcal}')::numeric) AS calories_kcal,
     coalesce(r.protein_g,(a.result #>> '{displayedNutrition,proteinG}')::numeric) AS protein_g,
     coalesce(r.carbohydrate_g,(a.result #>> '{displayedNutrition,carbohydrateG}')::numeric) AS carbohydrate_g,
