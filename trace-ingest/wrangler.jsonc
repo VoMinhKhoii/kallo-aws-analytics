@@ -17,6 +17,7 @@
       "migrations_dir": "migrations"
     }
   ],
-  // Retention (src/retention.ts), daily at 03:41 UTC.
-  "triggers": { "crons": ["41 3 * * *"] }
+  // No retention for now (owner, 2026-11-27): rows are kept until deleted by
+  // hand. An empty list removes the old daily cron on deploy.
+  "triggers": { "crons": [] }
 }

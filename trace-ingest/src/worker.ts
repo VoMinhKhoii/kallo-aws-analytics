@@ -3,7 +3,6 @@
 // answers fast, never retries, and drops what it cannot parse.
 import { deriveDecisions, type DecisionRow, type StoredPart } from './decisions';
 import { MAX_BODY_BYTES, parseBatch, type TraceEvent } from './events';
-import { reap } from './retention';
 
 export interface Env {
   TRACES: D1Database;
@@ -130,10 +129,5 @@ export default {
       console.error('[trace-ingest] write failed', e instanceof Error ? e.message : String(e));
       return json({ error: 'Write failed.' }, 503);
     }
-  },
-
-  async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
-    const result = await reap(env.TRACES, Date.now());
-    console.log('[trace-ingest] retention', JSON.stringify(result));
   },
 } satisfies ExportedHandler<Env>;
